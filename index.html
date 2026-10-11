@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="fa" dir="rtl">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="color-scheme" content="light dark" />
+    <meta name="description" content="سامانه مدیریت پرونده و فرم‌های املاک — CRM سبک" />
+    <title>سامانه املاک | CRM</title>
+    <script>
+      /* اعمال تم پیش از رندر تا پرش رنگ نداشته باشیم */
+      (function () {
+        try {
+          var s = JSON.parse(localStorage.getItem('crm.theme.v1') || '{}');
+          var mode = s.mode || 'system';
+          var dark =
+            mode === 'dark' ||
+            (mode === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+          var el = document.documentElement;
+          el.classList.toggle('dark', dark);
+          el.dataset.accent = s.accent || 'green';
+          el.dataset.radius = s.radius || 'md';
+        } catch (e) {}
+      })();
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

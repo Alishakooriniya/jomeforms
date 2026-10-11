@@ -1,0 +1,137 @@
+/* برچسب‌های فارسی و رنگ وضعیت‌ها — یک‌جا، تا در همه صفحه‌ها یکسان بمانند. */
+
+import type {
+  AuditEntity,
+  ClientStatus,
+  CompanyKind,
+  DealKind,
+  DocStatus,
+  FieldType,
+  PartyRole,
+  PropertyKind,
+  RoleId,
+  TemplateCategory,
+} from '../types';
+
+export type Tone = 'brand' | 'success' | 'warn' | 'danger' | 'info' | 'neutral';
+
+export const ROLE_LABELS: Record<RoleId, string> = {
+  superadmin: 'مدیر ارشد',
+  admin: 'مدیر',
+};
+
+export const CLIENT_STATUS_LABELS: Record<ClientStatus, string> = {
+  new: 'جدید',
+  in_progress: 'در جریان',
+  awaiting_docs: 'در انتظار مدارک',
+  done: 'تکمیل‌شده',
+  archived: 'بایگانی',
+};
+
+export const CLIENT_STATUS_TONE: Record<ClientStatus, Tone> = {
+  new: 'info',
+  in_progress: 'brand',
+  awaiting_docs: 'warn',
+  done: 'success',
+  archived: 'neutral',
+};
+
+export const DOC_STATUS_LABELS: Record<DocStatus, string> = {
+  draft: 'پیش‌نویس',
+  awaiting_signature: 'در انتظار امضا',
+  signed: 'امضاشده',
+  scanned: 'اسکن‌شده',
+  archived: 'بایگانی',
+};
+
+export const DOC_STATUS_TONE: Record<DocStatus, Tone> = {
+  draft: 'neutral',
+  awaiting_signature: 'warn',
+  signed: 'info',
+  scanned: 'success',
+  archived: 'neutral',
+};
+
+export const COMPANY_KIND_LABELS: Record<CompanyKind, string> = {
+  owner: 'مالک زمین',
+  developer: 'سازنده',
+  cooperative: 'تعاونی',
+  investor: 'سرمایه‌گذار',
+  org: 'سازمان / نهاد',
+  other: 'سایر',
+};
+
+export const DEAL_KIND_LABELS: Record<DealKind, string> = {
+  sale: 'خرید و فروش',
+  rent: 'اجاره',
+  mortgage: 'رهن کامل',
+  presale: 'پیش‌فروش',
+  partnership: 'مشارکت در ساخت',
+};
+
+export const PROPERTY_KIND_LABELS: Record<PropertyKind, string> = {
+  apartment: 'آپارتمان',
+  house: 'خانه ویلایی',
+  villa: 'ویلا',
+  land: 'زمین',
+  office: 'دفتر کار',
+  store: 'مغازه',
+  warehouse: 'انبار',
+};
+
+export const PARTY_ROLE_LABELS: Record<PartyRole, string> = {
+  buyer: 'خریدار',
+  seller: 'فروشنده',
+  tenant: 'مستأجر',
+  landlord: 'موجر',
+  consultant: 'مشاور',
+};
+
+export const TEMPLATE_CATEGORY_LABELS: Record<TemplateCategory, string> = {
+  sale: 'خرید و فروش',
+  rent: 'اجاره',
+  mortgage: 'رهن',
+  presale: 'پیش‌فروش',
+  commission: 'کمیسیون',
+  visit: 'بازدید',
+  other: 'سایر',
+};
+
+export const FIELD_TYPE_LABELS: Record<FieldType, string> = {
+  text: 'متن',
+  textarea: 'متن بلند',
+  number: 'عدد',
+  currency: 'مبلغ (تومان)',
+  percent: 'درصد',
+  date: 'تاریخ',
+  select: 'انتخابی',
+  checkbox: 'بله/خیر',
+  nationalId: 'کد ملی',
+  mobile: 'شماره موبایل',
+};
+
+export const AUDIT_ENTITY_LABELS: Record<AuditEntity, string> = {
+  auth: 'ورود و خروج',
+  client: 'پرونده',
+  document: 'سند',
+  template: 'قالب فرم',
+  user: 'کاربر',
+  role: 'نقش',
+  company: 'مجموعه',
+  settings: 'تنظیمات',
+  scan: 'اسکن',
+};
+
+/** گزینه‌های پرکاربرد برای فیلترها */
+export function toOptions<T extends string>(labels: Record<T, string>): Array<{ value: T; label: string }> {
+  return (Object.keys(labels) as T[]).map((value) => ({ value, label: labels[value] }));
+}
+
+export const COMPANY_KIND_OPTIONS = toOptions(COMPANY_KIND_LABELS);
+export const CLIENT_STATUS_OPTIONS = toOptions(CLIENT_STATUS_LABELS);
+export const DOC_STATUS_OPTIONS = toOptions(DOC_STATUS_LABELS);
+export const DEAL_KIND_OPTIONS = toOptions(DEAL_KIND_LABELS);
+export const PROPERTY_KIND_OPTIONS = toOptions(PROPERTY_KIND_LABELS);
+export const PARTY_ROLE_OPTIONS = toOptions(PARTY_ROLE_LABELS);
+export const TEMPLATE_CATEGORY_OPTIONS = toOptions(TEMPLATE_CATEGORY_LABELS);
+export const FIELD_TYPE_OPTIONS = toOptions(FIELD_TYPE_LABELS);

@@ -1,0 +1,363 @@
+@import 'tailwindcss';
+
+/* تم کلاس‌محور (به‌جای prefers-color-scheme) تا کاربر بتواند دستی انتخاب کند */
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* ---------------------------------------------------------------
+   توکن‌ها
+   رنگ‌ها و شعاع گوشه‌ها به‌صورت CSS Variable تعریف شده‌اند تا
+   در زمان اجرا (تنظیمات → پوسته) قابل تغییر باشند.
+
+   پالت: «سبز روی خاکستری»
+   • برند  →  یک خانواده سبز (قابل تغییر از تنظیمات)
+   • سطوح  →  خاکستریِ کاملاً خنثی (بدون تهرنگ سبز) و در حالت تاریک
+              خاکستریِ گرم‌نشدهٔ نزدیک به مشکی
+   • رنگ‌های وضعیت (موفق/هشدار/خطا) معنایی‌اند؛ «info» خاکستریِ
+     تیره است تا با پالت هم‌خوان بماند.
+---------------------------------------------------------------- */
+:root {
+  --brand-50: #f1faf5;
+  --brand-100: #dcf3e6;
+  --brand-200: #bbe7d1;
+  --brand-300: #8ad4b3;
+  --brand-400: #55bb91;
+  --brand-500: #33a074;
+  --brand-600: #24815d;
+  --brand-700: #1f674c;
+  --brand-800: #1d523e;
+  --brand-900: #193f32;
+  --brand-950: #0b241c;
+
+  --bg: #f5f5f5;
+  --bg-soft: #ebebeb;
+  --card: #ffffff;
+  --card-2: #f7f7f7;
+  --border: #e5e5e5;
+  --border-strong: #d1d1d1;
+  --fg: #171717;
+  --fg-muted: #565656;
+  --fg-subtle: #878787;
+
+  --c-success: #1f9d6b;
+  --c-success-soft: #e5f7ef;
+  --c-success-fg: #0f6b47;
+  --c-warn: #b7791f;
+  --c-warn-soft: #fdf4e3;
+  --c-warn-fg: #8a5a12;
+  --c-danger: #d64545;
+  --c-danger-soft: #fdeaea;
+  --c-danger-fg: #a52a2a;
+  --c-info: #6b6b70;
+  --c-info-soft: #ededef;
+  --c-info-fg: #3f3f46;
+
+  --ui-radius: 0.75rem;
+  --shadow-soft: 0 1px 2px rgb(0 0 0 / 0.04), 0 8px 24px -12px rgb(0 0 0 / 0.14);
+}
+
+/* سبز روشن و پررنگ */
+html[data-accent='emerald'] {
+  --brand-50: #ecfdf5;
+  --brand-100: #d1fae5;
+  --brand-200: #a7f3d0;
+  --brand-300: #6ee7b7;
+  --brand-400: #34d399;
+  --brand-500: #10b981;
+  --brand-600: #059669;
+  --brand-700: #047857;
+  --brand-800: #065f46;
+  --brand-900: #064e3b;
+  --brand-950: #022c22;
+}
+
+/* سبز خنک و آرام */
+html[data-accent='mint'] {
+  --brand-50: #f0fdf8;
+  --brand-100: #d6f8ea;
+  --brand-200: #aeeee0;
+  --brand-300: #79ddcb;
+  --brand-400: #45c4b1;
+  --brand-500: #22a892;
+  --brand-600: #168774;
+  --brand-700: #146c5e;
+  --brand-800: #14554c;
+  --brand-900: #13463f;
+  --brand-950: #052722;
+}
+
+/* سبز تیره و کم‌جوان (خاکستری‌سبز) */
+html[data-accent='forest'] {
+  --brand-50: #f4f7f4;
+  --brand-100: #e3eae3;
+  --brand-200: #c6d4c7;
+  --brand-300: #a0b7a3;
+  --brand-400: #779a7b;
+  --brand-500: #527a56;
+  --brand-600: #3f6142;
+  --brand-700: #344e37;
+  --brand-800: #2b3f2e;
+  --brand-900: #243427;
+  --brand-950: #131d15;
+}
+
+html[data-radius='sm'] {
+  --ui-radius: 0.5rem;
+}
+html[data-radius='lg'] {
+  --ui-radius: 1rem;
+}
+
+.dark {
+  --bg: #0d0d0d;
+  --bg-soft: #141414;
+  --card: #181818;
+  --card-2: #212121;
+  --border: #2b2b2b;
+  --border-strong: #404040;
+  --fg: #ededed;
+  --fg-muted: #a3a3a3;
+  --fg-subtle: #777777;
+
+  --c-success: #3ecf8e;
+  --c-success-soft: rgb(62 207 142 / 0.13);
+  --c-success-fg: #86efbc;
+  --c-warn: #e3a44a;
+  --c-warn-soft: rgb(227 164 74 / 0.13);
+  --c-warn-fg: #f3cd8b;
+  --c-danger: #f0716e;
+  --c-danger-soft: rgb(240 113 110 / 0.13);
+  --c-danger-fg: #f7a9a7;
+  --c-info: #9a9aa2;
+  --c-info-soft: rgb(255 255 255 / 0.08);
+  --c-info-fg: #cccccf;
+
+  --shadow-soft: 0 1px 2px rgb(0 0 0 / 0.4), 0 10px 28px -16px rgb(0 0 0 / 0.7);
+}
+
+/* نگاشت توکن‌ها به ابزارهای Tailwind (inline = مقدارها در runtime خوانده می‌شوند) */
+@theme inline {
+  --color-brand-50: var(--brand-50);
+  --color-brand-100: var(--brand-100);
+  --color-brand-200: var(--brand-200);
+  --color-brand-300: var(--brand-300);
+  --color-brand-400: var(--brand-400);
+  --color-brand-500: var(--brand-500);
+  --color-brand-600: var(--brand-600);
+  --color-brand-700: var(--brand-700);
+  --color-brand-800: var(--brand-800);
+  --color-brand-900: var(--brand-900);
+  --color-brand-950: var(--brand-950);
+
+  --color-bg: var(--bg);
+  --color-bg-soft: var(--bg-soft);
+  --color-card: var(--card);
+  --color-card-2: var(--card-2);
+  --color-line: var(--border);
+  --color-line-strong: var(--border-strong);
+  --color-fg: var(--fg);
+  --color-fg-muted: var(--fg-muted);
+  --color-fg-subtle: var(--fg-subtle);
+
+  --color-success: var(--c-success);
+  --color-success-soft: var(--c-success-soft);
+  --color-success-fg: var(--c-success-fg);
+  --color-warn: var(--c-warn);
+  --color-warn-soft: var(--c-warn-soft);
+  --color-warn-fg: var(--c-warn-fg);
+  --color-danger: var(--c-danger);
+  --color-danger-soft: var(--c-danger-soft);
+  --color-danger-fg: var(--c-danger-fg);
+  --color-info: var(--c-info);
+  --color-info-soft: var(--c-info-soft);
+  --color-info-fg: var(--c-info-fg);
+
+  --radius-card: calc(var(--ui-radius) * 1.15);
+  --radius-field: calc(var(--ui-radius) * 0.8);
+  --radius-btn: calc(var(--ui-radius) * 0.8);
+
+  --shadow-soft: var(--shadow-soft);
+
+  --font-sans:
+    Vazirmatn, IRANSansX, IRANSans, 'Segoe UI', Tahoma, Arial, system-ui, sans-serif;
+
+  --animate-fade-in: fade-in 0.18s ease-out both;
+  --animate-rise: rise 0.22s ease-out both;
+  --animate-pop: pop 0.16s ease-out both;
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+}
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+@keyframes pop {
+  from {
+    opacity: 0;
+    transform: scale(0.97);
+  }
+}
+@keyframes shimmer {
+  100% {
+    transform: translateX(-100%);
+  }
+}
+
+@layer base {
+  html {
+    color-scheme: light;
+  }
+  html.dark {
+    color-scheme: dark;
+  }
+  body {
+    @apply bg-bg text-fg font-sans antialiased;
+    font-size: 14px;
+  }
+  /* اعداد فارسی گاهی در فرم‌ها/جداول باید لاتین بمانند */
+  .num {
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: 'ss02';
+  }
+  :focus-visible {
+    outline: 2px solid var(--brand-500);
+    outline-offset: 2px;
+  }
+  ::selection {
+    background: var(--brand-200);
+    color: var(--brand-950);
+  }
+  /* اسکرول‌بار سبک */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: var(--border-strong) transparent;
+  }
+  ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: var(--border-strong);
+    border-radius: 999px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  input[type='date']::-webkit-calendar-picker-indicator {
+    cursor: pointer;
+    opacity: 0.5;
+  }
+  .dark input[type='date']::-webkit-calendar-picker-indicator {
+    filter: invert(1);
+    opacity: 0.6;
+  }
+}
+
+@layer components {
+  /* --- دکمه‌ها --- */
+  .btn {
+    @apply inline-flex select-none items-center justify-center gap-2 whitespace-nowrap font-medium transition-colors;
+    border-radius: var(--radius-btn);
+  }
+  .btn:disabled {
+    @apply pointer-events-none opacity-50;
+  }
+  .btn-sm {
+    @apply h-8 px-3 text-xs;
+  }
+  .btn-md {
+    @apply h-9 px-4 text-[13px];
+  }
+  .btn-lg {
+    @apply h-11 px-5 text-sm;
+  }
+  .btn-icon {
+    @apply h-9 w-9 px-0;
+  }
+  .btn-primary {
+    @apply bg-brand-600 text-white hover:bg-brand-700 active:bg-brand-800;
+  }
+  .btn-secondary {
+    @apply border border-line bg-card text-fg hover:bg-card-2 hover:border-line-strong;
+  }
+  .btn-ghost {
+    @apply text-fg-muted hover:bg-card-2 hover:text-fg;
+  }
+  .btn-soft {
+    @apply bg-brand-50 text-brand-700 hover:bg-brand-100 dark:bg-brand-500/12 dark:text-brand-300 dark:hover:bg-brand-500/20;
+  }
+  .btn-danger {
+    @apply bg-danger-soft text-danger-fg hover:brightness-95 dark:hover:brightness-125;
+  }
+
+  /* --- کارت --- */
+  .card {
+    @apply bg-card border border-line shadow-soft;
+    border-radius: var(--radius-card);
+  }
+
+  /* --- فرم --- */
+  .field {
+    @apply w-full border border-line bg-card text-fg placeholder:text-fg-subtle;
+    border-radius: var(--radius-field);
+    @apply px-3 py-2 text-[13px] transition-colors;
+  }
+  .field:hover:not(:disabled) {
+    @apply border-line-strong;
+  }
+  .field:disabled {
+    @apply bg-card-2 text-fg-muted;
+  }
+  .field-invalid {
+    @apply border-danger;
+  }
+
+  /* --- جدول --- */
+  .th {
+    @apply whitespace-nowrap px-3 py-2.5 text-start text-xs font-semibold text-fg-muted;
+  }
+  .td {
+    @apply px-3 py-2.5 align-middle text-[13px] text-fg;
+  }
+
+  .chip {
+    @apply inline-flex items-center gap-1 rounded-full border border-line bg-card-2 px-2.5 py-1 text-xs text-fg-muted;
+  }
+
+  .skeleton {
+    @apply relative overflow-hidden rounded-md bg-card-2;
+  }
+  .skeleton::after {
+    content: '';
+    @apply absolute inset-0;
+    background: linear-gradient(90deg, transparent, rgb(255 255 255 / 0.25), transparent);
+    transform: translateX(100%);
+    animation: shimmer 1.4s infinite;
+  }
+  .dark .skeleton::after {
+    background: linear-gradient(90deg, transparent, rgb(255 255 255 / 0.06), transparent);
+  }
+
+  .link {
+    @apply text-brand-600 underline-offset-4 hover:underline dark:text-brand-400;
+  }
+}
+
+@utility no-scrollbar {
+  scrollbar-width: none;
+  &::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.001ms !important;
+    transition-duration: 0.001ms !important;
+  }
+}
