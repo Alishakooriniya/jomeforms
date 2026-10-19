@@ -20,7 +20,7 @@ export const THEME_MODES: Array<ThemeOption<ThemeMode> & { icon: IconName }> = [
 ];
 
 export const THEME_ACCENTS: Array<ThemeOption<ThemeAccent> & { hint: string; color: string }> = [
-  { value: 'green', label: 'سبز (پیش‌فرض)', hint: 'سبز متعادل', color: '#33a074' },
+  { value: 'green', label: 'سبز (پیش‌فرض)', hint: 'سبز جومه', color: '#176b43' },
   { value: 'emerald', label: 'زمردی', hint: 'سبز روشن و پرشور', color: '#10b981' },
   { value: 'mint', label: 'نعنایی', hint: 'سبز خنک و آرام', color: '#22a892' },
   { value: 'forest', label: 'جنگلی', hint: 'سبز تیره و کم‌جوان', color: '#527a56' },

@@ -29,12 +29,14 @@ export const PERMISSION_GROUPS: PermissionGroup[] = [
   {
     id: 'clients',
     label: 'پرونده‌ها',
-    description: 'اطلاعات مشتریان و ملک',
+    description: 'ثبت پرونده‌ها، مدیریت مراحل و بارگذاری مدارک',
     icon: 'users',
     perms: [
       { key: 'clients.view', label: 'مشاهده پرونده‌ها' },
       { key: 'clients.create', label: 'ایجاد پرونده' },
       { key: 'clients.edit', label: 'ویرایش پرونده' },
+      { key: 'clients.workflow.advance', label: 'ثبت پیشرفت مراحل پرونده' },
+      { key: 'clients.workflow.override', label: 'عبور مدیریتی از شرط مرحله' },
       { key: 'clients.delete', label: 'حذف پرونده' },
       { key: 'clients.export', label: 'خروجی گرفتن از پرونده‌ها' },
     ],
@@ -173,6 +175,7 @@ export const PRESET_ROLES: PermissionRole[] = [
       'clients.view',
       'clients.create',
       'clients.edit',
+      'clients.workflow.advance',
       'documents.view',
       'documents.create',
       'documents.edit',

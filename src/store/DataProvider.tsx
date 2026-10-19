@@ -17,6 +17,7 @@ import type {
   PermissionRole,
   ScanFile,
   User,
+  WorkflowEvidence,
 } from '../types';
 import { emptyAndSave, loadDb, resetDb, saveDb } from './db';
 import { hashPassword, suggestPassword } from '../lib/crypto';
@@ -24,6 +25,7 @@ import { jalaliYear, nowISO, sequenceNumber } from '../lib/format';
 import { autofillValues } from '../lib/template';
 import { deleteBlob, putBlob } from '../lib/idb';
 import { compressImage, uid } from '../lib/utils';
+import { createClientWorkflow } from '../lib/caseWorkflow';
 
 /* ------------------------------ ورودی‌ها ------------------------------ */
 
@@ -60,6 +62,9 @@ export interface ActionResult {
 export interface DataActions {
   saveClient: (input: ClientDraft, id?: string) => Client;
   deleteClient: (id: string) => void;
+  addWorkflowEvidence: (clientId: string, stepId: string, file: File) => Promise<WorkflowEvidence | null>;
+  completeWorkflowStep: (clientId: string, stepId: string) => ActionResult;
+  overrideWorkflowStep: (clientId: string, stepId: string, reason: string) => ActionResult;
   createDocument: (input: DocumentDraft) => DocRecord;
   updateDocument: (id: string, patch: Partial<DocRecord>, logAction?: string) => void;
   setDocumentStatus: (id: string, status: DocStatus) => void;
@@ -157,6 +162,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
         templates: [...prev.templates],
         roles: [...prev.roles],
         scans: [...prev.scans],
+        workflowEvidence: [...prev.workflowEvidence],
         audit: [...prev.audit],
         settings: prev.settings,
       };
@@ -206,6 +212,8 @@ export function DataProvider({ children }: { children: ReactNode }) {
           );
         const created: Client = {
           ...input,
+          caseType: input.caseType ?? 'document_request',
+          workflow: input.workflow ?? createClientWorkflow(input.caseType ?? 'document_request'),
           id: uid('cl-'),
           code,
           createdAt: now,
@@ -226,8 +234,12 @@ export function DataProvider({ children }: { children: ReactNode }) {
 
       deleteClient(id) {
         const target = dbRef.current.clients.find((item) => item.id === id);
+        dbRef.current.workflowEvidence
+          .filter((item) => item.clientId === id)
+          .forEach((item) => void deleteBlob(item.blobKey));
         commit((draft) => {
           draft.clients = draft.clients.filter((item) => item.id !== id);
+          draft.workflowEvidence = draft.workflowEvidence.filter((item) => item.clientId !== id);
           pushAudit(draft, {
             action: 'حذف پرونده',
             entity: 'client',
@@ -235,6 +247,128 @@ export function DataProvider({ children }: { children: ReactNode }) {
             entityLabel: target?.fullName,
           });
         });
+      },
+
+      async addWorkflowEvidence(clientId, stepId, file) {
+        const client = dbRef.current.clients.find((item) => item.id === clientId);
+        if (!client) return null;
+        const workflow = client.workflow ?? createClientWorkflow(client.caseType ?? 'document_request');
+        const step = workflow.find((item) => item.id === stepId);
+        if (!step || step.status === 'completed') return null;
+        const stepIndex = workflow.findIndex((item) => item.id === stepId);
+        if (stepIndex > 0 && workflow[stepIndex - 1].status !== 'completed') return null;
+        const blobKey = `case-evidence://${uid()}`;
+        await putBlob(blobKey, file);
+        const evidence: WorkflowEvidence = {
+          id: uid('evidence-'),
+          clientId,
+          stepId,
+          name: file.name,
+          mime: file.type || 'application/octet-stream',
+          size: file.size,
+          blobKey,
+          uploadedAt: nowISO(),
+          uploadedBy: currentActor.name,
+        };
+        commit((draft) => {
+          draft.workflowEvidence = [evidence, ...draft.workflowEvidence];
+          const index = draft.clients.findIndex((item) => item.id === clientId);
+          if (index > -1) {
+            const current = draft.clients[index];
+            const currentWorkflow = current.workflow ?? createClientWorkflow(current.caseType ?? 'document_request');
+            draft.clients[index] = {
+              ...current,
+              workflow: currentWorkflow.map((item) =>
+                item.id === stepId ? { ...item, evidenceIds: [...item.evidenceIds, evidence.id] } : item,
+              ),
+            };
+          }
+          pushAudit(draft, {
+            action: 'بارگذاری مدرک مرحله پرونده',
+            entity: 'client',
+            entityId: clientId,
+            entityLabel: client.fullName,
+            detail: `${step.title} — ${file.name}`,
+          });
+        });
+        return evidence;
+      },
+
+      completeWorkflowStep(clientId, stepId) {
+        const client = dbRef.current.clients.find((item) => item.id === clientId);
+        if (!client) return { ok: false, error: 'پرونده یافت نشد.' };
+        const workflow = client.workflow ?? createClientWorkflow(client.caseType ?? 'document_request');
+        const index = workflow.findIndex((item) => item.id === stepId);
+        if (index < 0) return { ok: false, error: 'مرحله پرونده یافت نشد.' };
+        const step = workflow[index];
+        if (step.status === 'completed') return { ok: false, error: 'این مرحله قبلاً تکمیل شده است.' };
+        if (index > 0 && workflow[index - 1].status !== 'completed') {
+          return { ok: false, error: 'ابتدا مرحله قبلی را تکمیل کنید.' };
+        }
+        if (step.requiresEvidence && !step.evidenceIds.length) {
+          return { ok: false, error: 'برای ادامه، ابتدا مدرک یا رسید این مرحله را بارگذاری کنید.' };
+        }
+        const completedAt = nowISO();
+        commit((draft) => {
+          const current = draft.clients.find((item) => item.id === clientId);
+          if (!current) return;
+          const currentWorkflow = current.workflow ?? createClientWorkflow(current.caseType ?? 'document_request');
+          draft.clients[draft.clients.findIndex((item) => item.id === clientId)] = {
+            ...current,
+            workflow: currentWorkflow.map((item) =>
+              item.id === stepId ? { ...item, status: 'completed', completedAt, completedBy: currentActor.name } : item,
+            ),
+            status: step.kind === 'completion' ? 'done' : 'in_progress',
+            updatedAt: completedAt,
+          };
+          pushAudit(draft, {
+            action: 'تکمیل مرحله پرونده',
+            entity: 'client',
+            entityId: clientId,
+            entityLabel: client.fullName,
+            detail: step.title,
+          });
+        });
+        return { ok: true };
+      },
+
+      overrideWorkflowStep(clientId, stepId, reason) {
+        const client = dbRef.current.clients.find((item) => item.id === clientId);
+        if (!client) return { ok: false, error: 'پرونده یافت نشد.' };
+        const workflow = client.workflow ?? createClientWorkflow(client.caseType ?? 'document_request');
+        const index = workflow.findIndex((item) => item.id === stepId);
+        if (index < 0) return { ok: false, error: 'مرحله پرونده یافت نشد.' };
+        const step = workflow[index];
+        if (step.status === 'completed') return { ok: false, error: 'این مرحله قبلاً تکمیل شده است.' };
+        if (index > 0 && workflow[index - 1].status !== 'completed') {
+          return { ok: false, error: 'ابتدا مرحله قبلی را تکمیل کنید.' };
+        }
+        if (!reason.trim()) return { ok: false, error: 'دلیل عبور از شرط مرحله را وارد کنید.' };
+        const completedAt = nowISO();
+        commit((draft) => {
+          const current = draft.clients.find((item) => item.id === clientId);
+          if (!current) return;
+          const currentWorkflow = current.workflow ?? createClientWorkflow(current.caseType ?? 'document_request');
+          const clientIndex = draft.clients.findIndex((item) => item.id === clientId);
+          draft.clients[clientIndex] = {
+            ...current,
+            workflow: currentWorkflow.map((item) =>
+              item.id === stepId
+                ? { ...item, status: 'completed', completedAt, completedBy: currentActor.name, overrideReason: reason.trim() }
+                : item,
+            ),
+            status: step.kind === 'completion' ? 'done' : 'in_progress',
+            updatedAt: completedAt,
+          };
+          pushAudit(draft, {
+            action: 'مدیر عبور از شرط مرحله پرونده',
+            entity: 'client',
+            entityId: clientId,
+            entityLabel: client.fullName,
+            detail: `${step.title} — دلیل: ${reason.trim()}`,
+          });
+        });
+        return { ok: true };
       },
 
       /* -------------------------------- اسناد -------------------------------- */
@@ -744,9 +878,9 @@ export function DataProvider({ children }: { children: ReactNode }) {
       },
 
       exportBackup() {
-        const { users, companies, clients, documents, templates, roles, scans, audit, settings } = dbRef.current;
+        const { users, companies, clients, documents, templates, roles, scans, workflowEvidence, audit, settings } = dbRef.current;
         return JSON.stringify(
-          { version: 1, exportedAt: nowISO(), users, companies, clients, documents, templates, roles, scans, audit, settings },
+          { version: 1, exportedAt: nowISO(), users, companies, clients, documents, templates, roles, scans, workflowEvidence, audit, settings },
           null,
           2,
         );
@@ -766,6 +900,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
             templates: parsed.templates ?? [],
             roles: parsed.roles ?? [],
             scans: parsed.scans ?? [],
+            workflowEvidence: parsed.workflowEvidence ?? [],
             audit: parsed.audit ?? [],
             settings: { ...dbRef.current.settings, ...(parsed.settings ?? {}) },
           };

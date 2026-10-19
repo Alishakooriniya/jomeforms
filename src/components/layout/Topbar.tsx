@@ -59,7 +59,7 @@ export function Topbar({ onOpenMenu }: { onOpenMenu: () => void }) {
 
   return (
     <header className="sticky top-0 z-40 border-b border-line bg-bg/85 backdrop-blur">
-      <div className="flex h-14 items-center gap-2 px-3 sm:px-4">
+      <div className="flex h-16 items-center gap-2 px-3 sm:px-5">
         <Button
           variant="ghost"
           size="icon"
@@ -92,8 +92,8 @@ export function Topbar({ onOpenMenu }: { onOpenMenu: () => void }) {
               <span className="flex items-center gap-2 px-1">
                 <Avatar name={user.fullName} size={26} />
                 <span className="hidden text-start sm:block">
-                  <span className="block text-[12px] font-medium leading-4 text-fg">{user.fullName}</span>
-                  <span className="block text-[10px] leading-3 text-fg-subtle">{ROLE_LABELS[user.role]}</span>
+                  <span className="block text-[14px] font-medium leading-5 text-fg">{user.fullName}</span>
+                  <span className="block text-[12px] leading-4 text-fg-muted">{ROLE_LABELS[user.role]}</span>
                 </span>
                 <Icon name="chevron-down" size={13} className="text-fg-subtle" />
               </span>

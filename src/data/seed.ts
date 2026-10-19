@@ -17,6 +17,7 @@ import type {
 } from '../types';
 import { hashPassword } from '../lib/crypto';
 import { nowISO, sequenceNumber } from '../lib/format';
+import { createClientWorkflow } from '../lib/caseWorkflow';
 import { autofillValues } from '../lib/template';
 import { PRESET_ROLES } from './permissions';
 import { SEED_TEMPLATES } from './templates';
@@ -681,11 +682,16 @@ export function buildSeedDb(): DbShape {
   return {
     users: USERS,
     companies: SEED_COMPANIES,
-    clients: CLIENTS,
+    clients: CLIENTS.map((client) => ({
+      ...client,
+      caseType: 'document_request',
+      workflow: createClientWorkflow('document_request'),
+    })),
     documents,
     templates: SEED_TEMPLATES,
     roles: [...PRESET_ROLES, ...CUSTOM_ROLES],
     scans,
+    workflowEvidence: [],
     audit: AUDIT_SEED.map((entry, index) => ({
       id: `log-${index + 1}`,
       at: daysAgo(entry.ago, index % 7),

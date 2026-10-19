@@ -87,8 +87,8 @@ export function PageHeader({ title, subtitle, icon, actions, breadcrumbs, classN
             </span>
           ) : null}
           <div>
-            <h1 className="text-base font-semibold text-fg sm:text-lg">{title}</h1>
-            {subtitle ? <p className="mt-0.5 text-[12px] leading-5 text-fg-muted">{subtitle}</p> : null}
+            <h1 className="text-lg font-semibold text-fg sm:text-xl">{title}</h1>
+            {subtitle ? <p className="mt-1 text-[14px] leading-6 text-fg-muted">{subtitle}</p> : null}
           </div>
         </div>
         {actions ? <div className="flex flex-wrap items-center gap-2">{actions}</div> : null}

@@ -48,25 +48,18 @@ export default function Login() {
   return (
     <div className="grid min-h-screen bg-bg lg:grid-cols-[1.05fr_1fr]">
       {/* پنل معرفی — در موبایل پنهان */}
-      <section className="relative hidden flex-col justify-between overflow-hidden bg-brand-700 p-10 text-white lg:flex">
-        <div
-          className="pointer-events-none absolute inset-0 opacity-25"
-          style={{
-            backgroundImage:
-              'radial-gradient(circle at 20% 20%, rgba(255,255,255,.35), transparent 45%), radial-gradient(circle at 80% 70%, rgba(255,255,255,.25), transparent 40%)',
-          }}
-        />
+      <section className="hidden flex-col justify-between bg-brand-700 p-10 text-white lg:flex">
         <div className="relative">
-          <span className="inline-flex items-center gap-2 rounded-full bg-white/15 px-3 py-1.5 text-[12px]">
-            <Icon name="sparkles" size={14} />
-            سامانه مدیریت پرونده‌های املاک
+          <span dir="ltr" className="inline-flex items-center gap-2 text-lg font-bold">
+            <Icon name="building" size={21} />
+            Jome Forms
           </span>
-          <h1 className="mt-6 text-2xl font-semibold leading-10">
+          <h1 className="mt-8 text-3xl font-semibold leading-[1.7]">
             فرم‌های ملکی را یک‌بار پر کنید؛
             <br />
             بقیه کارها خودکار است.
           </h1>
-          <p className="mt-4 max-w-md text-[13px] leading-6 text-white/80">
+          <p className="mt-5 max-w-md text-base leading-8 text-white/90">
             ثبت اطلاعات مشتری، جای‌گذاری خودکار در قالب قراردادها، چاپ و خروجی PDF، و بایگانی نسخه اسکن‌شده امضاشده —
             همه در یک سامانه سبک و سریع.
           </p>
@@ -75,18 +68,18 @@ export default function Login() {
         <ul className="relative mt-10 flex flex-col gap-4">
           {FEATURES.map((feature) => (
             <li key={feature.title} className="flex items-start gap-3">
-              <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-card bg-white/15">
+              <span className="mt-0.5 flex h-11 w-11 shrink-0 items-center justify-center rounded-card border border-white/30">
                 <Icon name={feature.icon} size={17} />
               </span>
               <div>
-                <p className="text-[13px] font-medium">{feature.title}</p>
-                <p className="text-[11.5px] leading-5 text-white/70">{feature.text}</p>
+                <p className="text-[15px] font-medium">{feature.title}</p>
+                <p className="text-[13px] leading-6 text-white/85">{feature.text}</p>
               </div>
             </li>
           ))}
         </ul>
 
-        <p className="relative text-[11px] text-white/60">{settings.orgLegalName} — نسخه دمو</p>
+        <p className="relative text-[12px] text-white/75">{settings.orgLegalName} — نسخه دمو</p>
       </section>
 
       {/* فرم ورود */}
@@ -94,12 +87,12 @@ export default function Login() {
         <div className="w-full max-w-sm">
           <div className="mb-6 flex items-center justify-between">
             <div className="flex items-center gap-2.5">
-              <span className="flex h-10 w-10 items-center justify-center rounded-card bg-brand-600 text-white">
+              <span className="flex h-11 w-11 items-center justify-center rounded-card bg-brand-600 text-white">
                 <Icon name="building" size={19} bold />
               </span>
               <div>
-                <p className="text-[14px] font-semibold text-fg">{settings.orgName}</p>
-                <p className="text-[11px] text-fg-subtle">ورود به حساب کاربری</p>
+                <p dir="ltr" className="w-fit text-[17px] font-bold text-fg">Jome Forms</p>
+                <p className="text-[13px] text-fg-muted">{settings.orgName} · ورود به حساب</p>
               </div>
             </div>
             <Button
@@ -132,7 +125,7 @@ export default function Login() {
               />
 
               {error ? (
-                <p className="flex items-center gap-2 rounded-field bg-danger-soft px-3 py-2 text-[11.5px] text-danger-fg">
+                <p className="flex items-center gap-2 rounded-field bg-danger-soft px-3 py-2 text-[13px] text-danger-fg">
                   <Icon name="alert" size={14} />
                   {error}
                 </p>
@@ -146,12 +139,12 @@ export default function Login() {
             </div>
           </form>
 
-          <div className="mt-4 rounded-card border border-line bg-card-2/60 p-3">
-            <p className="mb-2 flex items-center gap-1.5 text-[11px] text-fg-muted">
-              <Icon name="info" size={13} />
+          <div className="mt-4 rounded-card border border-line bg-card-2/60 p-4">
+            <p className="mb-3 flex items-center gap-2 text-[13px] text-fg-muted">
+              <Icon name="info" size={15} />
               حساب‌های نمایشی — برای ورود سریع کلیک کنید
             </p>
-            <div className="flex flex-col gap-1.5">
+            <div className="flex flex-col gap-2">
               {DEMO_ACCOUNTS.map((account) => (
                 <button
                   key={account.username}
@@ -161,7 +154,7 @@ export default function Login() {
                     setPassword(account.password);
                     setError('');
                   }}
-                  className="flex items-center justify-between gap-2 rounded-field border border-line bg-card px-2.5 py-1.5 text-start text-[11.5px] transition-colors hover:border-brand-400 hover:bg-brand-50 dark:hover:bg-brand-500/10"
+                  className="flex min-h-11 items-center justify-between gap-3 rounded-field border border-line bg-card px-3 py-2 text-start text-[13px] transition-colors hover:border-brand-400 hover:bg-brand-50 dark:hover:bg-brand-500/10"
                 >
                   <span className="text-fg-muted">{account.label}</span>
                   <span className="num font-medium text-brand-700 dark:text-brand-300" dir="ltr">

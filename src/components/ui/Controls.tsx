@@ -12,14 +12,14 @@ export interface CheckboxProps extends Omit<InputHTMLAttributes<HTMLInputElement
 
 export function Checkbox({ label, hint, className, ...rest }: CheckboxProps) {
   return (
-    <label className="flex cursor-pointer select-none items-start gap-2.5 text-[13px] text-fg">
-      <span className="relative mt-0.5 flex h-[18px] w-[18px] shrink-0 items-center justify-center">
-        <input type="checkbox" className={cn('peer h-[18px] w-[18px] cursor-pointer appearance-none rounded-[6px] border border-line-strong bg-card transition-colors checked:border-brand-600 checked:bg-brand-600', className)} {...rest} />
+    <label className="flex cursor-pointer select-none items-start gap-3 text-[14px] text-fg">
+      <span className="relative mt-0.5 flex h-[22px] w-[22px] shrink-0 items-center justify-center">
+        <input type="checkbox" className={cn('peer h-[22px] w-[22px] cursor-pointer appearance-none rounded-[6px] border border-line-strong bg-card transition-colors checked:border-brand-600 checked:bg-brand-600', className)} {...rest} />
         <Icon name="check" size={12} bold className="pointer-events-none absolute text-white opacity-0 peer-checked:opacity-100" />
       </span>
       <span className="flex flex-col gap-0.5">
         {label ? <span>{label}</span> : null}
-        {hint ? <span className="text-[11px] text-fg-subtle">{hint}</span> : null}
+        {hint ? <span className="text-[13px] text-fg-muted">{hint}</span> : null}
       </span>
     </label>
   );
@@ -44,13 +44,13 @@ export function Switch({ checked, onChange, label, hint, disabled, id }: SwitchP
       disabled={disabled}
       onClick={() => onChange(!checked)}
       className={cn(
-        'relative h-6 w-11 shrink-0 rounded-full border transition-colors disabled:opacity-50',
+        'relative h-7 w-[52px] shrink-0 rounded-full border transition-colors disabled:opacity-50',
         checked ? 'border-brand-600 bg-brand-600' : 'border-line-strong bg-card-2',
       )}
     >
       <span
         className={cn(
-          'absolute top-0.5 h-[18px] w-[18px] rounded-full bg-white shadow transition-all',
+          'absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-all',
           checked ? 'end-0.5' : 'start-0.5',
         )}
       />
@@ -61,10 +61,10 @@ export function Switch({ checked, onChange, label, hint, disabled, id }: SwitchP
     <div className="flex items-start gap-3">
       {button}
       <div className="flex flex-col">
-        <label htmlFor={id} className="cursor-pointer text-[13px] font-medium text-fg">
+        <label htmlFor={id} className="cursor-pointer text-[14px] font-medium text-fg">
           {label}
         </label>
-        {hint ? <span className="text-[11px] text-fg-subtle">{hint}</span> : null}
+        {hint ? <span className="text-[13px] text-fg-muted">{hint}</span> : null}
       </div>
     </div>
   );

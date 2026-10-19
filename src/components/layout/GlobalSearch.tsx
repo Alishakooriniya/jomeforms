@@ -6,7 +6,7 @@ import { cn, normalizeText } from '../../lib/utils';
 import { useClickOutside } from '../../lib/hooks';
 import { useAuth } from '../../store/AuthProvider';
 import { useDb } from '../../store/DataProvider';
-import { CLIENT_STATUS_LABELS, DOC_STATUS_LABELS } from '../../data/labels';
+import { CLIENT_STATUS_LABELS, CLIENT_CASE_TYPE_LABELS } from '../../data/labels';
 import { formatCode } from '../../lib/format';
 import { Icon } from '../ui/Icon';
 import type { IconName } from '../ui/Icon';
@@ -21,7 +21,7 @@ interface SearchResult {
 }
 
 export function GlobalSearch() {
-  const { clients, documents, templates, users } = useDb();
+  const { clients, companies } = useDb();
   const { can } = useAuth();
   const navigate = useNavigate();
   const [query, setQuery] = useState('');
@@ -51,76 +51,25 @@ export function GlobalSearch() {
 
     if (can('clients.view')) {
       clients
-        .filter((client) =>
-          normalizeText([client.fullName, client.code, client.mobile, client.nationalId, client.city].join(' ')).includes(
-            needle,
-          ),
-        )
-        .slice(0, 4)
+        .filter((client) => {
+          const companyName = companies.find((company) => company.id === client.companyId)?.name ?? '';
+          return normalizeText([client.nationalId, client.fullName, client.code, companyName].join(' ')).includes(needle);
+        })
+        .slice(0, 8)
         .forEach((client) =>
           output.push({
             id: `client-${client.id}`,
             group: 'پرونده‌ها',
             label: client.fullName,
-            sub: `${formatCode(client.code)} — ${CLIENT_STATUS_LABELS[client.status]}`,
+            sub: `${formatCode(client.code)} — ${CLIENT_CASE_TYPE_LABELS[client.caseType ?? 'document_request']} — ${CLIENT_STATUS_LABELS[client.status]}`,
             to: `/clients/${client.id}`,
             icon: 'user',
           }),
         );
     }
 
-    if (can('documents.view')) {
-      documents
-        .filter((document) =>
-          normalizeText([document.title, document.number, document.clientName ?? ''].join(' ')).includes(needle),
-        )
-        .slice(0, 4)
-        .forEach((document) =>
-          output.push({
-            id: `document-${document.id}`,
-            group: 'اسناد',
-            label: document.title,
-            sub: `${formatCode(document.number)} — ${DOC_STATUS_LABELS[document.status]}`,
-            to: `/documents/${document.id}`,
-            icon: 'file-text',
-          }),
-        );
-    }
-
-    if (can('templates.view')) {
-      templates
-        .filter((template) => normalizeText(`${template.title} ${template.description ?? ''}`).includes(needle))
-        .slice(0, 3)
-        .forEach((template) =>
-          output.push({
-            id: `template-${template.id}`,
-            group: 'قالب‌ها',
-            label: template.title,
-            sub: `${template.fields.length} فیلد`,
-            to: `/templates/${template.id}`,
-            icon: 'template',
-          }),
-        );
-    }
-
-    if (can('users.view')) {
-      users
-        .filter((user) => normalizeText(`${user.fullName} ${user.username}`).includes(needle))
-        .slice(0, 3)
-        .forEach((user) =>
-          output.push({
-            id: `user-${user.id}`,
-            group: 'کاربران',
-            label: user.fullName,
-            sub: user.username,
-            to: `/users/${user.id}`,
-            icon: 'user-cog',
-          }),
-        );
-    }
-
     return output;
-  }, [query, clients, documents, templates, users, can]);
+  }, [query, clients, companies, can]);
 
   const grouped = useMemo(() => {
     const map = new Map<string, SearchResult[]>();
@@ -154,7 +103,7 @@ export function GlobalSearch() {
         onKeyDown={(event) => {
           if (event.key === 'Enter' && results[0]) go(results[0].to);
         }}
-        placeholder="جستجوی پرونده، سند، قالب…"
+        placeholder="جستجوی نام کامل، کد ملی، شماره پرونده یا مجموعه…"
         className="field ps-9 pe-14"
         aria-label="جستجوی سراسری"
       />

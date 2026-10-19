@@ -1,2 +1,5 @@
-# jomeforms
-crm for emam jome form management 
+# Jome Forms
+
+سامانه محلی و فارسی برای مدیریت پرونده‌ها، فرم‌ها و اسناد املاک.
+
+رابط کاربری از فونت Vazirmatn به‌صورت محلی استفاده می‌کند؛ فایل WOFF2 برای مرورگرهای جدید و TTF به‌عنوان جایگزین در `src/assets/fonts/` قرار دارد. فونت تحت مجوز SIL Open Font License است و متن مجوز همراه فایل‌ها نگهداری می‌شود.

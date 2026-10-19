@@ -32,8 +32,8 @@ export function CardHeader({ title, subtitle, icon, action, className }: CardHea
           </span>
         ) : null}
         <div>
-          <h3 className="text-[13px] font-semibold text-fg">{title}</h3>
-          {subtitle ? <p className="text-[11px] text-fg-subtle">{subtitle}</p> : null}
+          <h3 className="text-[15px] font-semibold text-fg">{title}</h3>
+          {subtitle ? <p className="text-[13px] text-fg-muted">{subtitle}</p> : null}
         </div>
       </div>
       {action}
@@ -73,12 +73,21 @@ export function StatCard({ label, value, hint, icon, tone = 'brand', onClick }: 
       onClick={onClick}
       role={onClick ? 'button' : undefined}
       tabIndex={onClick ? 0 : undefined}
-      onKeyDown={onClick ? (event) => event.key === 'Enter' && onClick() : undefined}
+      onKeyDown={
+        onClick
+          ? (event) => {
+              if (event.key === 'Enter' || event.key === ' ') {
+                event.preventDefault();
+                onClick();
+              }
+            }
+          : undefined
+      }
     >
       <div className="min-w-0">
-        <p className="text-xs text-fg-muted">{label}</p>
-        <p className="num mt-1.5 text-xl font-semibold text-fg">{value}</p>
-        {hint ? <p className="mt-1 text-[11px] text-fg-subtle">{hint}</p> : null}
+        <p className="text-[14px] text-fg-muted">{label}</p>
+        <p className="num mt-1.5 text-2xl font-semibold text-fg">{value}</p>
+        {hint ? <p className="mt-1 text-[13px] text-fg-muted">{hint}</p> : null}
       </div>
       <span className={cn('flex h-9 w-9 shrink-0 items-center justify-center rounded-field', TONE_CLASS[tone])}>
         <Icon name={icon} size={18} />

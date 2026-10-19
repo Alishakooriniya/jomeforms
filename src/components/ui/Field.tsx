@@ -30,7 +30,7 @@ export function Field({ label, hint, error, required, htmlFor, children, classNa
     <div className={cn('flex flex-col gap-1.5', className)}>
       {label ? (
         <div className="flex items-center justify-between gap-2">
-          <label htmlFor={htmlFor} className="text-xs font-medium text-fg-muted">
+          <label htmlFor={htmlFor} className="text-[14px] font-medium text-fg-muted">
             {label}
             {required ? <span className="ms-0.5 text-danger">*</span> : null}
           </label>
@@ -38,8 +38,8 @@ export function Field({ label, hint, error, required, htmlFor, children, classNa
         </div>
       ) : null}
       {children}
-      {error ? <p className="text-[11px] leading-4 text-danger-fg">{error}</p> : null}
-      {!error && hint ? <p className="text-[11px] leading-4 text-fg-subtle">{hint}</p> : null}
+      {error ? <p className="text-[13px] leading-5 text-danger-fg">{error}</p> : null}
+      {!error && hint ? <p className="text-[13px] leading-5 text-fg-muted">{hint}</p> : null}
     </div>
   );
 }

@@ -3,6 +3,7 @@
 import type {
   AuditEntity,
   ClientStatus,
+  ClientCaseType,
   CompanyKind,
   DealKind,
   DocStatus,
@@ -12,6 +13,16 @@ import type {
   RoleId,
   TemplateCategory,
 } from '../types';
+
+export const CLIENT_CASE_TYPE_LABELS: Record<ClientCaseType, string> = {
+  document_request: 'درخواست سند',
+  rent_renewal: 'تجدید اجاره',
+};
+
+export const CLIENT_CASE_TYPE_OPTIONS = Object.entries(CLIENT_CASE_TYPE_LABELS).map(([value, label]) => ({
+  value,
+  label,
+}));
 
 export type Tone = 'brand' | 'success' | 'warn' | 'danger' | 'info' | 'neutral';
 
@@ -120,6 +131,7 @@ export const AUDIT_ENTITY_LABELS: Record<AuditEntity, string> = {
   company: 'مجموعه',
   settings: 'تنظیمات',
   scan: 'اسکن',
+  workflow: 'مرحله پرونده',
 };
 
 /** گزینه‌های پرکاربرد برای فیلترها */

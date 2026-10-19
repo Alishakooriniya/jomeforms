@@ -15,13 +15,13 @@ export function AppLayout() {
   const { settings } = useDb();
 
   useEffect(() => {
-    document.title = `${titleForPath(location.pathname)} | ${settings.orgName}`;
+    document.title = `${titleForPath(location.pathname)} | Jome Forms`;
   }, [location.pathname, settings.orgName]);
 
   return (
     <div className="flex min-h-screen bg-bg">
       {/* منوی ثابت دسکتاپ */}
-      <aside className="sticky top-0 hidden h-screen w-[264px] shrink-0 border-s border-line lg:block">
+      <aside className="sticky top-0 hidden h-screen w-[280px] shrink-0 border-s border-line lg:block">
         <Sidebar />
       </aside>
 
@@ -32,11 +32,11 @@ export function AppLayout() {
 
       <div className="flex min-w-0 flex-1 flex-col">
         <Topbar onOpenMenu={drawer.open} />
-        <main className="mx-auto w-full max-w-[1440px] flex-1 p-3 sm:p-4 lg:p-6">
+        <main className="mx-auto w-full max-w-[1440px] flex-1 p-4 sm:p-5 lg:p-7">
           <Outlet />
         </main>
-        <footer className="px-4 pb-5 pt-2 text-center text-[10.5px] text-fg-subtle">
-          {settings.orgName} — نسخه دمو ۰.۱ | داده‌ها به‌صورت محلی در مرورگر ذخیره می‌شوند
+        <footer className="px-4 pb-5 pt-2 text-center text-[12px] text-fg-subtle">
+          Jome Forms — داده‌ها به‌صورت محلی در مرورگر ذخیره می‌شوند
         </footer>
       </div>
     </div>

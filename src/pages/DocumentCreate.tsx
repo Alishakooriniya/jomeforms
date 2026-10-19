@@ -289,7 +289,7 @@ export default function DocumentCreate() {
               className="w-full sm:w-72"
             />
             {can('clients.create') ? (
-              <Button variant="ghost" size="sm" icon="plus" onClick={() => navigate('/clients?new=1')}>
+              <Button variant="ghost" size="sm" icon="plus" onClick={() => navigate('/clients/new')}>
                 ثبت پرونده جدید
               </Button>
             ) : null}

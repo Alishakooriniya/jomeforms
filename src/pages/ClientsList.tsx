@@ -1,6 +1,6 @@
 /* فهرست پرونده‌ها — جستجو، فیلتر، مرتب‌سازی، خروجی و ساخت/ویرایش */
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import type { Client } from '../types';
 import { useAuth } from '../store/AuthProvider';
@@ -11,15 +11,12 @@ import {
   CLIENT_STATUS_LABELS,
   CLIENT_STATUS_OPTIONS,
   CLIENT_STATUS_TONE,
-  DEAL_KIND_LABELS,
-  DEAL_KIND_OPTIONS,
-  PARTY_ROLE_LABELS,
-  PROPERTY_KIND_LABELS,
-  PROPERTY_KIND_OPTIONS,
+  CLIENT_CASE_TYPE_LABELS,
+  CLIENT_CASE_TYPE_OPTIONS,
 } from '../data/labels';
-import { displayDigits, formatCode, formatDate, formatMoneyShort } from '../lib/format';
+import { displayDigits, formatCode, formatDate } from '../lib/format';
 import { useListQuery } from '../lib/hooks';
-import { compareNumber, compareText, unique } from '../lib/utils';
+import { compareNumber, compareText } from '../lib/utils';
 import { exportCsv } from '../lib/print';
 import { Avatar, PageHeader } from '../components/ui/Avatar';
 import { Badge } from '../components/ui/Badge';
@@ -37,34 +34,19 @@ import {
   ResultsSummary,
   SearchInput,
 } from '../components/ui/Toolbar';
-import { ClientForm, clientToDraft, emptyClientDraft } from '../components/clients/ClientForm';
+import { ClientForm, clientToDraft } from '../components/clients/ClientForm';
 
 export default function ClientsList() {
-  const { clients, settings, documents } = useDb();
+  const { clients, companies, settings, documents } = useDb();
   const { saveClient, deleteClient } = useDbActions();
   const { can } = useAuth();
   const toast = useToast();
   const navigate = useNavigate();
-  const [searchParams, setSearchParams] = useSearchParams();
+  const [searchParams] = useSearchParams();
 
   const [editing, setEditing] = useState<Client | null>(null);
-  const [creating, setCreating] = useState(false);
   const [pendingDelete, setPendingDelete] = useState<Client | null>(null);
   const [submitting, setSubmitting] = useState(false);
-
-  // ?new=1 و ?status=... از داشبورد
-  useEffect(() => {
-    if (searchParams.get('new') === '1' && can('clients.create')) {
-      setCreating(true);
-      searchParams.delete('new');
-      setSearchParams(searchParams, { replace: true });
-    }
-  }, [searchParams, setSearchParams, can]);
-
-  const cityOptions = useMemo(
-    () => unique(clients.map((client) => client.city).filter(Boolean)).map((city) => ({ value: city, label: city })),
-    [clients],
-  );
 
   const query = useListQuery<Client>(clients, {
     pageSize: settings.defaultPageSize,
@@ -72,52 +54,42 @@ export default function ClientsList() {
       [
         client.fullName,
         client.code,
-        client.mobile,
-        client.phone ?? '',
         client.nationalId,
-        client.address,
-        client.city,
-        client.region ?? '',
-        client.party2Name ?? '',
-        client.agentName ?? '',
-        client.tags.join(' '),
+        companies.find((company) => company.id === client.companyId)?.name ?? '',
       ].join(' '),
     filters: {
       status: (client, value) => client.status === value,
-      dealKind: (client, value) => client.dealKind === value,
-      propertyKind: (client, value) => client.propertyKind === value,
-      city: (client, value) => client.city === value,
+      caseType: (client, value) => (client.caseType ?? 'document_request') === value,
     },
     sorters: {
       code: (a, b) => compareText(a.code, b.code),
       fullName: (a, b) => compareText(a.fullName, b.fullName),
-      price: (a, b) => compareNumber(a.price, b.price),
       area: (a, b) => compareNumber(a.area, b.area),
       updatedAt: (a, b) => new Date(a.updatedAt).getTime() - new Date(b.updatedAt).getTime(),
     },
   });
+
+  useEffect(() => {
+    const caseType = searchParams.get('caseType');
+    if (caseType === 'document_request' || caseType === 'rent_renewal') {
+      query.setFilter('caseType', caseType);
+    }
+  }, [query.setFilter, searchParams]);
 
   const documentCount = (clientId: string) => documents.filter((document) => document.clientId === clientId).length;
 
   const handleExport = () => {
     exportCsv(
       `clients-${new Date().toISOString().slice(0, 10)}.csv`,
-      ['شماره پرونده', 'نام', 'کد ملی', 'موبایل', 'نقش', 'نوع معامله', 'وضعیت', 'شهر', 'نوع ملک', 'متراژ', 'قیمت', 'ودیعه', 'اجاره', 'مشاور', 'تاریخ ثبت'],
+      ['شماره پرونده', 'نام', 'کد ملی', 'موبایل', 'نوع درخواست', 'مجموعه', 'وضعیت', 'تاریخ ثبت'],
       query.rows.map((client) => [
         client.code,
         client.fullName,
         client.nationalId,
         client.mobile,
-        PARTY_ROLE_LABELS[client.partyRole],
-        DEAL_KIND_LABELS[client.dealKind],
+        CLIENT_CASE_TYPE_LABELS[client.caseType ?? 'document_request'],
+        companies.find((company) => company.id === client.companyId)?.name ?? '',
         CLIENT_STATUS_LABELS[client.status],
-        client.city,
-        PROPERTY_KIND_LABELS[client.propertyKind],
-        client.area,
-        client.price,
-        client.deposit,
-        client.rent,
-        client.agentName ?? '',
         client.createdAt.slice(0, 10),
       ]),
     );
@@ -128,7 +100,6 @@ export default function ClientsList() {
     setSubmitting(true);
     const saved = saveClient(draft, editing?.id);
     setSubmitting(false);
-    setCreating(false);
     setEditing(null);
     toast.success(editing ? 'پرونده ویرایش شد' : 'پرونده ثبت شد', `${saved.fullName} — ${formatCode(saved.code)}`);
   };
@@ -149,41 +120,28 @@ export default function ClientsList() {
       ),
     },
     {
-      key: 'dealKind',
-      header: 'معامله',
+      key: 'caseType',
+      header: 'نوع درخواست',
       cell: (client) => (
         <div className="flex flex-col gap-0.5">
-          <span className="text-[12px] text-fg">{DEAL_KIND_LABELS[client.dealKind]}</span>
-          <span className="text-[10.5px] text-fg-subtle">{PARTY_ROLE_LABELS[client.partyRole]}</span>
+          <span className="text-[12px] text-fg">{CLIENT_CASE_TYPE_LABELS[client.caseType ?? 'document_request']}</span>
+          <span className="text-[10.5px] text-fg-subtle">
+            {companies.find((company) => company.id === client.companyId)?.name ?? 'بدون مجموعه'}
+          </span>
         </div>
       ),
       responsiveClass: 'hidden md:table-cell',
     },
     {
-      key: 'property',
-      header: 'ملک',
+      key: 'workflow',
+      header: 'مرحله رسیدگی',
       cell: (client) => (
         <div className="flex flex-col gap-0.5">
-          <span className="text-[12px] text-fg">
-            {PROPERTY_KIND_LABELS[client.propertyKind]} — {client.city}
-          </span>
-          <span className="num text-[10.5px] text-fg-subtle">
-            {client.area ? `${displayDigits(client.area)} متر` : '—'}
-          </span>
+          <span className="text-[12px] text-fg">{client.workflow?.find((step) => step.status === 'pending')?.title ?? 'تکمیل‌شده'}</span>
+          <span className="num text-[10.5px] text-fg-subtle">{displayDigits(client.workflow?.filter((step) => step.status === 'completed').length ?? 0)} مرحله تکمیل‌شده</span>
         </div>
       ),
       responsiveClass: 'hidden lg:table-cell',
-    },
-    {
-      key: 'price',
-      header: 'مبلغ',
-      sortable: true,
-      cell: (client) => (
-        <span className="num text-[12px] text-fg">
-          {client.price ? formatMoneyShort(client.price) : client.deposit ? formatMoneyShort(client.deposit) : '—'}
-        </span>
-      ),
-      responsiveClass: 'hidden sm:table-cell',
     },
     {
       key: 'documents',
@@ -252,7 +210,7 @@ export default function ClientsList() {
     <div className="flex flex-col gap-4">
       <PageHeader
         title="پرونده‌ها"
-        subtitle="اطلاعات مشتری و ملک؛ پایه‌ی تکمیل خودکار همه فرم‌ها"
+        subtitle="ثبت درخواست‌ها، پیگیری مراحل و جمع‌آوری اسناد پرونده"
         icon="users"
         breadcrumbs={[{ label: 'داشبورد', to: '/' }, { label: 'پرونده‌ها' }]}
         actions={
@@ -263,7 +221,7 @@ export default function ClientsList() {
               </Button>
             ) : null}
             {can('clients.create') ? (
-              <Button variant="primary" icon="plus" onClick={() => setCreating(true)}>
+              <Button variant="primary" icon="plus" to="/clients/new">
                 پرونده جدید
               </Button>
             ) : null}
@@ -277,7 +235,7 @@ export default function ClientsList() {
         <SearchInput
           value={query.q}
           onChange={query.setQ}
-          placeholder="جستجوی نام، شماره پرونده، موبایل، کد ملی، نشانی…"
+          placeholder="نام کامل، کد ملی، شماره پرونده یا نام مجموعه…"
           className="w-full sm:w-72"
         />
         <FilterSelect
@@ -288,22 +246,10 @@ export default function ClientsList() {
           icon="filter"
         />
         <FilterSelect
-          value={query.filters.dealKind ?? 'all'}
-          onChange={(value) => query.setFilter('dealKind', value)}
-          options={DEAL_KIND_OPTIONS}
-          placeholder="همه معاملات"
-        />
-        <FilterSelect
-          value={query.filters.propertyKind ?? 'all'}
-          onChange={(value) => query.setFilter('propertyKind', value)}
-          options={PROPERTY_KIND_OPTIONS}
-          placeholder="همه انواع ملک"
-        />
-        <FilterSelect
-          value={query.filters.city ?? 'all'}
-          onChange={(value) => query.setFilter('city', value)}
-          options={cityOptions}
-          placeholder="همه شهرها"
+          value={query.filters.caseType ?? 'all'}
+          onChange={(value) => query.setFilter('caseType', value)}
+          options={CLIENT_CASE_TYPE_OPTIONS}
+          placeholder="همه گروه‌های درخواست"
         />
         {query.hasActiveFilters ? (
           <Button variant="ghost" size="sm" icon="refresh" onClick={query.clearAll}>
@@ -321,8 +267,11 @@ export default function ClientsList() {
               onRemove={() => query.setFilter('status', 'all')}
             />
           ) : null}
-          {query.filters.city && query.filters.city !== 'all' ? (
-            <ActiveFilterChip label={`شهر: ${query.filters.city}`} onRemove={() => query.setFilter('city', 'all')} />
+          {query.filters.caseType && query.filters.caseType !== 'all' ? (
+            <ActiveFilterChip
+              label={`نوع درخواست: ${CLIENT_CASE_TYPE_LABELS[query.filters.caseType as keyof typeof CLIENT_CASE_TYPE_LABELS]}`}
+              onRemove={() => query.setFilter('caseType', 'all')}
+            />
           ) : null}
         </div>
       ) : null}
@@ -351,7 +300,7 @@ export default function ClientsList() {
                     پاک‌کردن فیلترها
                   </Button>
                 ) : can('clients.create') ? (
-                  <Button variant="primary" icon="plus" onClick={() => setCreating(true)}>
+                  <Button variant="primary" icon="plus" to="/clients/new">
                     ثبت پرونده
                   </Button>
                 ) : null
@@ -373,26 +322,18 @@ export default function ClientsList() {
         ) : null}
       </div>
 
-      {/* ساخت / ویرایش */}
       <Modal
-        open={creating || Boolean(editing)}
-        onClose={() => {
-          setCreating(false);
-          setEditing(null);
-        }}
-        title={editing ? `ویرایش پرونده ${editing.fullName}` : 'ثبت پرونده جدید'}
-        description="اطلاعات وارد‌شده در ادامه به‌صورت خودکار در فرم‌ها جای‌گذاری می‌شود."
+        open={Boolean(editing)}
+        onClose={() => setEditing(null)}
+        title={`ویرایش پرونده ${editing?.fullName ?? ''}`}
         icon="users"
         size="xl"
       >
         <ClientForm
-          initial={editing ? clientToDraft(editing) : emptyClientDraft(settings)}
+          initial={editing ? clientToDraft(editing) : undefined}
           submitting={submitting}
-          submitLabel={editing ? 'ذخیره تغییرات' : 'ثبت پرونده'}
-          onCancel={() => {
-            setCreating(false);
-            setEditing(null);
-          }}
+          submitLabel="ذخیره تغییرات"
+          onCancel={() => setEditing(null)}
           onSubmit={submit}
         />
       </Modal>
