@@ -19,6 +19,7 @@ import NotFound from './pages/NotFound';
 const Dashboard = lazy(() => import('./pages/Dashboard'));
 const ClientsList = lazy(() => import('./pages/ClientsList'));
 const ClientDetail = lazy(() => import('./pages/ClientDetail'));
+const ClientCreate = lazy(() => import('./pages/ClientCreate'));
 const DocumentsList = lazy(() => import('./pages/DocumentsList'));
 const DocumentCreate = lazy(() => import('./pages/DocumentCreate'));
 const DocumentDetail = lazy(() => import('./pages/DocumentDetail'));
@@ -71,6 +72,14 @@ function AppRoutes() {
             element={
               <RequirePermission permission="clients.view">
                 <ClientsList />
+              </RequirePermission>
+            }
+          />
+          <Route
+            path="clients/new"
+            element={
+              <RequirePermission permission="clients.create">
+                <ClientCreate />
               </RequirePermission>
             }
           />

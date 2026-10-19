@@ -1,85 +1,51 @@
 /* داشبورد — نگاه سریع به وضعیت پرونده‌ها و اسناد */
 
-import { useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../store/AuthProvider';
 import { useDb } from '../store/DataProvider';
-import {
-  CLIENT_STATUS_LABELS,
-  CLIENT_STATUS_OPTIONS,
-  CLIENT_STATUS_TONE,
-  DOC_STATUS_LABELS,
-} from '../data/labels';
-import type { Tone } from '../data/labels';
+import { CLIENT_STATUS_LABELS, CLIENT_STATUS_TONE, CLIENT_CASE_TYPE_LABELS } from '../data/labels';
 import {
   displayDigits,
   formatCode,
   formatDate,
-  formatMoneyShort,
   formatRelative,
-  jalaliMonthKey,
-  lastJalaliMonths,
 } from '../lib/format';
 import { Badge } from '../components/ui/Badge';
-import { BarChart, DonutChart } from '../components/ui/Charts';
 import { Button } from '../components/ui/Button';
-import { Card, CardBody, CardHeader, SectionTitle, StatCard } from '../components/ui/Card';
+import { Card, CardBody, CardHeader, StatCard } from '../components/ui/Card';
 import { EmptyState } from '../components/ui/EmptyState';
 import { Icon } from '../components/ui/Icon';
 import { PageHeader } from '../components/ui/Avatar';
 import { Avatar } from '../components/ui/Avatar';
 
 export default function Dashboard() {
-  const { clients, documents, scans, audit } = useDb();
+  const { clients, companies, documents, scans, audit } = useDb();
   const { user, can } = useAuth();
   const navigate = useNavigate();
 
-  const months = useMemo(() => lastJalaliMonths(6), []);
-
-  const documentsPerMonth = useMemo(
-    () =>
-      months.map((month) => ({
-        label: month.label,
-        value: documents.filter((document) => jalaliMonthKey(document.createdAt) === month.key).length,
-      })),
-    [months, documents],
-  );
-
-  const clientStatus = useMemo(
-    () =>
-      CLIENT_STATUS_OPTIONS.map((option) => ({
-        label: option.label,
-        value: clients.filter((client) => client.status === option.value).length,
-        tone: CLIENT_STATUS_TONE[option.value] as Tone,
-      })).filter((item) => item.value > 0),
-    [clients],
-  );
-
   const activeClients = clients.filter((client) => client.status !== 'done' && client.status !== 'archived');
   const awaitingSignature = documents.filter((document) => document.status === 'awaiting_signature');
-  const signedDocuments = documents.filter(
-    (document) => document.status === 'signed' || document.status === 'scanned',
-  );
   const recentClients = [...clients]
     .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
     .slice(0, 5);
+  const documentRequests = clients.filter((client) => (client.caseType ?? 'document_request') === 'document_request');
+  const rentRenewals = clients.filter((client) => client.caseType === 'rent_renewal');
+  const evidenceFollowUps = clients.flatMap((client) => {
+    const current = client.workflow?.find((step) => step.status === 'pending');
+    return current?.requiresEvidence && !current.evidenceIds.length ? [{ client, step: current }] : [];
+  });
 
   return (
-    <div className="flex flex-col gap-5">
+    <div className="flex flex-col gap-6">
       <PageHeader
-        title={`سلام ${user?.fullName?.split(' ')[0] ?? ''} 👋`}
-        subtitle={`امروز ${formatDate(new Date(), 'long')} — خلاصه وضعیت پرونده‌ها و اسناد`}
+        title={` ${user?.fullName?.split(' ')[0] ?? ''} خوش آمدید`}
+        subtitle={`امروز ${formatDate(new Date(), 'long')}`}
         icon="dashboard"
         actions={
           <>
             {can('clients.create') ? (
-              <Button variant="secondary" icon="plus" onClick={() => navigate('/clients?new=1')}>
-                پرونده جدید
-              </Button>
-            ) : null}
-            {can('documents.create') ? (
-              <Button variant="primary" icon="file-text" onClick={() => navigate('/documents/new')}>
-                سند جدید
+              <Button size="lg" variant="primary" icon="plus" onClick={() => navigate('/clients/new')}>
+                ثبت پرونده جدید
               </Button>
             ) : null}
           </>
@@ -87,64 +53,39 @@ export default function Dashboard() {
       />
 
       {/* شاخص‌ها */}
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <StatCard
           label="پرونده‌های فعال"
           value={displayDigits(activeClients.length)}
           hint={`از مجموع ${displayDigits(clients.length)} پرونده`}
           icon="users"
           tone="brand"
+          onClick={() => navigate('/clients?caseType=document_request')}
+        />
+        <StatCard
+          label="درخواست سند"
+          value={displayDigits(documentRequests.length)}
+          hint="پرونده‌های این گروه"
+          icon="file-text"
+          tone="info"
+          onClick={() => navigate('/clients?caseType=rent_renewal')}
+        />
+        <StatCard
+          label="تجدید اجاره"
+          value={displayDigits(rentRenewals.length)}
+          hint="پرونده‌های این گروه"
+          icon="refresh"
+          tone="warn"
           onClick={() => navigate('/clients')}
         />
         <StatCard
-          label="در انتظار امضا"
-          value={displayDigits(awaitingSignature.length)}
-          hint="نیازمند پیگیری"
-          icon="clock"
-          tone="warn"
-          onClick={() => navigate('/documents?status=awaiting_signature')}
-        />
-        <StatCard
-          label="اسناد امضاشده"
-          value={displayDigits(signedDocuments.length)}
-          hint={`از مجموع ${displayDigits(documents.length)} سند`}
+          label="اسناد و فرم‌های ثبت‌شده"
+          value={displayDigits(documents.length)}
+          hint={`در انتظار امضا: ${displayDigits(awaitingSignature.length)} • اسکن: ${displayDigits(scans.length)}`}
           icon="file-text"
-          tone="info"
-          onClick={() => navigate('/documents?status=scanned')}
-        />
-        <StatCard
-          label="اسکن‌های بایگانی‌شده"
-          value={displayDigits(scans.length)}
-          hint="نسخه امضاشده پرونده‌ها"
-          icon="scan"
           tone="success"
           onClick={() => navigate('/documents')}
         />
-      </div>
-
-      {/* نمودارها */}
-      <div className="grid gap-4 lg:grid-cols-[1.4fr_1fr]">
-        <Card>
-          <CardHeader title="اسناد ثبت‌شده" subtitle="شش ماه اخیر" icon="chart" />
-          <CardBody>
-            {documents.length ? (
-              <BarChart data={documentsPerMonth} height={170} formatValue={(value) => displayDigits(value)} />
-            ) : (
-              <EmptyState compact icon="chart" title="هنوز سندی ثبت نشده است" />
-            )}
-          </CardBody>
-        </Card>
-
-        <Card>
-          <CardHeader title="وضعیت پرونده‌ها" subtitle="توزیع در همه پرونده‌ها" icon="users" />
-          <CardBody>
-            {clientStatus.length ? (
-              <DonutChart data={clientStatus} centerLabel="پرونده" />
-            ) : (
-              <EmptyState compact icon="users" title="پرونده‌ای ثبت نشده است" />
-            )}
-          </CardBody>
-        </Card>
       </div>
 
       {/* فهرست‌ها */}
@@ -170,9 +111,9 @@ export default function Dashboard() {
                   >
                     <Avatar name={client.fullName} size={34} />
                     <span className="min-w-0 flex-1">
-                      <span className="block truncate text-[12.5px] font-medium text-fg">{client.fullName}</span>
-                      <span className="num block truncate text-[10.5px] text-fg-subtle">
-                        {formatCode(client.code)} • {client.city} • {formatMoneyShort(client.price || client.deposit)}
+                      <span className="block truncate text-[14px] font-medium text-fg">{client.fullName}</span>
+                      <span className="num block truncate text-[12px] text-fg-muted">
+                        {formatCode(client.code)} • {CLIENT_CASE_TYPE_LABELS[client.caseType ?? 'document_request']} • {companies.find((company) => company.id === client.companyId)?.name ?? 'بدون مجموعه'}
                       </span>
                     </span>
                     <Badge tone={CLIENT_STATUS_TONE[client.status]} size="sm">
@@ -189,39 +130,39 @@ export default function Dashboard() {
 
         <Card>
           <CardHeader
-            title="اسناد در انتظار امضا"
+            title="مراحل نیازمند پیگیری"
             icon="clock"
             action={
-              <Button size="sm" variant="ghost" iconRight="arrowLeft" to="/documents?status=awaiting_signature">
+              <Button size="sm" variant="ghost" iconRight="arrowLeft" to="/clients">
                 همه
               </Button>
             }
           />
-          {awaitingSignature.length ? (
+          {evidenceFollowUps.length ? (
             <ul className="divide-y divide-line">
-              {awaitingSignature.slice(0, 5).map((document) => (
-                <li key={document.id}>
+              {evidenceFollowUps.slice(0, 5).map(({ client, step }) => (
+                <li key={client.id}>
                   <button
                     type="button"
-                    onClick={() => navigate(`/documents/${document.id}`)}
+                    onClick={() => navigate(`/clients/${client.id}`)}
                     className="flex w-full items-center gap-3 px-4 py-3 text-start transition-colors hover:bg-card-2"
                   >
                     <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-field bg-warn-soft text-warn-fg">
-                      <Icon name="file-text" size={15} />
+                      <Icon name="clock" size={15} />
                     </span>
                     <span className="min-w-0 flex-1">
-                      <span className="block truncate text-[12.5px] text-fg">{document.title}</span>
-                      <span className="num block truncate text-[10.5px] text-fg-subtle">
-                        {formatCode(document.number)} • {document.clientName ?? 'بدون پرونده'}
+                      <span className="block truncate text-[14px] text-fg">{client.fullName}</span>
+                      <span className="num block truncate text-[12px] text-fg-muted">
+                        {formatCode(client.code)} • {step.title}
                       </span>
                     </span>
                     <Icon name="chevron-left" size={15} className="text-fg-subtle" />
                   </button>
                 </li>
-              ))}
+                ))}
             </ul>
           ) : (
-            <EmptyState compact icon="check" title="همه اسناد تعیین‌تکلیف شده‌اند" description="سندی در انتظار امضا نیست." />
+            <EmptyState compact icon="check" title="مدرک معوقی ثبت نشده است" description="همه مراحل دارای شرط مدرک، مدرک خود را دارند." />
           )}
         </Card>
       </div>
@@ -244,15 +185,15 @@ export default function Dashboard() {
                 <li key={entry.id} className="flex items-center gap-3 px-4 py-2.5">
                   <Avatar name={entry.userName} size={30} />
                   <span className="min-w-0 flex-1">
-                    <span className="block truncate text-[12px] text-fg">
+                    <span className="block truncate text-[13px] text-fg">
                       <span className="font-medium">{entry.userName}</span> — {entry.action}
                       {entry.entityLabel ? ` (${entry.entityLabel})` : ''}
                     </span>
                     {entry.detail ? (
-                      <span className="block truncate text-[10.5px] text-fg-subtle">{entry.detail}</span>
+                      <span className="block truncate text-[12px] text-fg-muted">{entry.detail}</span>
                     ) : null}
                   </span>
-                  <span className="shrink-0 text-[10.5px] text-fg-subtle">{formatRelative(entry.at)}</span>
+                  <span className="shrink-0 text-[12px] text-fg-muted">{formatRelative(entry.at)}</span>
                 </li>
               ))}
             </ul>
@@ -260,27 +201,6 @@ export default function Dashboard() {
         </Card>
       ) : null}
 
-      {can('documents.view') ? (
-        <div>
-          <SectionTitle title="اسناد به‌تفکیک وضعیت" subtitle="برای پیگیری سریع روی هر وضعیت کلیک کنید" />
-          <div className="grid gap-2 sm:grid-cols-3 lg:grid-cols-5">
-            {(Object.keys(DOC_STATUS_LABELS) as Array<keyof typeof DOC_STATUS_LABELS>).map((status) => {
-              const count = documents.filter((document) => document.status === status).length;
-              return (
-                <button
-                  key={status}
-                  type="button"
-                  onClick={() => navigate(`/documents?status=${status}`)}
-                  className="card flex items-center justify-between gap-2 p-3 text-start transition-colors hover:border-line-strong hover:bg-card-2"
-                >
-                  <span className="text-[12px] text-fg-muted">{DOC_STATUS_LABELS[status]}</span>
-                  <span className="num text-sm font-semibold text-fg">{displayDigits(count)}</span>
-                </button>
-              );
-            })}
-          </div>
-        </div>
-      ) : null}
     </div>
   );
 }

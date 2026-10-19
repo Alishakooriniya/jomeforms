@@ -6,7 +6,7 @@
 --    User          → users (+ user_permissions, company_id)
 --    Company       → companies (مجموعه: شرکت/مالک زمین)
 --    PermissionRole→ roles (+ role_permissions)
---    Client        → clients
+--    Client        → clients (+ case_workflow_evidence)
 --    FormTemplate  → form_templates (+ form_template_versions)
 --    DocRecord     → documents (+ document_status_history)
 --    ScanFile      → document_scans
@@ -22,13 +22,14 @@ create extension if not exists "citext";
 -- ----------------------------------------------------------------------------
 create type user_role          as enum ('superadmin', 'admin');
 create type client_status      as enum ('new', 'in_progress', 'awaiting_docs', 'done', 'archived');
+create type client_case_type   as enum ('document_request', 'rent_renewal');
 create type party_role         as enum ('buyer', 'seller', 'tenant', 'landlord', 'consultant');
 create type property_kind      as enum ('apartment', 'house', 'villa', 'land', 'office', 'store', 'warehouse');
 create type deal_kind          as enum ('sale', 'rent', 'mortgage', 'presale', 'partnership');
 create type template_category  as enum ('sale', 'rent', 'mortgage', 'presale', 'commission', 'visit', 'other');
 create type document_status    as enum ('draft', 'awaiting_signature', 'signed', 'scanned', 'archived');
 create type company_kind       as enum ('owner', 'developer', 'cooperative', 'investor', 'org', 'other');
-create type audit_entity       as enum ('auth', 'client', 'document', 'template', 'user', 'role', 'company', 'settings', 'scan');
+create type audit_entity       as enum ('auth', 'client', 'document', 'template', 'user', 'role', 'company', 'settings', 'scan', 'workflow');
 
 -- ----------------------------------------------------------------------------
 -- ۲) کاربران و دسترسی‌ها
@@ -94,7 +95,7 @@ create table sessions (
 );
 
 -- ----------------------------------------------------------------------------
--- ۳) پرونده‌ها (مشتری + ملک + اطلاعات مالی)
+-- ۳) پرونده‌ها و مسیر رسیدگی
 -- ----------------------------------------------------------------------------
 create table clients (
   id                  uuid primary key default gen_random_uuid(),
@@ -102,6 +103,9 @@ create table clients (
   full_name           text not null,
   national_id         text,
   mobile              text,
+  case_type           client_case_type not null default 'document_request',
+  company_id          uuid,
+  workflow            jsonb not null default '[]'::jsonb, -- ClientWorkflowStep[]
   phone               text,
   email               text,
   father_name         text,
@@ -146,10 +150,26 @@ create table clients (
 create index clients_status_idx        on clients (status);
 create index clients_city_idx          on clients (city);
 create index clients_full_name_idx     on clients (full_name);
+create index clients_national_id_idx   on clients (national_id);
+create index clients_case_type_idx     on clients (case_type);
 create index clients_agent_idx         on clients (agent_name);
 -- جستجوی متنی فارسی روی نام، نشانی و شماره‌ها
 create index clients_search_idx        on clients
   using gin (to_tsvector('simple', coalesce(full_name,'') || ' ' || coalesce(address,'') || ' ' || coalesce(code,'')));
+
+create table case_workflow_evidence (
+  id            uuid primary key default gen_random_uuid(),
+  client_id     uuid not null references clients(id) on delete cascade,
+  step_id       text not null,
+  file_name     text not null,
+  mime_type     text not null,
+  size_bytes    bigint not null default 0,
+  storage_key   text not null,
+  uploaded_by   uuid references users(id) on delete set null,
+  uploaded_at   timestamptz not null default now()
+);
+
+create index case_workflow_evidence_client_idx on case_workflow_evidence (client_id, step_id);
 
 -- ----------------------------------------------------------------------------
 -- ۴) قالب فرم‌ها + نسخه‌ها
@@ -346,10 +366,13 @@ create table companies (
 -- هر کاربر حداکثر به یک مجموعه وصل می‌شود و این وابستگی اختیاری است
 -- (حذف مجموعه کاربران را حذف نمی‌کند؛ فقط company_id آن‌ها null می‌شود)
 alter table users add column company_id uuid references companies(id) on delete set null;
+alter table clients add constraint clients_company_fk
+  foreign key (company_id) references companies(id) on delete set null;
 
 create index companies_name_idx on companies (name);
 create index companies_kind_idx on companies (kind);
 create index users_company_idx  on users (company_id);
+create index clients_company_idx on clients (company_id);
 
 create trigger companies_touch before update on companies for each row execute function touch_updated_at();
 
@@ -361,8 +384,10 @@ insert into permissions (key, group_id, label, sort_order) values
   ('clients.view',        'clients',   'مشاهده پرونده‌ها', 1),
   ('clients.create',      'clients',   'ایجاد پرونده', 2),
   ('clients.edit',        'clients',   'ویرایش پرونده', 3),
-  ('clients.delete',      'clients',   'حذف پرونده', 4),
-  ('clients.export',      'clients',   'خروجی گرفتن از پرونده‌ها', 5),
+  ('clients.workflow.advance',  'clients', 'ثبت پیشرفت مراحل پرونده', 4),
+  ('clients.workflow.override','clients', 'عبور مدیریتی از شرط مرحله', 5),
+  ('clients.delete',      'clients',   'حذف پرونده', 6),
+  ('clients.export',      'clients',   'خروجی گرفتن از پرونده‌ها', 7),
   ('documents.view',      'documents', 'مشاهده اسناد', 1),
   ('documents.create',    'documents', 'ایجاد سند از قالب', 2),
   ('documents.edit',      'documents', 'ویرایش سند', 3),

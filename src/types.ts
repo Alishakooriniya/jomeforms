@@ -59,6 +59,34 @@ export interface AuthSession {
 /* ------------------------------- پرونده ------------------------------- */
 
 export type ClientStatus = 'new' | 'in_progress' | 'awaiting_docs' | 'done' | 'archived';
+export type ClientCaseType = 'document_request' | 'rent_renewal';
+export type ClientWorkflowStepKind = 'form' | 'payment' | 'external' | 'completion';
+export type ClientWorkflowStepStatus = 'pending' | 'completed';
+
+export interface ClientWorkflowStep {
+  id: string;
+  title: string;
+  kind: ClientWorkflowStepKind;
+  status: ClientWorkflowStepStatus;
+  requiresEvidence: boolean;
+  evidenceIds: string[];
+  completedAt?: string;
+  completedBy?: string;
+  overrideReason?: string;
+}
+
+export interface WorkflowEvidence {
+  id: string;
+  clientId: string;
+  stepId: string;
+  name: string;
+  mime: string;
+  size: number;
+  blobKey: string;
+  uploadedAt: string;
+  uploadedBy: string;
+}
+
 export type PartyRole = 'buyer' | 'seller' | 'tenant' | 'landlord' | 'consultant';
 export type PropertyKind = 'apartment' | 'house' | 'villa' | 'land' | 'office' | 'store' | 'warehouse';
 export type DealKind = 'sale' | 'rent' | 'mortgage' | 'presale' | 'partnership';
@@ -70,6 +98,9 @@ export interface Client {
   fullName: string;
   nationalId: string;
   mobile: string;
+  caseType?: ClientCaseType;
+  companyId?: string;
+  workflow?: ClientWorkflowStep[];
   phone?: string;
   email?: string;
   fatherName?: string;
@@ -229,7 +260,8 @@ export type AuditEntity =
   | 'role'
   | 'company'
   | 'settings'
-  | 'scan';
+  | 'scan'
+  | 'workflow';
 
 export interface AuditEntry {
   id: string;
@@ -268,6 +300,7 @@ export interface DbShape {
   templates: FormTemplate[];
   roles: PermissionRole[];
   scans: ScanFile[];
+  workflowEvidence: WorkflowEvidence[];
   audit: AuditEntry[];
   settings: AppSettings;
 }

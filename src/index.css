@@ -1,5 +1,14 @@
 @import 'tailwindcss';
 
+@font-face {
+  font-family: Vazirmatn;
+  src: url('./assets/fonts/Vazirmatn[wght].woff2') format('woff2'),
+    url('./assets/fonts/Vazirmatn[wght].ttf') format('truetype');
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+}
+
 /* تم کلاس‌محور (به‌جای prefers-color-scheme) تا کاربر بتواند دستی انتخاب کند */
 @custom-variant dark (&:where(.dark, .dark *));
 
@@ -16,17 +25,17 @@
      تیره است تا با پالت هم‌خوان بماند.
 ---------------------------------------------------------------- */
 :root {
-  --brand-50: #f1faf5;
-  --brand-100: #dcf3e6;
-  --brand-200: #bbe7d1;
-  --brand-300: #8ad4b3;
-  --brand-400: #55bb91;
-  --brand-500: #33a074;
-  --brand-600: #24815d;
-  --brand-700: #1f674c;
-  --brand-800: #1d523e;
-  --brand-900: #193f32;
-  --brand-950: #0b241c;
+  --brand-50: #eff8f2;
+  --brand-100: #d9eddf;
+  --brand-200: #b8ddc5;
+  --brand-300: #8bc8a2;
+  --brand-400: #55ab78;
+  --brand-500: #278653;
+  --brand-600: #176b43;
+  --brand-700: #145637;
+  --brand-800: #12452f;
+  --brand-900: #103a28;
+  --brand-950: #082117;
 
   --bg: #f5f5f5;
   --bg-soft: #ebebeb;
@@ -36,7 +45,7 @@
   --border-strong: #d1d1d1;
   --fg: #171717;
   --fg-muted: #565656;
-  --fg-subtle: #878787;
+  --fg-subtle: #666666;
 
   --c-success: #1f9d6b;
   --c-success-soft: #e5f7ef;
@@ -116,7 +125,7 @@ html[data-radius='lg'] {
   --border-strong: #404040;
   --fg: #ededed;
   --fg-muted: #a3a3a3;
-  --fg-subtle: #777777;
+  --fg-subtle: #a1a1aa;
 
   --c-success: #3ecf8e;
   --c-success-soft: rgb(62 207 142 / 0.13);
@@ -217,7 +226,8 @@ html[data-radius='lg'] {
   }
   body {
     @apply bg-bg text-fg font-sans antialiased;
-    font-size: 14px;
+    font-size: 16px;
+    line-height: 1.65;
   }
   /* اعداد فارسی گاهی در فرم‌ها/جداول باید لاتین بمانند */
   .num {
@@ -268,16 +278,16 @@ html[data-radius='lg'] {
     @apply pointer-events-none opacity-50;
   }
   .btn-sm {
-    @apply h-8 px-3 text-xs;
+    @apply h-10 px-3.5 text-[13px];
   }
   .btn-md {
-    @apply h-9 px-4 text-[13px];
+    @apply h-11 px-4 text-[15px];
   }
   .btn-lg {
-    @apply h-11 px-5 text-sm;
+    @apply h-12 px-5 text-base;
   }
   .btn-icon {
-    @apply h-9 w-9 px-0;
+    @apply h-11 w-11 px-0;
   }
   .btn-primary {
     @apply bg-brand-600 text-white hover:bg-brand-700 active:bg-brand-800;
@@ -305,7 +315,7 @@ html[data-radius='lg'] {
   .field {
     @apply w-full border border-line bg-card text-fg placeholder:text-fg-subtle;
     border-radius: var(--radius-field);
-    @apply px-3 py-2 text-[13px] transition-colors;
+    @apply min-h-11 px-3 py-2 text-base transition-colors;
   }
   .field:hover:not(:disabled) {
     @apply border-line-strong;
@@ -319,10 +329,10 @@ html[data-radius='lg'] {
 
   /* --- جدول --- */
   .th {
-    @apply whitespace-nowrap px-3 py-2.5 text-start text-xs font-semibold text-fg-muted;
+    @apply whitespace-nowrap px-3 py-3 text-start text-[13px] font-semibold text-fg-muted;
   }
   .td {
-    @apply px-3 py-2.5 align-middle text-[13px] text-fg;
+    @apply px-3 py-3 align-middle text-[14px] text-fg;
   }
 
   .chip {

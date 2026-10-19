@@ -6,6 +6,7 @@ import type { DbShape, ScanFile, User } from '../types';
 import { buildSeedDb, DEFAULT_SETTINGS, SEED_COMPANIES } from '../data/seed';
 import { PRESET_ROLES } from '../data/permissions';
 import { nowISO } from '../lib/format';
+import { createClientWorkflow } from '../lib/caseWorkflow';
 import { putBlob } from '../lib/idb';
 import { KEYS, readJSON, readString, removeItem, writeJSON } from '../lib/storage';
 
@@ -20,6 +21,7 @@ export function emptyDb(): DbShape {
     templates: [],
     roles: [],
     scans: [],
+    workflowEvidence: [],
     audit: [],
     settings: DEFAULT_SETTINGS,
   };
@@ -90,6 +92,7 @@ export function saveDb(db: DbShape) {
   writeJSON(KEYS.templates, db.templates);
   writeJSON(KEYS.roles, db.roles);
   writeJSON(KEYS.scans, db.scans);
+  writeJSON(KEYS.workflowEvidence, db.workflowEvidence);
   writeJSON(KEYS.audit, db.audit);
   writeJSON(KEYS.settings, db.settings);
 }
@@ -100,7 +103,7 @@ function sameSet(a: string[], b: string[]): boolean {
 
 /**
  * ارتقای خودکار نقش‌های آماده: اگر کاربری دست‌نخورده روی یک نقش آماده باشد که
- * در این نسخه چند دسترسی تازه (مثل companies.view/assign) به آن اضافه شده،
+ * در این نسخه چند دسترسی تازه (مثل مدیریت مجموعه‌ها و گام‌های پرونده) گرفته،
  * همان دسترسی‌ها به او هم اضافه می‌شود. دسترسی‌های سفارشی دست‌کاری نمی‌شوند.
  */
 function upgradePresetUsers(users: User[]): { users: User[]; changed: boolean } {
@@ -108,8 +111,11 @@ function upgradePresetUsers(users: User[]): { users: User[]; changed: boolean } 
   const next = users.map((user) => {
     if (user.role === 'superadmin' || user.permissions.includes('*')) return user;
     const preset = PRESET_ROLES.find((role) => {
-      const legacy = role.permissions.filter((key) => !key.startsWith('companies.'));
-      return legacy.length !== role.permissions.length && sameSet(user.permissions, legacy);
+      const versions = [
+        role.permissions.filter((key) => !key.startsWith('clients.workflow.')),
+        role.permissions.filter((key) => !key.startsWith('companies.') && !key.startsWith('clients.workflow.')),
+      ];
+      return versions.some((permissions) => permissions.length !== role.permissions.length && sameSet(user.permissions, permissions));
     });
     if (!preset) return user;
     changed = true;
@@ -144,14 +150,32 @@ export function loadDb(): DbShape {
     writeJSON(KEYS.companies, companies);
   }
 
+  const clients = readJSON<DbShape['clients']>(KEYS.clients, []).map((client) => {
+    if (client.workflow?.length) return { ...client, caseType: client.caseType ?? 'document_request' };
+    const workflow = createClientWorkflow(client.caseType ?? 'document_request');
+    if (client.status === 'done') {
+      return {
+        ...client,
+        caseType: client.caseType ?? 'document_request',
+        workflow: workflow.map((step) => ({
+          ...step,
+          status: 'completed' as const,
+          completedAt: client.updatedAt,
+        })),
+      };
+    }
+    return { ...client, caseType: client.caseType ?? 'document_request', workflow };
+  });
+
   return {
     users: upgraded.users,
     companies,
-    clients: readJSON<DbShape['clients']>(KEYS.clients, []),
+    clients,
     documents: readJSON<DbShape['documents']>(KEYS.documents, []),
     templates,
     roles: readJSON<DbShape['roles']>(KEYS.roles, []),
     scans: readJSON<DbShape['scans']>(KEYS.scans, []),
+    workflowEvidence: readJSON<DbShape['workflowEvidence']>(KEYS.workflowEvidence, []),
     audit: readJSON<DbShape['audit']>(KEYS.audit, []),
     settings: { ...DEFAULT_SETTINGS, ...readJSON<Partial<DbShape['settings']>>(KEYS.settings, {}) },
   };
@@ -167,6 +191,7 @@ export function resetDb(): DbShape {
     KEYS.templates,
     KEYS.roles,
     KEYS.scans,
+    KEYS.workflowEvidence,
     KEYS.audit,
     KEYS.settings,
     KEYS.meta,

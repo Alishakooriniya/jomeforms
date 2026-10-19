@@ -1,7 +1,7 @@
 /* فرم پرونده — همان اطلاعاتی که بعداً به‌صورت خودکار در فرم‌ها جای‌گذاری می‌شود */
 
 import { useState } from 'react';
-import type { AppSettings, Client, ClientStatus, DealKind, PartyRole, PropertyKind } from '../../types';
+import type { AppSettings, Client, ClientCaseType, ClientStatus, DealKind, PartyRole, PropertyKind } from '../../types';
 import { isValidMobile, isValidNationalId } from '../../lib/crypto';
 import { onlyDigits } from '../../lib/utils';
 import {
@@ -11,15 +11,21 @@ import {
   PROPERTY_KIND_OPTIONS,
 } from '../../data/labels';
 import { Button } from '../ui/Button';
-import { CurrencyInput, FormActions, FormGrid, NumberInput } from '../ui/Controls';
+import { Checkbox, FormActions, FormGrid, NumberInput } from '../ui/Controls';
 import { Select, TextInput, Textarea } from '../ui/Field';
 import type { ClientDraft } from '../../store/DataProvider';
+import { useDb } from '../../store/DataProvider';
+import { CLIENT_CASE_TYPE_OPTIONS } from '../../data/labels';
+import { createClientWorkflow } from '../../lib/caseWorkflow';
 
 export function emptyClientDraft(settings: AppSettings): ClientDraft {
   return {
     fullName: '',
     nationalId: '',
     mobile: '',
+    caseType: 'document_request',
+    companyId: '',
+    workflow: createClientWorkflow('document_request'),
     phone: '',
     email: '',
     fatherName: '',
@@ -64,6 +70,7 @@ export interface ClientFormProps {
   onCancel: () => void;
   submitting?: boolean;
   submitLabel?: string;
+  configureWorkflow?: boolean;
 }
 
 function Section({ title, hint, children }: { title: string; hint?: string; children: React.ReactNode }) {
@@ -79,7 +86,15 @@ function Section({ title, hint, children }: { title: string; hint?: string; chil
   );
 }
 
-export function ClientForm({ initial, onSubmit, onCancel, submitting, submitLabel = 'ذخیره پرونده' }: ClientFormProps) {
+export function ClientForm({
+  initial,
+  onSubmit,
+  onCancel,
+  submitting,
+  submitLabel = 'ذخیره پرونده',
+  configureWorkflow = false,
+}: ClientFormProps) {
+  const { companies } = useDb();
   const [form, setForm] = useState<ClientDraft>(initial ?? ({} as ClientDraft));
   const [tagsText, setTagsText] = useState((initial?.tags ?? []).join('، '));
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -88,6 +103,14 @@ export function ClientForm({ initial, onSubmit, onCancel, submitting, submitLabe
     setForm((prev) => ({ ...prev, [key]: value }));
 
   const numberValue = (value: string) => Number(onlyDigits(value) || 0);
+  const setWorkflowOptions = (caseType: ClientCaseType, includePayment: boolean, includeExternal: boolean) => {
+    const current = form.workflow ?? [];
+    const workflow = createClientWorkflow(caseType, includePayment, includeExternal).map((step) => {
+      const previous = current.find((item) => item.id === step.id);
+      return previous ? { ...step, ...previous, title: step.title, kind: step.kind, requiresEvidence: step.requiresEvidence } : step;
+    });
+    setForm((prev) => ({ ...prev, caseType, workflow }));
+  };
 
   const submit = (event: React.FormEvent) => {
     event.preventDefault();
@@ -115,6 +138,57 @@ export function ClientForm({ initial, onSubmit, onCancel, submitting, submitLabe
 
   return (
     <form className="flex flex-col gap-4" onSubmit={submit}>
+      <Section title="نوع پرونده و مسیر رسیدگی" hint="ساختار فرم‌های جزئی‌تر بعداً قابل تکمیل است">
+        <FormGrid columns={3}>
+          <Select
+            label="گروه درخواست"
+            value={form.caseType ?? 'document_request'}
+            options={CLIENT_CASE_TYPE_OPTIONS}
+            disabled={!configureWorkflow}
+            onChange={(event) =>
+              setWorkflowOptions(
+                event.target.value as ClientCaseType,
+                Boolean(form.workflow?.some((step) => step.kind === 'payment')),
+                Boolean(form.workflow?.some((step) => step.kind === 'external')),
+              )
+            }
+          />
+          <Select
+            label="نام مجموعه"
+            value={form.companyId ?? ''}
+            placeholder="بدون مجموعه"
+            options={companies
+              .filter((company) => company.active || company.id === form.companyId)
+              .map((company) => ({ value: company.id, label: company.name }))}
+            onChange={(event) => set('companyId', event.target.value)}
+          />
+          {configureWorkflow ? <div className="flex flex-wrap items-center gap-4 md:col-span-3">
+            <Checkbox
+              label="این پرونده مرحله پرداخت دارد"
+              checked={Boolean(form.workflow?.some((step) => step.kind === 'payment'))}
+              onChange={(event) =>
+                setWorkflowOptions(
+                  form.caseType ?? 'document_request',
+                  event.target.checked,
+                  Boolean(form.workflow?.some((step) => step.kind === 'external')),
+                )
+              }
+            />
+            <Checkbox
+              label="پاسخ ارگان خارجی باید دریافت و اسکن شود"
+              checked={Boolean(form.workflow?.some((step) => step.kind === 'external'))}
+              onChange={(event) =>
+                setWorkflowOptions(
+                  form.caseType ?? 'document_request',
+                  Boolean(form.workflow?.some((step) => step.kind === 'payment')),
+                  event.target.checked,
+                )
+              }
+            />
+          </div> : null}
+        </FormGrid>
+      </Section>
+
       <Section title="اطلاعات هویتی" hint="این اطلاعات در همه فرم‌ها جای‌گذاری می‌شود">
         <FormGrid columns={3}>
           <TextInput
@@ -234,34 +308,13 @@ export function ClientForm({ initial, onSubmit, onCancel, submitting, submitLabe
         </FormGrid>
       </Section>
 
-      <Section title="اطلاعات مالی">
+      <Section title="اطلاعات تکمیلی">
         <FormGrid columns={3}>
           <Select
             label="نوع معامله"
             value={form.dealKind}
             options={DEAL_KIND_OPTIONS}
             onChange={(event) => set('dealKind', event.target.value as DealKind)}
-          />
-          <CurrencyInput
-            label="قیمت کل"
-            value={form.price ? String(form.price) : ''}
-            onChange={(value) => set('price', numberValue(value))}
-          />
-          <CurrencyInput
-            label="ودیعه / علی‌الحساب"
-            value={form.deposit ? String(form.deposit) : ''}
-            onChange={(value) => set('deposit', numberValue(value))}
-          />
-          <CurrencyInput
-            label="اجاره ماهانه"
-            value={form.rent ? String(form.rent) : ''}
-            onChange={(value) => set('rent', numberValue(value))}
-          />
-          <NumberInput
-            label="درصد کمیسیون"
-            suffix="٪"
-            value={form.commissionPercent ? String(form.commissionPercent) : ''}
-            onChange={(value) => set('commissionPercent', Number(value || 0))}
           />
           <TextInput
             label="کارشناس / مشاور"
