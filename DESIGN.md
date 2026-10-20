@@ -73,6 +73,10 @@ and the local-first guarantees are unchanged. In server mode:
   in-memory access token, refresh-cookie session recovery, typed resources)
 - `AuthProvider` authenticates through `POST /auth/login`, restores the session
   through the rotating HttpOnly cookie, and reads permissions from the server
+- account profiles and password changes use authenticated API endpoints; password
+  changes revoke all refresh sessions and return the user to sign-in
+- superadmin-only manager administration uses dedicated API routes for account
+  lifecycle, permission assignment, and audit-backed activity history
 - the access token is never persisted in local storage
 - indexedDB/local storage still owns everything else until the data provider is
   migrated deliberately; that migration must keep the `useDb`/`useDbActions`

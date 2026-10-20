@@ -8,7 +8,7 @@ import {
   requireSameOrigin,
   validate,
 } from '../middleware/index.js';
-import { loginBodySchema } from '../validators/auth.validator.js';
+import { changePasswordBodySchema, loginBodySchema } from '../validators/auth.validator.js';
 
 export function createAuthRouter(container: Container): Router {
   const router = Router();
@@ -23,6 +23,12 @@ export function createAuthRouter(container: Container): Router {
   router.post('/refresh', requireSameOrigin, asyncHandler(controller.refresh));
   router.post('/logout', requireSameOrigin, asyncHandler(controller.logout));
   router.get('/me', authenticate(container.repositories.users), asyncHandler(controller.me));
+  router.post(
+    '/change-password',
+    authenticate(container.repositories.users),
+    validate({ body: changePasswordBodySchema }),
+    asyncHandler(controller.changePassword),
+  );
 
   return router;
 }

@@ -24,3 +24,15 @@ export function requirePermission(permission: string): RequestHandler {
     next();
   };
 }
+
+export const requireSuperadmin: RequestHandler = (req, _res, next) => {
+  if (!req.user) {
+    next(new AuthenticationError());
+    return;
+  }
+  if (req.user.role !== 'superadmin') {
+    next(new AuthorizationError());
+    return;
+  }
+  next();
+};

@@ -17,6 +17,7 @@ servers:
 tags:
   - name: Auth
   - name: Users
+  - name: Admin users
   - name: Roles
   - name: Permissions
   - name: Companies
@@ -94,6 +95,149 @@ paths:
                     properties:
                       data: { $ref: '#/components/schemas/User' }
         '401': { $ref: '#/components/responses/Unauthorized' }
+  /auth/change-password:
+    post:
+      tags: [Auth]
+      summary: Change the authenticated user's password
+      description: Requires the current password; revokes all refresh sessions after a successful change.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ChangePassword' }
+      responses:
+        '200':
+          description: Password changed.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Success' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+
+  /admin-users:
+    get:
+      tags: [Admin users]
+      summary: List manager accounts
+      description: Superadmin only. Returns accounts with the `admin` role.
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Search'
+        - $ref: '#/components/parameters/SortBy'
+        - $ref: '#/components/parameters/SortOrder'
+      responses:
+        '200':
+          description: Paginated manager accounts.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Success'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items: { $ref: '#/components/schemas/User' }
+                      meta: { $ref: '#/components/schemas/PaginationMeta' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+    post:
+      tags: [Admin users]
+      summary: Create a manager account
+      description: Superadmin only. The role is always `admin`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreateAdmin' }
+      responses:
+        '201':
+          description: Created manager account.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Success'
+                  - type: object
+                    properties:
+                      data: { $ref: '#/components/schemas/User' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+  /admin-users/{id}:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+    patch:
+      tags: [Admin users]
+      summary: Update a manager account
+      description: Superadmin only. Role changes are not accepted.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/UpdateAdmin' }
+      responses:
+        '200':
+          description: Updated manager account.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Success'
+                  - type: object
+                    properties:
+                      data: { $ref: '#/components/schemas/User' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    delete:
+      tags: [Admin users]
+      summary: Permanently delete a manager account
+      description: Superadmin only. Revokes all active sessions.
+      responses:
+        '204': { description: Deleted. }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /admin-users/{id}/permissions:
+    put:
+      tags: [Admin users]
+      summary: Replace a manager's permissions
+      description: Superadmin only.
+      parameters:
+        - $ref: '#/components/parameters/Id'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [permissions]
+              properties:
+                permissions:
+                  type: array
+                  items: { type: string }
+      responses:
+        '200': { description: Permissions updated. }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /admin-users/{id}/status:
+    patch:
+      tags: [Admin users]
+      summary: Activate or deactivate a manager account
+      description: Superadmin only. Deactivation revokes all refresh sessions.
+      parameters:
+        - $ref: '#/components/parameters/Id'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [active]
+              properties:
+                active: { type: boolean }
+      responses:
+        '200': { description: Status updated. }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
 
   /users:
     get:
@@ -1326,6 +1470,27 @@ components:
         companyId: { type: string, format: uuid, nullable: true }
         active: { type: boolean }
         note: { type: string }
+    CreateAdmin:
+      type: object
+      required: [username, fullName, password]
+      properties:
+        username: { type: string, minLength: 3, maxLength: 40 }
+        fullName: { type: string, minLength: 2, maxLength: 120 }
+        password: { type: string, minLength: 8, maxLength: 200 }
+        permissions:
+          type: array
+          items: { type: string }
+        title: { type: string }
+        mobile: { type: string }
+        active: { type: boolean }
+        note: { type: string }
+    ChangePassword:
+      type: object
+      required: [currentPassword, newPassword, confirmPassword]
+      properties:
+        currentPassword: { type: string, minLength: 1, maxLength: 200 }
+        newPassword: { type: string, minLength: 8, maxLength: 200 }
+        confirmPassword: { type: string, minLength: 1, maxLength: 200 }
     UpdateUser:
       type: object
       description: Any subset of CreateUser fields; a new password revokes existing sessions.
@@ -1340,6 +1505,19 @@ components:
         title: { type: string, nullable: true }
         mobile: { type: string, nullable: true }
         companyId: { type: string, format: uuid, nullable: true }
+        active: { type: boolean }
+        note: { type: string, nullable: true }
+    UpdateAdmin:
+      type: object
+      properties:
+        username: { type: string, minLength: 3, maxLength: 40 }
+        fullName: { type: string, minLength: 2, maxLength: 120 }
+        password: { type: string, minLength: 8, maxLength: 200 }
+        permissions:
+          type: array
+          items: { type: string }
+        title: { type: string, nullable: true }
+        mobile: { type: string, nullable: true }
         active: { type: boolean }
         note: { type: string, nullable: true }
     Role:

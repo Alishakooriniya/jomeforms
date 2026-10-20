@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import type { Container } from '../container.js';
 import { createAuditRouter } from './audit.routes.js';
+import { createAdminUserRouter } from './admin-user.routes.js';
 import { createAuthRouter } from './auth.routes.js';
 import { createClientRouter } from './client.routes.js';
 import { createCompanyRouter } from './company.routes.js';
@@ -16,6 +17,7 @@ export function createApiRouter(container: Container): Router {
   const router = Router();
 
   router.use('/auth', createAuthRouter(container));
+  router.use('/admin-users', createAdminUserRouter(container));
   router.use('/users', createUserRouter(container));
   router.use('/roles', createRoleRouter(container));
   router.use('/permissions', createPermissionRouter(container));

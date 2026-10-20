@@ -10,6 +10,7 @@ import { Button } from '../components/ui/Button';
 import { TextInput } from '../components/ui/Field';
 import { Icon } from '../components/ui/Icon';
 import { FormActions } from '../components/ui/Controls';
+import { useToast } from '../store/ToastProvider';
 
 const FEATURES = [
   { icon: 'template' as const, title: 'تکمیل خودکار فرم‌ها', text: 'اطلاعات پرونده یک‌بار وارد می‌شود و در همه فرم‌ها جای‌گذاری می‌گردد.' },
@@ -20,12 +21,12 @@ const FEATURES = [
 export default function Login() {
   const { login, user, ready, serverMode } = useAuth();
   const { settings } = useDb();
+  const toast = useToast();
   const theme = useTheme();
   const navigate = useNavigate();
   const location = useLocation();
   const [username, setUsername] = useState(serverMode ? '' : 'superadmin');
   const [password, setPassword] = useState(serverMode ? '' : 'super123');
-  const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
   const from = (location.state as { from?: string } | null)?.from;
@@ -38,13 +39,13 @@ export default function Login() {
   const submit = async (event: React.FormEvent) => {
     event.preventDefault();
     setLoading(true);
-    setError('');
     try {
       const result = await login(username, password);
       if (!result.ok) {
-        setError(result.error ?? 'ورود ناموفق بود.');
+        toast.error(result.error ?? 'ورود ناموفق بود.');
         return;
       }
+      toast.success('با موفقیت وارد شدید.');
       navigate(from ?? '/', { replace: true });
     } finally {
       setLoading(false);
@@ -130,13 +131,6 @@ export default function Login() {
                 placeholder="••••••••"
               />
 
-              {error ? (
-                <p className="flex items-center gap-2 rounded-field bg-danger-soft px-3 py-2 text-[13px] text-danger-fg">
-                  <Icon name="alert" size={14} />
-                  {error}
-                </p>
-              ) : null}
-
               <FormActions className="border-0 pt-0">
                 <Button type="submit" variant="primary" size="lg" fullWidth icon="logout" loading={loading}>
                   ورود به سامانه
@@ -159,7 +153,6 @@ export default function Login() {
                   onClick={() => {
                     setUsername(account.username);
                     setPassword(account.password);
-                    setError('');
                   }}
                   className="flex min-h-11 items-center justify-between gap-3 rounded-field border border-line bg-card px-3 py-2 text-start text-[13px] transition-colors hover:border-brand-400 hover:bg-brand-50 dark:hover:bg-brand-500/10"
                 >

@@ -24,6 +24,7 @@ export function Topbar({ onOpenMenu }: { onOpenMenu: () => void }) {
     : [];
 
   const userItems: DropdownItem[] = [
+    { id: 'profile', label: 'پروفایل', icon: 'user', onSelect: () => navigate('/profile') },
     ...(can('settings.view')
       ? [{ id: 'settings', label: 'تنظیمات سامانه', icon: 'settings' as const, onSelect: () => navigate('/settings') }]
       : []),

@@ -62,4 +62,16 @@ export class AuthController {
   me = async (req: Request, res: Response): Promise<void> => {
     sendSuccess(res, req.user);
   };
+
+  changePassword = async (req: Request, res: Response): Promise<void> => {
+    if (!req.user) throw new AuthenticationError();
+    const input = body<{ currentPassword: string; newPassword: string }>(req);
+    await this.auth.changePassword(
+      req.user.id,
+      input.currentPassword,
+      input.newPassword,
+      requestMeta(req),
+    );
+    sendSuccess(res, null, { message: 'Password changed successfully.' });
+  };
 }

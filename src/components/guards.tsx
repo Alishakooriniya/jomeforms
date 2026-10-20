@@ -26,6 +26,12 @@ export function RequirePermission({ permission, children }: { permission: string
   return <>{children}</>;
 }
 
+export function RequireSuperadmin({ children }: { children: ReactNode }) {
+  const { isSuperadmin, serverMode } = useAuth();
+  if (!isSuperadmin || !serverMode) return <NoAccess />;
+  return <>{children}</>;
+}
+
 /** نمایش شرطی بخشی از رابط کاربری */
 export function Can({
   permission,

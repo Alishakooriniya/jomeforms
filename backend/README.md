@@ -141,6 +141,11 @@ npm run dev        # tsx watch src/server.ts
 - Health: `http://localhost:4000/health`
 - Swagger UI: `http://localhost:4000/api/docs`
 - Raw spec: `http://localhost:4000/api/openapi.yaml`
+- Manager account administration is available at `/api/v1/admin-users` to
+  authenticated superadmins only. `POST /api/v1/auth/change-password` changes
+  the current user's password and revokes all refresh sessions.
+- Error messages returned by the API are localized in Persian; clients should
+  display the response's `error.message`.
 
 ## 6. Tests
 
