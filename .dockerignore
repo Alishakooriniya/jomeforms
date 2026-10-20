@@ -1,0 +1,16 @@
+node_modules
+dist
+.vite
+coverage
+backend
+.git
+.gitignore
+.freebuff
+.env
+.env.*
+!/.env.example
+*.log
+Dockerfile
+.dockerignore
+docker-compose.yml
+compose.yaml

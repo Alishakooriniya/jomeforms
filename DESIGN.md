@@ -63,6 +63,24 @@ The application is designed to work without a server dependency.
 - scanning and binary file payloads are stored with the IDB utilities
 - the app is structured so backend integration can replace the provider implementation later without redesigning the UI layer
 
+### Server mode (opt-in)
+
+The repository ships a production backend under `backend/`. It is consumed only
+when `VITE_API_MODE=server` is set; the default remains `local`, so offline demos
+and the local-first guarantees are unchanged. In server mode:
+
+- `src/lib/apiClient.ts` is the single HTTP client (envelope, versioned paths,
+  in-memory access token, refresh-cookie session recovery, typed resources)
+- `AuthProvider` authenticates through `POST /auth/login`, restores the session
+  through the rotating HttpOnly cookie, and reads permissions from the server
+- the access token is never persisted in local storage
+- indexedDB/local storage still owns everything else until the data provider is
+  migrated deliberately; that migration must keep the `useDb`/`useDbActions`
+  interfaces so pages do not change
+
+This split is intentional: it delivers real server authentication without
+breaking offline usage or rewriting page components in one step.
+
 ### Audit trail
 
 Actions are logged inside the central data layer with metadata such as:

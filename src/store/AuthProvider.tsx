@@ -1,6 +1,8 @@
-/* احراز هویت سمت کلاینت.
-   ⚠️ در بک‌اند واقعی، ورود با توکن سمت سرور انجام می‌شود و این فایل
-   به یک فراخوانی API تبدیل خواهد شد (src/lib/api.ts). */
+/* احراز هویت.
+   دو حالت دارد:
+   - محلی (پیش‌فرض): کاربران داخل مرورگر بررسی می‌شوند و سامانه آفلاین کار می‌کند.
+   - سروری: با `VITE_API_MODE=server` ورود/خروج و بازیابی نشست از API انجام می‌شود
+     (توکن دسترسی در حافظه، نشست با کوکی HttpOnly تازه می‌شود). */
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
@@ -10,6 +12,7 @@ import { verifyPassword } from '../lib/crypto';
 import { normalizeText } from '../lib/utils';
 import { KEYS, readJSON, removeItem, writeJSON } from '../lib/storage';
 import { userCan } from '../data/permissions';
+import { ApiError, authApi, isServerMode } from '../lib/apiClient';
 
 interface LoginResult {
   ok: boolean;
@@ -19,30 +22,73 @@ interface LoginResult {
 interface AuthApi {
   user: User | null;
   isSuperadmin: boolean;
-  login: (username: string, password: string) => LoginResult;
-  logout: () => void;
+  /** false while a server session is being restored after a page reload */
+  ready: boolean;
+  serverMode: boolean;
+  login: (username: string, password: string) => Promise<LoginResult>;
+  logout: () => Promise<void>;
   can: (permission: string) => boolean;
   canAny: (permissions: string[]) => boolean;
 }
 
 const AuthContext = createContext<AuthApi | null>(null);
 
+/** پیام‌های سرور انگلیسی هستند؛ برای کاربر فارسی‌زبان ترجمه می‌شوند. */
+function authErrorMessage(error: unknown): string {
+  if (error instanceof ApiError) {
+    switch (error.code) {
+      case 'INVALID_CREDENTIALS':
+        return 'نام کاربری یا رمز عبور اشتباه است.';
+      case 'ACCOUNT_DISABLED':
+        return 'این حساب غیرفعال است؛ با مدیر ارشد تماس بگیرید.';
+      case 'VALIDATION_ERROR':
+        return 'نام کاربری و رمز عبور را درست وارد کنید.';
+      case 'RATE_LIMITED':
+        return 'تلاش‌های ورود بیش از حد مجاز است؛ کمی بعد دوباره امتحان کنید.';
+      default:
+        return 'ورود ناموفق بود. دوباره تلاش کنید.';
+    }
+  }
+  return 'ارتباط با سرور برقرار نشد. اتصال شبکه را بررسی کنید.';
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const { users } = useDb();
   const { log, touchLogin } = useDbActions();
-  const [session, setSession] = useState<AuthSession | null>(() => readJSON<AuthSession | null>(KEYS.session, null));
+  const [session, setSession] = useState<AuthSession | null>(() =>
+    readJSON<AuthSession | null>(KEYS.session, null),
+  );
+  const [serverUser, setServerUser] = useState<User | null>(null);
+  const [ready, setReady] = useState(!isServerMode);
 
   const user = useMemo(() => {
+    if (isServerMode) return serverUser;
     if (!session) return null;
     return users.find((item) => item.id === session.userId && item.active) ?? null;
-  }, [session, users]);
+  }, [session, serverUser, users]);
 
-  // اگر کاربر حذف یا غیرفعال شود، نشست باطل می‌شود
+  // بازیابی نشست سروری پس از بارگذاری صفحه (کوکی refresh)
   useEffect(() => {
-    if (session && !user) {
-      removeItem(KEYS.session);
-      setSession(null);
-    }
+    if (!isServerMode) return;
+    let cancelled = false;
+    authApi
+      .restore()
+      .then((restored) => {
+        if (!cancelled) setServerUser(restored);
+      })
+      .finally(() => {
+        if (!cancelled) setReady(true);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // اگر کاربر حذف یا غیرفعال شود، نشست محلی باطل می‌شود
+  useEffect(() => {
+    if (isServerMode || !session || user) return;
+    removeItem(KEYS.session);
+    setSession(null);
   }, [session, user]);
 
   useEffect(() => {
@@ -50,9 +96,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [user]);
 
   const login = useCallback<AuthApi['login']>(
-    (username, password) => {
+    async (username, password) => {
+      if (!username.trim() || !password) {
+        return { ok: false, error: 'نام کاربری و رمز عبور را وارد کنید.' };
+      }
+
+      if (isServerMode) {
+        try {
+          const result = await authApi.login(username.trim(), password);
+          setServerUser(result.user);
+          return { ok: true };
+        } catch (error) {
+          return { ok: false, error: authErrorMessage(error) };
+        }
+      }
+
       const needle = normalizeText(username);
-      if (!needle || !password) return { ok: false, error: 'نام کاربری و رمز عبور را وارد کنید.' };
       const found = users.find((item) => normalizeText(item.username) === needle);
       if (!found) return { ok: false, error: 'نام کاربری یا رمز عبور اشتباه است.' };
       if (!found.active) return { ok: false, error: 'این حساب غیرفعال است؛ با مدیر ارشد تماس بگیرید.' };
@@ -70,7 +129,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     [users, log, touchLogin],
   );
 
-  const logout = useCallback(() => {
+  const logout = useCallback(async () => {
+    if (isServerMode) {
+      await authApi.logout().catch(() => undefined);
+      setServerUser(null);
+      return;
+    }
     if (user) log({ action: 'خروج از سامانه', entity: 'auth', entityId: user.id, entityLabel: user.fullName });
     removeItem(KEYS.session);
     setSession(null);
@@ -81,12 +145,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     () => ({
       user,
       isSuperadmin: user?.role === 'superadmin',
+      ready,
+      serverMode: isServerMode,
       login,
       logout,
       can: (permission) => userCan(user, permission),
       canAny: (permissions) => permissions.some((permission) => userCan(user, permission)),
     }),
-    [user, login, logout],
+    [user, ready, login, logout],
   );
 
   return <AuthContext.Provider value={api}>{children}</AuthContext.Provider>;

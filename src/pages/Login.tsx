@@ -18,31 +18,37 @@ const FEATURES = [
 ];
 
 export default function Login() {
-  const { login, user } = useAuth();
+  const { login, user, ready, serverMode } = useAuth();
   const { settings } = useDb();
   const theme = useTheme();
   const navigate = useNavigate();
   const location = useLocation();
-  const [username, setUsername] = useState('superadmin');
-  const [password, setPassword] = useState('super123');
+  const [username, setUsername] = useState(serverMode ? '' : 'superadmin');
+  const [password, setPassword] = useState(serverMode ? '' : 'super123');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
   const from = (location.state as { from?: string } | null)?.from;
 
+  if (!ready) {
+    return <div className="grid min-h-screen place-items-center text-sm text-fg-muted">در حال بارگذاری…</div>;
+  }
   if (user) return <Navigate to={from ?? '/'} replace />;
 
-  const submit = (event: React.FormEvent) => {
+  const submit = async (event: React.FormEvent) => {
     event.preventDefault();
     setLoading(true);
     setError('');
-    const result = login(username, password);
-    setLoading(false);
-    if (!result.ok) {
-      setError(result.error ?? 'ورود ناموفق بود.');
-      return;
+    try {
+      const result = await login(username, password);
+      if (!result.ok) {
+        setError(result.error ?? 'ورود ناموفق بود.');
+        return;
+      }
+      navigate(from ?? '/', { replace: true });
+    } finally {
+      setLoading(false);
     }
-    navigate(from ?? '/', { replace: true });
   };
 
   return (
@@ -139,6 +145,7 @@ export default function Login() {
             </div>
           </form>
 
+          {serverMode ? null : (
           <div className="mt-4 rounded-card border border-line bg-card-2/60 p-4">
             <p className="mb-3 flex items-center gap-2 text-[13px] text-fg-muted">
               <Icon name="info" size={15} />
@@ -164,6 +171,7 @@ export default function Login() {
               ))}
             </div>
           </div>
+          )}
         </div>
       </section>
     </div>

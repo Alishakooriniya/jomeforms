@@ -8,8 +8,11 @@ import { Button } from './ui/Button';
 
 /** مسیرهای نیازمند ورود */
 export function RequireAuth({ children }: { children: ReactNode }) {
-  const { user } = useAuth();
+  const { user, ready } = useAuth();
   const location = useLocation();
+  if (!ready) {
+    return <div className="grid min-h-screen place-items-center text-sm text-fg-muted">در حال بارگذاری…</div>;
+  }
   if (!user) {
     return <Navigate to="/login" replace state={{ from: location.pathname + location.search }} />;
   }
