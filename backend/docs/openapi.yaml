@@ -1,0 +1,1615 @@
+openapi: 3.1.0
+info:
+  title: Jomeforms API
+  version: 1.0.0
+  description: |
+    REST API for the Jomeforms real-estate case management and document system.
+    Responses share one envelope: `{ success, data, message?, meta? }` for success
+    and `{ success: false, error: { code, message, details?, requestId } }` for errors.
+
+    All endpoints except `POST /auth/login`, `POST /auth/refresh` and
+    `POST /auth/logout` require a bearer access token. Access tokens are short
+    lived; the refresh token is delivered as an HttpOnly cookie and rotates on
+    every refresh.
+servers:
+  - url: http://localhost:4000/api/v1
+    description: Local development
+tags:
+  - name: Auth
+  - name: Users
+  - name: Roles
+  - name: Permissions
+  - name: Companies
+  - name: Case files
+  - name: Templates
+  - name: Documents
+  - name: Reports
+  - name: Audit
+  - name: Settings
+security:
+  - bearerAuth: []
+paths:
+  /auth/login:
+    post:
+      tags: [Auth]
+      summary: Sign in and receive an access token
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [username, password]
+              properties:
+                username: { type: string, minLength: 3, maxLength: 40 }
+                password: { type: string, minLength: 8, maxLength: 200 }
+      responses:
+        '200':
+          description: Signed in. Sets the `jf_refresh` HttpOnly cookie.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/LoginResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+  /auth/refresh:
+    post:
+      tags: [Auth]
+      summary: Rotate the refresh cookie and issue a new access token
+      description: Requires the HttpOnly `jf_refresh` cookie and an allowed Origin.
+      security: []
+      responses:
+        '200':
+          description: New access token. The previous refresh token is revoked.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/LoginResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+  /auth/logout:
+    post:
+      tags: [Auth]
+      summary: Revoke the current refresh session and clear the cookie
+      security: []
+      responses:
+        '200':
+          description: Signed out.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Success' }
+  /auth/me:
+    get:
+      tags: [Auth]
+      summary: Return the authenticated user with effective permissions
+      responses:
+        '200':
+          description: Current user.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Success'
+                  - type: object
+                    properties:
+                      data: { $ref: '#/components/schemas/User' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /users:
+    get:
+      tags: [Users]
+      summary: List users
+      description: Requires `users.view`.
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Search'
+        - $ref: '#/components/parameters/SortBy'
+        - $ref: '#/components/parameters/SortOrder'
+        - { name: role, in: query, schema: { type: string, enum: [superadmin, admin] } }
+        - { name: active, in: query, schema: { type: boolean } }
+        - { name: companyId, in: query, schema: { type: string, format: uuid } }
+      responses:
+        '200':
+          description: Paginated users.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Success'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items: { $ref: '#/components/schemas/User' }
+                      meta: { $ref: '#/components/schemas/PaginationMeta' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+    post:
+      tags: [Users]
+      summary: Create a user
+      description: Requires `users.create`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreateUser' }
+      responses:
+        '201':
+          description: Created user (never contains password data).
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Success'
+                  - type: object
+                    properties:
+                      data: { $ref: '#/components/schemas/User' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+  /users/{id}:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+    get:
+      tags: [Users]
+      summary: Get a user
+      description: Requires `users.view`.
+      responses:
+        '200':
+          description: User.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Success'
+                  - type: object
+                    properties:
+                      data: { $ref: '#/components/schemas/User' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    patch:
+      tags: [Users]
+      summary: Update a user (including password reset)
+      description: Requires `users.edit`. Resetting the password revokes the user's sessions.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/UpdateUser' }
+      responses:
+        '200':
+          description: Updated user.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Success'
+                  - type: object
+                    properties:
+                      data: { $ref: '#/components/schemas/User' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+    delete:
+      tags: [Users]
+      summary: Delete a user
+      description: Requires `users.delete`. The last superadmin cannot be deleted.
+      responses:
+        '204': { description: Deleted. }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /users/{id}/permissions:
+    put:
+      tags: [Users]
+      summary: Replace a user's permission set
+      description: Requires `users.edit`. Superadmin permissions are implicit.
+      parameters:
+        - $ref: '#/components/parameters/Id'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [permissions]
+              properties:
+                permissions:
+                  type: array
+                  items: { type: string }
+      responses:
+        '200':
+          description: Updated user.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Success'
+                  - type: object
+                    properties:
+                      data: { $ref: '#/components/schemas/User' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+  /users/{id}/status:
+    patch:
+      tags: [Users]
+      summary: Activate or deactivate a user
+      description: Requires `users.edit`. Deactivation revokes all sessions.
+      parameters:
+        - $ref: '#/components/parameters/Id'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [active]
+              properties:
+                active: { type: boolean }
+      responses:
+        '200':
+          description: Updated user.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Success'
+                  - type: object
+                    properties:
+                      data: { $ref: '#/components/schemas/User' }
+        '409': { $ref: '#/components/responses/Conflict' }
+
+  /roles:
+    get:
+      tags: [Roles]
+      summary: List permission roles
+      description: Requires `roles.view`.
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Search'
+      responses:
+        '200':
+          description: Paginated roles.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Success'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items: { $ref: '#/components/schemas/Role' }
+                      meta: { $ref: '#/components/schemas/PaginationMeta' }
+    post:
+      tags: [Roles]
+      summary: Create a role
+      description: Requires `roles.create`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/RoleInput' }
+      responses:
+        '201':
+          description: Created role.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Success'
+                  - type: object
+                    properties:
+                      data: { $ref: '#/components/schemas/Role' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /roles/{id}:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+    get:
+      tags: [Roles]
+      summary: Get a role
+      responses:
+        '200':
+          description: Role.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Success'
+                  - type: object
+                    properties:
+                      data: { $ref: '#/components/schemas/Role' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    patch:
+      tags: [Roles]
+      summary: Update a role
+      description: Requires `roles.edit`. System roles cannot be renamed.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/RoleInput' }
+      responses:
+        '200':
+          description: Updated role.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Success'
+                  - type: object
+                    properties:
+                      data: { $ref: '#/components/schemas/Role' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    delete:
+      tags: [Roles]
+      summary: Delete a role
+      description: Requires `roles.delete`. Assigned roles cannot be deleted.
+      responses:
+        '204': { description: Deleted. }
+        '409': { $ref: '#/components/responses/Conflict' }
+
+  /permissions:
+    get:
+      tags: [Permissions]
+      summary: List the permission catalog with Persian labels
+      responses:
+        '200':
+          description: Permission catalog.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Success'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            key: { type: string }
+                            group: { type: string }
+                            label: { type: string }
+
+  /companies:
+    get:
+      tags: [Companies]
+      summary: List companies
+      description: Requires `companies.view`.
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Search'
+        - $ref: '#/components/parameters/SortBy'
+        - $ref: '#/components/parameters/SortOrder'
+        - { name: kind, in: query, schema: { type: string, enum: [owner, developer, cooperative, investor, org, other] } }
+        - { name: active, in: query, schema: { type: boolean } }
+      responses:
+        '200':
+          description: Paginated companies.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Success'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items: { $ref: '#/components/schemas/Company' }
+                      meta: { $ref: '#/components/schemas/PaginationMeta' }
+    post:
+      tags: [Companies]
+      summary: Create a company
+      description: Requires `companies.create`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CompanyInput' }
+      responses:
+        '201':
+          description: Created company.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Success'
+                  - type: object
+                    properties:
+                      data: { $ref: '#/components/schemas/Company' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+  /companies/{id}:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+    get:
+      tags: [Companies]
+      summary: Get a company
+      responses:
+        '200':
+          description: Company.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Success'
+                  - type: object
+                    properties:
+                      data: { $ref: '#/components/schemas/Company' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    patch:
+      tags: [Companies]
+      summary: Update a company
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CompanyInput' }
+      responses:
+        '200':
+          description: Updated company.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Success'
+                  - type: object
+                    properties:
+                      data: { $ref: '#/components/schemas/Company' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    delete:
+      tags: [Companies]
+      summary: Delete a company and detach its members
+      responses:
+        '204': { description: Deleted. Users keep their accounts without a company. }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /companies/{id}/members:
+    put:
+      tags: [Companies]
+      summary: Replace the member list of a company
+      description: Requires `companies.edit`. Users not in the list are detached.
+      parameters:
+        - $ref: '#/components/parameters/Id'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [userIds]
+              properties:
+                userIds:
+                  type: array
+                  items: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Membership changes.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Success'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          added: { type: integer }
+                          removed: { type: integer }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+
+  /clients:
+    get:
+      tags: [Case files]
+      summary: List and search case files
+      description: Requires `clients.view`. Searches name, national ID, code, mobile and company name.
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Search'
+        - $ref: '#/components/parameters/SortBy'
+        - $ref: '#/components/parameters/SortOrder'
+        - { name: status, in: query, schema: { type: string, enum: [new, in_progress, awaiting_docs, done, archived] } }
+        - { name: caseType, in: query, schema: { type: string, enum: [document_request, rent_renewal] } }
+        - { name: companyId, in: query, schema: { type: string, format: uuid } }
+        - { name: agentName, in: query, schema: { type: string } }
+      responses:
+        '200':
+          description: Paginated case files with workflow and evidence.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Success'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items: { $ref: '#/components/schemas/Client' }
+                      meta: { $ref: '#/components/schemas/PaginationMeta' }
+    post:
+      tags: [Case files]
+      summary: Create a case file
+      description: Requires `clients.create`. A case code is generated when omitted.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ClientInput' }
+      responses:
+        '201':
+          description: Created case file.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Success'
+                  - type: object
+                    properties:
+                      data: { $ref: '#/components/schemas/Client' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+  /clients/{id}:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+    get:
+      tags: [Case files]
+      summary: Get a case file
+      responses:
+        '200':
+          description: Case file with documents count and evidence.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Success'
+                  - type: object
+                    properties:
+                      data: { $ref: '#/components/schemas/Client' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    patch:
+      tags: [Case files]
+      summary: Update a case file
+      description: Requires `clients.edit`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ClientInput' }
+      responses:
+        '200':
+          description: Updated case file.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Success'
+                  - type: object
+                    properties:
+                      data: { $ref: '#/components/schemas/Client' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+    delete:
+      tags: [Case files]
+      summary: Delete a case file
+      description: Requires `clients.delete`.
+      responses:
+        '204': { description: Deleted. }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /clients/{id}/workflow/steps/{stepId}/complete:
+    post:
+      tags: [Case files]
+      summary: Complete a workflow step
+      description: Requires `clients.workflow.advance`. Steps run in order; steps with `requiresEvidence` need at least one uploaded file.
+      parameters:
+        - $ref: '#/components/parameters/Id'
+        - $ref: '#/components/parameters/StepId'
+      responses:
+        '200':
+          description: Updated case file.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Success'
+                  - type: object
+                    properties:
+                      data: { $ref: '#/components/schemas/Client' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /clients/{id}/workflow/steps/{stepId}/override:
+    post:
+      tags: [Case files]
+      summary: Complete a step while overriding its evidence gate
+      description: Requires `clients.workflow.override`. The reason is stored on the step and in the audit log.
+      parameters:
+        - $ref: '#/components/parameters/Id'
+        - $ref: '#/components/parameters/StepId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [reason]
+              properties:
+                reason: { type: string, minLength: 3, maxLength: 1000 }
+      responses:
+        '200':
+          description: Updated case file.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Success'
+                  - type: object
+                    properties:
+                      data: { $ref: '#/components/schemas/Client' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+  /clients/{id}/workflow/steps/{stepId}/evidence:
+    post:
+      tags: [Case files]
+      summary: Upload evidence for a workflow step
+      description: Requires `clients.workflow.advance`. Accepts one file field named `file` (JPEG, PNG, WebP or PDF).
+      parameters:
+        - $ref: '#/components/parameters/Id'
+        - $ref: '#/components/parameters/StepId'
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file]
+              properties:
+                file: { type: string, format: binary }
+      responses:
+        '201':
+          description: Stored evidence.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Success'
+                  - type: object
+                    properties:
+                      data: { $ref: '#/components/schemas/Evidence' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '413': { description: File too large. }
+        '415': { description: Unsupported or spoofed file type. }
+  /clients/evidence/{evidenceId}/file:
+    get:
+      tags: [Case files]
+      summary: Download an evidence file
+      parameters:
+        - { name: evidenceId, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200':
+          description: File content.
+          content:
+            image/png: { schema: { type: string, format: binary } }
+            image/jpeg: { schema: { type: string, format: binary } }
+            application/pdf: { schema: { type: string, format: binary } }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /form-templates:
+    get:
+      tags: [Templates]
+      summary: List form templates
+      description: Requires `templates.view`.
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Search'
+        - $ref: '#/components/parameters/SortBy'
+        - $ref: '#/components/parameters/SortOrder'
+        - { name: category, in: query, schema: { $ref: '#/components/schemas/TemplateCategory' } }
+        - { name: active, in: query, schema: { type: boolean } }
+      responses:
+        '200':
+          description: Paginated templates with usage counts.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Success'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items: { $ref: '#/components/schemas/Template' }
+                      meta: { $ref: '#/components/schemas/PaginationMeta' }
+    post:
+      tags: [Templates]
+      summary: Create a form template
+      description: Requires `templates.create`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/TemplateInput' }
+      responses:
+        '201':
+          description: Created template.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Success'
+                  - type: object
+                    properties:
+                      data: { $ref: '#/components/schemas/Template' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+  /form-templates/{id}:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+    get:
+      tags: [Templates]
+      summary: Get a template
+      responses:
+        '200':
+          description: Template.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Success'
+                  - type: object
+                    properties:
+                      data: { $ref: '#/components/schemas/Template' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    patch:
+      tags: [Templates]
+      summary: Update a template
+      description: Requires `templates.edit`. Existing documents keep their snapshot.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/TemplateInput' }
+      responses:
+        '200':
+          description: Updated template.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Success'
+                  - type: object
+                    properties:
+                      data: { $ref: '#/components/schemas/Template' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    delete:
+      tags: [Templates]
+      summary: Delete a template
+      description: Requires `templates.delete`. Templates in use cannot be deleted.
+      responses:
+        '204': { description: Deleted. }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /form-templates/{id}/duplicate:
+    post:
+      tags: [Templates]
+      summary: Duplicate a template as a new inactive version
+      parameters:
+        - $ref: '#/components/parameters/Id'
+      responses:
+        '201':
+          description: Duplicated template.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Success'
+                  - type: object
+                    properties:
+                      data: { $ref: '#/components/schemas/Template' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /documents:
+    get:
+      tags: [Documents]
+      summary: List documents
+      description: Requires `documents.view`.
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Search'
+        - $ref: '#/components/parameters/SortBy'
+        - $ref: '#/components/parameters/SortOrder'
+        - { name: status, in: query, schema: { $ref: '#/components/schemas/DocStatus' } }
+        - { name: templateId, in: query, schema: { type: string, format: uuid } }
+        - { name: clientId, in: query, schema: { type: string, format: uuid } }
+        - { name: createdBy, in: query, schema: { type: string, format: uuid } }
+        - { name: from, in: query, schema: { type: string, format: date } }
+        - { name: to, in: query, schema: { type: string, format: date } }
+      responses:
+        '200':
+          description: Paginated documents.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Success'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items: { $ref: '#/components/schemas/Document' }
+                      meta: { $ref: '#/components/schemas/PaginationMeta' }
+    post:
+      tags: [Documents]
+      summary: Create a document from a template
+      description: Requires `documents.create`. Required template fields must be present; linked case fields are prefilled automatically.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [templateId]
+              properties:
+                templateId: { type: string, format: uuid }
+                clientId: { type: string, format: uuid, nullable: true }
+                values:
+                  type: object
+                  additionalProperties: { type: string }
+                status: { $ref: '#/components/schemas/DocStatus' }
+                tags:
+                  type: array
+                  items: { type: string }
+                notes: { type: string, maxLength: 4000 }
+      responses:
+        '201':
+          description: Created document with a generated number.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Success'
+                  - type: object
+                    properties:
+                      data: { $ref: '#/components/schemas/Document' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+  /documents/{id}:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+    get:
+      tags: [Documents]
+      summary: Get a document
+      responses:
+        '200':
+          description: Document with scan ids.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Success'
+                  - type: object
+                    properties:
+                      data: { $ref: '#/components/schemas/Document' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    patch:
+      tags: [Documents]
+      summary: Update document values, tags or notes
+      description: Requires `documents.edit`. Values replace the stored snapshot after merging.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                title: { type: string }
+                values:
+                  type: object
+                  additionalProperties: { type: string }
+                tags:
+                  type: array
+                  items: { type: string }
+                notes: { type: string, nullable: true }
+      responses:
+        '200':
+          description: Updated document.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Success'
+                  - type: object
+                    properties:
+                      data: { $ref: '#/components/schemas/Document' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+    delete:
+      tags: [Documents]
+      summary: Delete a document and its scans
+      description: Requires `documents.delete`.
+      responses:
+        '204': { description: Deleted. }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /documents/{id}/status:
+    patch:
+      tags: [Documents]
+      summary: Change the document status
+      description: Requires `documents.status`. Transitions are recorded with history and timestamps.
+      parameters:
+        - $ref: '#/components/parameters/Id'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [status]
+              properties:
+                status: { $ref: '#/components/schemas/DocStatus' }
+      responses:
+        '200':
+          description: Updated document.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Success'
+                  - type: object
+                    properties:
+                      data: { $ref: '#/components/schemas/Document' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+  /documents/{id}/print:
+    post:
+      tags: [Documents]
+      summary: Mark a document as printed
+      description: Requires `documents.print`.
+      parameters:
+        - $ref: '#/components/parameters/Id'
+      responses:
+        '200':
+          description: Updated document with `printedAt`.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Success'
+                  - type: object
+                    properties:
+                      data: { $ref: '#/components/schemas/Document' }
+  /documents/{id}/scans:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+    get:
+      tags: [Documents]
+      summary: List scans of a document
+      responses:
+        '200':
+          description: Scans.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Success'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items: { $ref: '#/components/schemas/Scan' }
+    post:
+      tags: [Documents]
+      summary: Upload a signed scan
+      description: Requires `documents.upload`. Accepts one `file` (JPEG, PNG, WebP, PDF). Marks the document as scanned.
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file]
+              properties:
+                file: { type: string, format: binary }
+      responses:
+        '201':
+          description: Stored scan.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Success'
+                  - type: object
+                    properties:
+                      data: { $ref: '#/components/schemas/Scan' }
+        '415': { description: Unsupported or spoofed file type. }
+  /documents/{id}/scans/{scanId}/file:
+    get:
+      tags: [Documents]
+      summary: Download a scan
+      parameters:
+        - $ref: '#/components/parameters/Id'
+        - { name: scanId, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200':
+          description: File content.
+          content:
+            image/png: { schema: { type: string, format: binary } }
+            application/pdf: { schema: { type: string, format: binary } }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /documents/{id}/scans/{scanId}:
+    delete:
+      tags: [Documents]
+      summary: Delete a scan
+      description: Requires `documents.upload`.
+      parameters:
+        - $ref: '#/components/parameters/Id'
+        - { name: scanId, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '204': { description: Deleted. }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /reports/dashboard:
+    get:
+      tags: [Reports]
+      summary: Dashboard counters, recent cases, follow-ups and recent activity
+      description: Requires `dashboard.view`.
+      responses:
+        '200':
+          description: Dashboard payload.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Success'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          counts: { type: object, additionalProperties: { type: integer } }
+                          recentClients: { type: array, items: { type: object } }
+                          evidenceFollowUps: { type: array, items: { type: object } }
+                          recentAudit: { type: array, items: { $ref: '#/components/schemas/AuditEntry' } }
+  /reports/overview:
+    get:
+      tags: [Reports]
+      summary: Aggregated statistics for the reports page
+      description: Requires `reports.view`.
+      responses:
+        '200':
+          description: Overview payload with totals, ratios and six Jalali months.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Success' }
+  /reports/agents:
+    get:
+      tags: [Reports]
+      summary: Per-agent workload report
+      description: Requires `reports.view`.
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Search'
+        - $ref: '#/components/parameters/SortBy'
+        - $ref: '#/components/parameters/SortOrder'
+      responses:
+        '200':
+          description: Agent rows.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Success'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            id: { type: string }
+                            name: { type: string }
+                            clients: { type: integer }
+                            documents: { type: integer }
+                            scans: { type: integer }
+                            value: { type: number }
+                      meta: { $ref: '#/components/schemas/PaginationMeta' }
+
+  /audit-logs:
+    get:
+      tags: [Audit]
+      summary: List audit entries
+      description: Requires `audit.view`. Read-only.
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Search'
+        - { name: entity, in: query, schema: { type: string } }
+        - { name: userId, in: query, schema: { type: string, format: uuid } }
+        - { name: from, in: query, schema: { type: string, format: date } }
+        - { name: to, in: query, schema: { type: string, format: date } }
+      responses:
+        '200':
+          description: Paginated audit entries (newest first).
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Success'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items: { $ref: '#/components/schemas/AuditEntry' }
+                      meta: { $ref: '#/components/schemas/PaginationMeta' }
+    delete:
+      tags: [Audit]
+      summary: Clear the audit trail
+      description: Requires `audit.clear`. Intended for demo resets only.
+      responses:
+        '204': { description: Cleared. }
+
+  /settings:
+    get:
+      tags: [Settings]
+      summary: Get application settings
+      description: Requires `settings.view`.
+      responses:
+        '200':
+          description: Settings.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Success'
+                  - type: object
+                    properties:
+                      data: { $ref: '#/components/schemas/Settings' }
+    patch:
+      tags: [Settings]
+      summary: Update application settings
+      description: Requires `settings.edit`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/Settings' }
+      responses:
+        '200':
+          description: Updated settings.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Success'
+                  - type: object
+                    properties:
+                      data: { $ref: '#/components/schemas/Settings' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  parameters:
+    Id:
+      name: id
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    StepId:
+      name: stepId
+      in: path
+      required: true
+      schema: { type: string, maxLength: 80 }
+    Page:
+      name: page
+      in: query
+      schema: { type: integer, minimum: 1, default: 1 }
+    Limit:
+      name: limit
+      in: query
+      schema: { type: integer, minimum: 1, maximum: 100, default: 20 }
+    Search:
+      name: search
+      in: query
+      schema: { type: string, maxLength: 200 }
+    SortBy:
+      name: sortBy
+      in: query
+      schema: { type: string, maxLength: 60 }
+    SortOrder:
+      name: sortOrder
+      in: query
+      schema: { type: string, enum: [asc, desc], default: desc }
+  responses:
+    Unauthorized:
+      description: Missing, invalid or expired access token.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    Forbidden:
+      description: The caller lacks the required permission.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    NotFound:
+      description: Resource not found.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    Conflict:
+      description: The request conflicts with the current state.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    ValidationError:
+      description: Request validation failed. `details` lists the offending fields.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    RateLimited:
+      description: Too many requests.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+  schemas:
+    Success:
+      type: object
+      properties:
+        success: { type: boolean, const: true }
+        data: {}
+        message: { type: string }
+        meta: { $ref: '#/components/schemas/PaginationMeta' }
+    Error:
+      type: object
+      required: [success, error]
+      properties:
+        success: { type: boolean, const: false }
+        error:
+          type: object
+          required: [code, message]
+          properties:
+            code: { type: string, example: VALIDATION_ERROR }
+            message: { type: string }
+            details:
+              type: array
+              items:
+                type: object
+                properties:
+                  field: { type: string }
+                  message: { type: string }
+            requestId: { type: string }
+    PaginationMeta:
+      type: object
+      properties:
+        page: { type: integer }
+        limit: { type: integer }
+        total: { type: integer }
+        totalPages: { type: integer }
+    LoginResponse:
+      type: object
+      properties:
+        token: { type: string }
+        expiresAt: { type: string, format: date-time }
+        user: { $ref: '#/components/schemas/User' }
+    User:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        username: { type: string }
+        fullName: { type: string }
+        role: { type: string, enum: [superadmin, admin] }
+        permissions:
+          type: array
+          items: { type: string }
+        title: { type: string }
+        mobile: { type: string }
+        companyId: { type: string, format: uuid }
+        active: { type: boolean }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+        lastLoginAt: { type: string, format: date-time }
+        note: { type: string }
+    CreateUser:
+      type: object
+      required: [username, fullName, password, role]
+      properties:
+        username: { type: string, minLength: 3, maxLength: 40 }
+        fullName: { type: string, minLength: 2, maxLength: 120 }
+        password: { type: string, minLength: 8, maxLength: 200 }
+        role: { type: string, enum: [superadmin, admin] }
+        permissions:
+          type: array
+          items: { type: string }
+        title: { type: string }
+        mobile: { type: string }
+        companyId: { type: string, format: uuid, nullable: true }
+        active: { type: boolean }
+        note: { type: string }
+    UpdateUser:
+      type: object
+      description: Any subset of CreateUser fields; a new password revokes existing sessions.
+      properties:
+        username: { type: string, minLength: 3, maxLength: 40 }
+        fullName: { type: string, minLength: 2, maxLength: 120 }
+        password: { type: string, minLength: 8, maxLength: 200 }
+        role: { type: string, enum: [superadmin, admin] }
+        permissions:
+          type: array
+          items: { type: string }
+        title: { type: string, nullable: true }
+        mobile: { type: string, nullable: true }
+        companyId: { type: string, format: uuid, nullable: true }
+        active: { type: boolean }
+        note: { type: string, nullable: true }
+    Role:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        description: { type: string }
+        permissions:
+          type: array
+          items: { type: string }
+        system: { type: boolean }
+        createdAt: { type: string, format: date-time }
+        createdBy: { type: string }
+    RoleInput:
+      type: object
+      required: [name, permissions]
+      properties:
+        name: { type: string, minLength: 2, maxLength: 80 }
+        description: { type: string, maxLength: 500 }
+        permissions:
+          type: array
+          items: { type: string }
+    Company:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        kind: { type: string, enum: [owner, developer, cooperative, investor, org, other] }
+        nationalId: { type: string }
+        managerName: { type: string }
+        mobile: { type: string }
+        phone: { type: string }
+        address: { type: string }
+        plotCount: { type: integer }
+        totalArea: { type: number }
+        note: { type: string }
+        active: { type: boolean }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+        createdBy: { type: string }
+    CompanyInput:
+      type: object
+      required: [name]
+      properties:
+        name: { type: string, minLength: 2, maxLength: 200 }
+        kind: { type: string, enum: [owner, developer, cooperative, investor, org, other] }
+        nationalId: { type: string, nullable: true }
+        managerName: { type: string, nullable: true }
+        mobile: { type: string, nullable: true }
+        phone: { type: string, nullable: true }
+        address: { type: string, nullable: true }
+        plotCount: { type: integer, minimum: 0 }
+        totalArea: { type: number, minimum: 0 }
+        note: { type: string, nullable: true }
+        active: { type: boolean }
+    WorkflowStep:
+      type: object
+      properties:
+        id: { type: string }
+        title: { type: string }
+        kind: { type: string, enum: [form, payment, external, completion] }
+        status: { type: string, enum: [pending, completed] }
+        requiresEvidence: { type: boolean }
+        evidenceIds:
+          type: array
+          items: { type: string }
+        completedAt: { type: string }
+        completedBy: { type: string }
+        overrideReason: { type: string }
+    ClientInput:
+      type: object
+      required: [fullName]
+      properties:
+        code: { type: string, maxLength: 60 }
+        fullName: { type: string, minLength: 2, maxLength: 160 }
+        nationalId: { type: string }
+        mobile: { type: string }
+        caseType: { type: string, enum: [document_request, rent_renewal] }
+        companyId: { type: string, format: uuid, nullable: true }
+        workflow:
+          type: array
+          items: { $ref: '#/components/schemas/WorkflowStep' }
+        phone: { type: string }
+        email: { type: string, format: email }
+        fatherName: { type: string }
+        birthDate: { type: string, example: '1370-01-01' }
+        partyRole: { type: string, enum: [buyer, seller, tenant, landlord, consultant] }
+        party2Name: { type: string }
+        party2Role: { type: string, enum: [buyer, seller, tenant, landlord, consultant] }
+        party2NationalId: { type: string }
+        party2Mobile: { type: string }
+        dealKind: { type: string, enum: [sale, rent, mortgage, presale, partnership] }
+        status: { type: string, enum: [new, in_progress, awaiting_docs, done, archived] }
+        province: { type: string }
+        city: { type: string }
+        address: { type: string }
+        propertyKind: { type: string, enum: [apartment, house, villa, land, office, store, warehouse] }
+        area: { type: number, minimum: 0 }
+        region: { type: string }
+        plate: { type: string }
+        unit: { type: string }
+        floor: { type: string }
+        buildYear: { type: string }
+        price: { type: number, minimum: 0 }
+        deposit: { type: number, minimum: 0 }
+        rent: { type: number, minimum: 0 }
+        commissionPercent: { type: number, minimum: 0, maximum: 100 }
+        agentName: { type: string }
+        source: { type: string }
+        tags:
+          type: array
+          items: { type: string }
+        notes: { type: string }
+        extra:
+          type: object
+          additionalProperties: { type: string }
+    Client:
+      allOf:
+        - $ref: '#/components/schemas/ClientInput'
+        - type: object
+          properties:
+            id: { type: string, format: uuid }
+            code: { type: string, example: 'پ-1405-0001' }
+            workflow:
+              type: array
+              items: { $ref: '#/components/schemas/WorkflowStep' }
+            companyName: { type: string }
+            documentCount: { type: integer }
+            evidence:
+              type: array
+              items: { $ref: '#/components/schemas/Evidence' }
+            createdAt: { type: string, format: date-time }
+            updatedAt: { type: string, format: date-time }
+            createdBy: { type: string }
+    Evidence:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        clientId: { type: string, format: uuid }
+        stepId: { type: string }
+        name: { type: string }
+        mime: { type: string }
+        size: { type: integer }
+        blobKey: { type: string }
+        uploadedAt: { type: string, format: date-time }
+        uploadedBy: { type: string }
+    TemplateCategory:
+      type: string
+      enum: [sale, rent, mortgage, presale, commission, visit, other]
+    TemplateField:
+      type: object
+      required: [id, key, label, type, required]
+      properties:
+        id: { type: string }
+        key:
+          type: string
+          pattern: '^[a-zA-Z][a-zA-Z0-9_]*$'
+        label: { type: string }
+        type:
+          type: string
+          enum: [text, textarea, number, currency, percent, date, select, checkbox, nationalId, mobile]
+        required: { type: boolean }
+        options:
+          type: array
+          items: { type: string }
+        source: { type: string }
+        placeholder: { type: string }
+        help: { type: string }
+        group: { type: string }
+        suffix: { type: string }
+        defaultValue: { type: string }
+    TemplateInput:
+      type: object
+      required: [title, fields]
+      properties:
+        title: { type: string, minLength: 2, maxLength: 200 }
+        category: { $ref: '#/components/schemas/TemplateCategory' }
+        description: { type: string, nullable: true }
+        fields:
+          type: array
+          minItems: 1
+          maxItems: 100
+          items: { $ref: '#/components/schemas/TemplateField' }
+        body: { type: string, maxLength: 50000 }
+        headerNote: { type: string, nullable: true }
+        footerNote: { type: string, nullable: true }
+        requiresSignature: { type: boolean }
+        active: { type: boolean }
+        version: { type: integer, minimum: 1 }
+    Template:
+      allOf:
+        - $ref: '#/components/schemas/TemplateInput'
+        - type: object
+          properties:
+            id: { type: string, format: uuid }
+            documentCount: { type: integer }
+            createdAt: { type: string, format: date-time }
+            updatedAt: { type: string, format: date-time }
+            createdBy: { type: string }
+    DocStatus:
+      type: string
+      enum: [draft, awaiting_signature, signed, scanned, archived]
+    Document:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        number: { type: string, example: 'س-1405-0001' }
+        title: { type: string }
+        templateId: { type: string, format: uuid }
+        templateTitle: { type: string }
+        templateVersion: { type: integer }
+        clientId: { type: string, format: uuid }
+        clientName: { type: string }
+        clientCode: { type: string }
+        values:
+          type: object
+          additionalProperties: { type: string }
+        status: { $ref: '#/components/schemas/DocStatus' }
+        tags:
+          type: array
+          items: { type: string }
+        notes: { type: string }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+        createdBy: { type: string }
+        createdByName: { type: string }
+        printedAt: { type: string, format: date-time }
+        signedAt: { type: string, format: date-time }
+        scanIds:
+          type: array
+          items: { type: string, format: uuid }
+    Scan:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        documentId: { type: string, format: uuid }
+        name: { type: string }
+        mime: { type: string }
+        size: { type: integer }
+        blobKey: { type: string }
+        pages: { type: integer }
+        note: { type: string }
+        uploadedAt: { type: string, format: date-time }
+        uploadedBy: { type: string }
+    AuditEntry:
+      type: object
+      properties:
+        id: { type: string }
+        at: { type: string, format: date-time }
+        userId: { type: string }
+        userName: { type: string }
+        action: { type: string }
+        entity:
+          type: string
+          enum: [auth, client, document, template, user, role, company, settings, scan, workflow]
+        entityId: { type: string }
+        entityLabel: { type: string }
+        detail: { type: string }
+    Settings:
+      type: object
+      properties:
+        orgName: { type: string }
+        orgLegalName: { type: string }
+        orgPhone: { type: string }
+        orgAddress: { type: string }
+        defaultProvince: { type: string }
+        defaultCity: { type: string }
+        docPrefix: { type: string }
+        clientPrefix: { type: string }
+        showPersianDigits: { type: boolean }
+        defaultPageSize: { type: integer }
+        contractNote: { type: string }
