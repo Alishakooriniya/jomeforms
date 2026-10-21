@@ -27,6 +27,7 @@ describeDb('case files', () => {
       'case-completion',
     ]);
     expect(response.body.data.status).toBe('new');
+    expect(response.body.data.residenceAddress).toBe('خیابان ولیعصر');
   });
 
   it('returns validation details for invalid input', async () => {
@@ -39,6 +40,16 @@ describeDb('case files', () => {
     expect(response.body.error.code).toBe('VALIDATION_ERROR');
     const fields = response.body.error.details.map((detail: { field: string }) => detail.field);
     expect(fields).toEqual(expect.arrayContaining(['mobile', 'nationalId']));
+  });
+
+  it('rejects fields removed from the identity-only case format', async () => {
+    const response = await request(app)
+      .post(`${API}/clients`)
+      .set(auth(token))
+      .send(clientPayload({ party2Name: 'اطلاعات حذف‌شده' }))
+      .expect(422);
+
+    expect(response.body.error.code).toBe('VALIDATION_ERROR');
   });
 
   it('paginates and searches case files', async () => {

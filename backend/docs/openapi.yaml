@@ -656,7 +656,6 @@ paths:
         - { name: status, in: query, schema: { type: string, enum: [new, in_progress, awaiting_docs, done, archived] } }
         - { name: caseType, in: query, schema: { type: string, enum: [document_request, rent_renewal] } }
         - { name: companyId, in: query, schema: { type: string, format: uuid } }
-        - { name: agentName, in: query, schema: { type: string } }
       responses:
         '200':
           description: Paginated case files with workflow and evidence.
@@ -966,8 +965,14 @@ paths:
         - { name: templateId, in: query, schema: { type: string, format: uuid } }
         - { name: clientId, in: query, schema: { type: string, format: uuid } }
         - { name: createdBy, in: query, schema: { type: string, format: uuid } }
-        - { name: from, in: query, schema: { type: string, format: date } }
-        - { name: to, in: query, schema: { type: string, format: date } }
+        - name: from
+          in: query
+          description: Jalali date in YYYY/MM/DD format; Persian and Arabic digits are accepted.
+          schema: { type: string, pattern: '^[0-9]{4}/[0-9]{1,2}/[0-9]{1,2}$', example: '1405/07/30' }
+        - name: to
+          in: query
+          description: Jalali date in YYYY/MM/DD format; Persian and Arabic digits are accepted.
+          schema: { type: string, pattern: '^[0-9]{4}/[0-9]{1,2}/[0-9]{1,2}$', example: '1405/07/30' }
       responses:
         '200':
           description: Paginated documents.
@@ -999,6 +1004,7 @@ paths:
                 values:
                   type: object
                   additionalProperties: { type: string }
+                  description: Values for fields of type date must use a valid Jalali YYYY/MM/DD date.
                 status: { $ref: '#/components/schemas/DocStatus' }
                 tags:
                   type: array
@@ -1050,6 +1056,7 @@ paths:
                 values:
                   type: object
                   additionalProperties: { type: string }
+                  description: Values for fields of type date must use a valid Jalali YYYY/MM/DD date.
                 tags:
                   type: array
                   items: { type: string }
@@ -1253,7 +1260,6 @@ paths:
                             clients: { type: integer }
                             documents: { type: integer }
                             scans: { type: integer }
-                            value: { type: number }
                       meta: { $ref: '#/components/schemas/PaginationMeta' }
 
   /audit-logs:
@@ -1267,8 +1273,14 @@ paths:
         - $ref: '#/components/parameters/Search'
         - { name: entity, in: query, schema: { type: string } }
         - { name: userId, in: query, schema: { type: string, format: uuid } }
-        - { name: from, in: query, schema: { type: string, format: date } }
-        - { name: to, in: query, schema: { type: string, format: date } }
+        - name: from
+          in: query
+          description: Jalali date in YYYY/MM/DD format; Persian and Arabic digits are accepted.
+          schema: { type: string, pattern: '^[0-9]{4}/[0-9]{1,2}/[0-9]{1,2}$', example: '1405/07/30' }
+        - name: to
+          in: query
+          description: Jalali date in YYYY/MM/DD format; Persian and Arabic digits are accepted.
+          schema: { type: string, pattern: '^[0-9]{4}/[0-9]{1,2}/[0-9]{1,2}$', example: '1405/07/30' }
       responses:
         '200':
           description: Paginated audit entries (newest first).
@@ -1602,39 +1614,14 @@ components:
           type: array
           items: { $ref: '#/components/schemas/WorkflowStep' }
         phone: { type: string }
-        email: { type: string, format: email }
         fatherName: { type: string }
-        birthDate: { type: string, example: '1370-01-01' }
-        partyRole: { type: string, enum: [buyer, seller, tenant, landlord, consultant] }
-        party2Name: { type: string }
-        party2Role: { type: string, enum: [buyer, seller, tenant, landlord, consultant] }
-        party2NationalId: { type: string }
-        party2Mobile: { type: string }
-        dealKind: { type: string, enum: [sale, rent, mortgage, presale, partnership] }
+        birthDate:
+          type: string
+          description: Valid Jalali date in YYYY/MM/DD format; Gregorian-formatted dates are rejected.
+          pattern: '^[0-9]{4}/[0-9]{1,2}/[0-9]{1,2}$'
+          example: '1370/01/01'
         status: { type: string, enum: [new, in_progress, awaiting_docs, done, archived] }
-        province: { type: string }
-        city: { type: string }
-        address: { type: string }
-        propertyKind: { type: string, enum: [apartment, house, villa, land, office, store, warehouse] }
-        area: { type: number, minimum: 0 }
-        region: { type: string }
-        plate: { type: string }
-        unit: { type: string }
-        floor: { type: string }
-        buildYear: { type: string }
-        price: { type: number, minimum: 0 }
-        deposit: { type: number, minimum: 0 }
-        rent: { type: number, minimum: 0 }
-        commissionPercent: { type: number, minimum: 0, maximum: 100 }
-        agentName: { type: string }
-        source: { type: string }
-        tags:
-          type: array
-          items: { type: string }
-        notes: { type: string }
-        extra:
-          type: object
-          additionalProperties: { type: string }
+        residenceAddress: { type: string, maxLength: 500 }
     Client:
       allOf:
         - $ref: '#/components/schemas/ClientInput'
@@ -1696,6 +1683,10 @@ components:
       properties:
         title: { type: string, minLength: 2, maxLength: 200 }
         category: { $ref: '#/components/schemas/TemplateCategory' }
+        printLayout:
+          type: string
+          enum: [document-request-a4]
+          nullable: true
         description: { type: string, nullable: true }
         fields:
           type: array

@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { normalizeJalaliDate } from '../utils/jalali.js';
 
 export const uuidSchema = z.string().uuid('Must be a valid UUID.');
 
@@ -21,7 +22,9 @@ export type ListQueryInput = z.infer<typeof listQuerySchema>;
 
 export const dateSchema = z
   .string()
-  .regex(/^\d{4}-\d{2}-\d{2}$/, 'Expected YYYY-MM-DD.');
+  .trim()
+  .refine((value) => normalizeJalaliDate(value) !== null, 'Expected a valid Jalali date in YYYY/MM/DD format.')
+  .transform((value) => normalizeJalaliDate(value) ?? value);
 
 export const tagsSchema = z.array(z.string().trim().min(1).max(60)).max(30);
 

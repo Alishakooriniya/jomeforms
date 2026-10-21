@@ -8,10 +8,11 @@ import { useAuth } from '../store/AuthProvider';
 import { useDb, useDbActions } from '../store/DataProvider';
 import { useToast } from '../store/ToastProvider';
 import { CLIENT_STATUS_LABELS, DOC_STATUS_LABELS, TEMPLATE_CATEGORY_LABELS, TEMPLATE_CATEGORY_OPTIONS } from '../data/labels';
-import { displayDigits, formatCode, formatMoney } from '../lib/format';
+import { displayDigits, formatCode } from '../lib/format';
 import { autofillValues } from '../lib/template';
 import { cn, normalizeText } from '../lib/utils';
 import { printDocument } from '../lib/documentActions';
+import { normalizeJalaliDate } from '../lib/jalali';
 import { Avatar, PageHeader } from '../components/ui/Avatar';
 import { Badge } from '../components/ui/Badge';
 import { Button } from '../components/ui/Button';
@@ -73,7 +74,7 @@ export default function DocumentCreate() {
       clients
         .filter((item) =>
           clientQuery
-            ? normalizeText(`${item.fullName} ${item.code} ${item.mobile} ${item.city}`).includes(normalizeText(clientQuery))
+            ? normalizeText(`${item.fullName} ${item.code} ${item.mobile} ${item.nationalId}`).includes(normalizeText(clientQuery))
             : true,
         )
         .slice(0, 40),
@@ -110,8 +111,14 @@ export default function DocumentCreate() {
   const save = (printAfter: boolean) => {
     if (!template) return;
     const missing: Record<string, string> = {};
+    const normalizedValues = { ...values };
     template.fields.forEach((field) => {
       if (field.required && !values[field.key]?.trim()) missing[field.key] = 'این فیلد الزامی است.';
+      if (field.type === 'date' && values[field.key]?.trim()) {
+        const normalized = normalizeJalaliDate(values[field.key]);
+        if (!normalized) missing[field.key] = 'تاریخ باید شمسی و به‌شکل ۱۴۰۵/۰۷/۳۰ باشد.';
+        else normalizedValues[field.key] = normalized;
+      }
     });
     setErrors(missing);
     if (Object.keys(missing).length) {
@@ -124,7 +131,7 @@ export default function DocumentCreate() {
     const document = createDocument({
       templateId: template.id,
       clientId: client?.id,
-      values,
+      values: normalizedValues,
       status: initialStatus,
     });
 
@@ -325,7 +332,6 @@ export default function DocumentCreate() {
                   <span className="block truncate text-[12.5px] font-medium text-fg">{item.fullName}</span>
                   <span className="num block truncate text-[10.5px] text-fg-subtle">
                     {formatCode(item.code)} • {CLIENT_STATUS_LABELS[item.status]}
-                    {item.price ? ` • ${formatMoney(item.price)}` : ''}
                   </span>
                 </span>
                 <Icon name="chevron-left" size={15} className="text-fg-subtle" />

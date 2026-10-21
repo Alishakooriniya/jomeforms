@@ -7,30 +7,14 @@ export const CLIENT_SOURCE_KEYS = [
   'nationalId',
   'mobile',
   'phone',
-  'email',
   'fatherName',
   'birthDate',
-  'party2Name',
-  'party2NationalId',
-  'party2Mobile',
-  'province',
-  'city',
   'address',
-  'region',
-  'plate',
-  'unit',
-  'floor',
-  'area',
-  'buildYear',
-  'price',
-  'deposit',
-  'rent',
-  'commissionPercent',
-  'agentName',
 ] as const;
 
 function sourceValue(client: Client, source: string): string {
   if (!(CLIENT_SOURCE_KEYS as readonly string[]).includes(source)) return '';
+  if (source === 'address') return client.residenceAddress ?? '';
   const raw = (client as unknown as Record<string, unknown>)[source];
   if (raw === undefined || raw === null) return '';
   return String(raw);

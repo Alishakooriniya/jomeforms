@@ -10,6 +10,7 @@ import { displayDigits, formatDate, formatRelative } from '../lib/format';
 import { useListQuery } from '../lib/hooks';
 import { compareText } from '../lib/utils';
 import { exportCsv } from '../lib/print';
+import { jalaliDateFromDate, jalaliToGregorianIso } from '../lib/jalali';
 import { Avatar, PageHeader } from '../components/ui/Avatar';
 import { Badge } from '../components/ui/Badge';
 import { Button } from '../components/ui/Button';
@@ -20,6 +21,7 @@ import { Pagination } from '../components/ui/Pagination';
 import { DataTable } from '../components/ui/Table';
 import type { Column } from '../components/ui/Table';
 import { ActiveFilterChip, FilterBar, FilterSelect, ResultsSummary, SearchInput } from '../components/ui/Toolbar';
+import { JalaliDatePicker } from '../components/ui/JalaliDatePicker';
 
 const ENTITY_OPTIONS = (Object.keys(AUDIT_ENTITY_LABELS) as AuditEntity[]).map((entity) => ({
   value: entity,
@@ -39,8 +41,14 @@ export default function AuditPage() {
     filters: {
       entity: (entry, value) => entry.entity === value,
       userId: (entry, value) => entry.userId === value,
-      from: (entry, value) => entry.at.slice(0, 10) >= value,
-      to: (entry, value) => entry.at.slice(0, 10) <= value,
+      from: (entry, value) => {
+        const date = jalaliToGregorianIso(value);
+        return Boolean(date && entry.at.slice(0, 10) >= date);
+      },
+      to: (entry, value) => {
+        const date = jalaliToGregorianIso(value);
+        return Boolean(date && entry.at.slice(0, 10) <= date);
+      },
     },
     sorters: {
       at: (a, b) => new Date(a.at).getTime() - new Date(b.at).getTime(),
@@ -105,10 +113,10 @@ export default function AuditPage() {
 
   const handleExport = () => {
     exportCsv(
-      `audit-${new Date().toISOString().slice(0, 10)}.csv`,
+      `audit-${jalaliDateFromDate(new Date()).replaceAll('/', '-')}.csv`,
       ['زمان', 'کاربر', 'عملیات', 'بخش', 'مورد', 'جزئیات'],
       query.rows.map((entry) => [
-        entry.at,
+        formatDate(entry.at, 'datetime'),
         entry.userName,
         entry.action,
         AUDIT_ENTITY_LABELS[entry.entity],
@@ -162,24 +170,26 @@ export default function AuditPage() {
           options={userOptions}
           placeholder="همه کاربران"
         />
-        <label className="flex items-center gap-1.5 text-[11.5px] text-fg-subtle">
-          از
-          <input
-            type="date"
-            className="field h-9 w-36 py-0 text-[12px]"
+        <div className="flex items-center gap-1.5 text-[11.5px] text-fg-subtle">
+          <span>از</span>
+          <JalaliDatePicker
+            ariaLabel="از تاریخ"
+            containerClassName="w-36"
+            className="h-9 py-0 text-[12px]"
             value={query.filters.from && query.filters.from !== 'all' ? query.filters.from : ''}
-            onChange={(event) => query.setFilter('from', event.target.value)}
+            onChange={(value) => query.setFilter('from', value)}
           />
-        </label>
-        <label className="flex items-center gap-1.5 text-[11.5px] text-fg-subtle">
-          تا
-          <input
-            type="date"
-            className="field h-9 w-36 py-0 text-[12px]"
+        </div>
+        <div className="flex items-center gap-1.5 text-[11.5px] text-fg-subtle">
+          <span>تا</span>
+          <JalaliDatePicker
+            ariaLabel="تا تاریخ"
+            containerClassName="w-36"
+            className="h-9 py-0 text-[12px]"
             value={query.filters.to && query.filters.to !== 'all' ? query.filters.to : ''}
-            onChange={(event) => query.setFilter('to', event.target.value)}
+            onChange={(value) => query.setFilter('to', value)}
           />
-        </label>
+        </div>
         {query.hasActiveFilters ? (
           <Button variant="ghost" size="sm" icon="refresh" onClick={query.clearAll}>
             پاک‌کردن فیلترها

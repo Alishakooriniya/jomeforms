@@ -3,7 +3,7 @@
    مقدار هر نشانه از اطلاعات پرونده پر می‌شود (به‌جای نوشتن دستی). */
 
 import type { Client, FormTemplate, TemplateField } from '../types';
-import { displayDigits, formatArea, formatDate, formatMoney, formatNumber, formatPercent } from './format';
+import { displayDigits, formatDate, formatMoney, formatNumber, formatPercent } from './format';
 import { normalizeText, toLatinDigits } from './utils';
 
 export const TOKEN_PATTERN = /\{\{\s*([a-zA-Z0-9_.]+)\s*\}\}/g;
@@ -161,26 +161,9 @@ export const CLIENT_SOURCES: SourceOption[] = [
   { key: 'nationalId', label: 'کد ملی', group: 'پرونده' },
   { key: 'mobile', label: 'موبایل', group: 'پرونده' },
   { key: 'phone', label: 'تلفن ثابت', group: 'پرونده' },
-  { key: 'email', label: 'ایمیل', group: 'پرونده' },
   { key: 'fatherName', label: 'نام پدر', group: 'پرونده' },
   { key: 'birthDate', label: 'تاریخ تولد', group: 'پرونده' },
-  { key: 'party2Name', label: 'نام طرف دوم', group: 'طرف دوم' },
-  { key: 'party2NationalId', label: 'کد ملی طرف دوم', group: 'طرف دوم' },
-  { key: 'party2Mobile', label: 'موبایل طرف دوم', group: 'طرف دوم' },
-  { key: 'province', label: 'استان', group: 'ملک' },
-  { key: 'city', label: 'شهر', group: 'ملک' },
-  { key: 'address', label: 'نشانی ملک', group: 'ملک' },
-  { key: 'region', label: 'محله/منطقه', group: 'ملک' },
-  { key: 'plate', label: 'پلاک ثبتی', group: 'ملک' },
-  { key: 'unit', label: 'واحد', group: 'ملک' },
-  { key: 'floor', label: 'طبقه', group: 'ملک' },
-  { key: 'area', label: 'متراژ', group: 'ملک' },
-  { key: 'buildYear', label: 'سال ساخت', group: 'ملک' },
-  { key: 'price', label: 'قیمت کل', group: 'مالی' },
-  { key: 'deposit', label: 'ودیعه', group: 'مالی' },
-  { key: 'rent', label: 'اجاره ماهانه', group: 'مالی' },
-  { key: 'commissionPercent', label: 'درصد کمیسیون', group: 'مالی' },
-  { key: 'agentName', label: 'کارشناس/مشاور', group: 'سایر' },
+  { key: 'address', label: 'نشانی محل سکونت', group: 'پرونده' },
 ];
 
 export function sourceLabel(key?: string): string {
@@ -191,11 +174,8 @@ export function sourceLabel(key?: string): string {
 /** مقدار یک کلید پرونده به شکل رشته (برای جایگزینی در فرم) */
 export function clientSourceValue(client: Client | undefined, key?: string): string {
   if (!client || !key) return '';
-  const raw = (client as unknown as Record<string, unknown>)[key];
+  const raw = key === 'address' ? client.residenceAddress : (client as unknown as Record<string, unknown>)[key];
   if (raw === undefined || raw === null) return '';
-  if (key === 'area') return String(raw);
-  if (key === 'price' || key === 'deposit' || key === 'rent') return String(raw);
-  if (key === 'commissionPercent') return String(raw);
   return String(raw);
 }
 
@@ -203,16 +183,6 @@ export function clientSourceValue(client: Client | undefined, key?: string): str
 export function sourceDisplay(client: Client | undefined, key?: string): string {
   if (!client || !key) return '';
   switch (key) {
-    case 'area':
-      return formatArea(client.area);
-    case 'price':
-      return formatMoney(client.price);
-    case 'deposit':
-      return formatMoney(client.deposit);
-    case 'rent':
-      return formatMoney(client.rent);
-    case 'commissionPercent':
-      return formatPercent(client.commissionPercent);
     case 'birthDate':
       return formatDate(client.birthDate, 'long');
     default:

@@ -31,7 +31,10 @@ Rules that keep the layers honest:
 
 ```
 backend/
-├── db/migrations/001_init.sql   schema, indexes, constraints, seeds of settings row
+├── db/migrations/001_init.sql   initial schema and settings
+├── db/migrations/002_template_print_layout.sql
+├── db/migrations/003_identity_only_clients.sql
+├── db/migrations/004_persian_dates.sql
 ├── docs/openapi.yaml            OpenAPI 3.1 document (served at /api/docs)
 ├── src/
 │   ├── app.ts                   Express app factory (testable, no listen)
@@ -120,7 +123,7 @@ docker run -d --name jomeforms-postgres \
 cd backend
 export DATABASE_URL=postgres://jomeforms:jomeforms_dev@127.0.0.1:55433/jomeforms
 npm run db:migrate     # applies db/migrations/*.sql in order
-npm run db:seed        # permission catalog + preset roles + first superadmin
+npm run db:seed        # permission catalog + roles + admin + two identity-only demo cases
 npm run db:verify      # prints tables and row counts
 ```
 
@@ -146,6 +149,11 @@ npm run dev        # tsx watch src/server.ts
   the current user's password and revokes all refresh sessions.
 - Error messages returned by the API are localized in Persian; clients should
   display the response's `error.message`.
+- Date-only input and stored values use valid Jalali `YYYY/MM/DD` strings.
+  Persian/Arabic digits are normalized, and Gregorian `YYYY-MM-DD` input is
+  rejected. Audit and other operational timestamps remain ISO date-time values;
+  date filters are converted to Gregorian boundaries only when querying those
+  timestamps.
 
 ## 6. Tests
 

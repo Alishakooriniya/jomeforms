@@ -15,8 +15,9 @@ import {
   CLIENT_CASE_TYPE_OPTIONS,
 } from '../data/labels';
 import { displayDigits, formatCode, formatDate } from '../lib/format';
+import { jalaliDateFromDate } from '../lib/jalali';
 import { useListQuery } from '../lib/hooks';
-import { compareNumber, compareText } from '../lib/utils';
+import { compareText } from '../lib/utils';
 import { exportCsv } from '../lib/print';
 import { Avatar, PageHeader } from '../components/ui/Avatar';
 import { Badge } from '../components/ui/Badge';
@@ -64,7 +65,6 @@ export default function ClientsList() {
     sorters: {
       code: (a, b) => compareText(a.code, b.code),
       fullName: (a, b) => compareText(a.fullName, b.fullName),
-      area: (a, b) => compareNumber(a.area, b.area),
       updatedAt: (a, b) => new Date(a.updatedAt).getTime() - new Date(b.updatedAt).getTime(),
     },
   });
@@ -80,7 +80,7 @@ export default function ClientsList() {
 
   const handleExport = () => {
     exportCsv(
-      `clients-${new Date().toISOString().slice(0, 10)}.csv`,
+      `clients-${jalaliDateFromDate(new Date()).replaceAll('/', '-')}.csv`,
       ['شماره پرونده', 'نام', 'کد ملی', 'موبایل', 'نوع درخواست', 'مجموعه', 'وضعیت', 'تاریخ ثبت'],
       query.rows.map((client) => [
         client.code,
@@ -90,7 +90,7 @@ export default function ClientsList() {
         CLIENT_CASE_TYPE_LABELS[client.caseType ?? 'document_request'],
         companies.find((company) => company.id === client.companyId)?.name ?? '',
         CLIENT_STATUS_LABELS[client.status],
-        client.createdAt.slice(0, 10),
+        formatDate(client.createdAt, 'numeric'),
       ]),
     );
     toast.success('خروجی CSV آماده شد');
@@ -292,7 +292,7 @@ export default function ClientsList() {
               description={
                 query.hasActiveFilters
                   ? 'عبارت جستجو یا فیلترها را تغییر دهید.'
-                  : 'برای شروع، نخستین پرونده را ثبت کنید تا اطلاعات مشتری و ملک ذخیره شود.'
+                  : 'برای شروع، نخستین پرونده را با اطلاعات هویتی متقاضی ثبت کنید.'
               }
               action={
                 query.hasActiveFilters ? (

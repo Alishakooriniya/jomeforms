@@ -11,6 +11,10 @@ import {
   printDocumentHtml,
 } from './print';
 import type { DocumentPrintOptions, SignatureBlock } from './print';
+import {
+  buildDocumentRequestPrintHtml,
+  openDocumentRequestPrintWindow,
+} from './documentRequestPrint';
 
 const BLANK = '…………………';
 
@@ -92,12 +96,21 @@ export function buildPlainText(document: DocRecord, template: FormTemplate, sett
 }
 
 export function printDocument(document: DocRecord, template: FormTemplate, settings: AppSettings): boolean {
+  if (template.printLayout === 'document-request-a4') {
+    const printWindow = openDocumentRequestPrintWindow(template, document.values);
+    if (!printWindow) return false;
+    printWindow.print();
+    return true;
+  }
   const html = buildDocumentHtml(buildPrintOptions(document, template, settings));
   return printDocumentHtml(html);
 }
 
 export function downloadDocumentAsHtml(document: DocRecord, template: FormTemplate, settings: AppSettings) {
-  const html = buildDocumentHtml(buildPrintOptions(document, template, settings));
+  const html =
+    template.printLayout === 'document-request-a4'
+      ? buildDocumentRequestPrintHtml(template, document.values)
+      : buildDocumentHtml(buildPrintOptions(document, template, settings));
   downloadDocumentHtml(`${document.number}.html`, html);
 }
 

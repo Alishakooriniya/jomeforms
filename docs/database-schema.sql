@@ -23,9 +23,6 @@ create extension if not exists "citext";
 create type user_role          as enum ('superadmin', 'admin');
 create type client_status      as enum ('new', 'in_progress', 'awaiting_docs', 'done', 'archived');
 create type client_case_type   as enum ('document_request', 'rent_renewal');
-create type party_role         as enum ('buyer', 'seller', 'tenant', 'landlord', 'consultant');
-create type property_kind      as enum ('apartment', 'house', 'villa', 'land', 'office', 'store', 'warehouse');
-create type deal_kind          as enum ('sale', 'rent', 'mortgage', 'presale', 'partnership');
 create type template_category  as enum ('sale', 'rent', 'mortgage', 'presale', 'commission', 'visit', 'other');
 create type document_status    as enum ('draft', 'awaiting_signature', 'signed', 'scanned', 'archived');
 create type company_kind       as enum ('owner', 'developer', 'cooperative', 'investor', 'org', 'other');
@@ -107,40 +104,13 @@ create table clients (
   company_id          uuid,
   workflow            jsonb not null default '[]'::jsonb, -- ClientWorkflowStep[]
   phone               text,
-  email               text,
   father_name         text,
-  birth_date          date,
-
-  party_role          party_role not null default 'buyer',
-  party2_name         text,
-  party2_role         party_role not null default 'seller',
-  party2_national_id  text,
-  party2_mobile       text,
-
-  deal_kind           deal_kind not null default 'sale',
+  birth_date          text check (
+    birth_date is null
+    or birth_date ~ '^[0-9]{4}/(0[1-9]|1[0-2])/(0[1-9]|[12][0-9]|3[01])$'
+  ),
   status              client_status not null default 'new',
-
-  province            text,
-  city                text,
-  address             text,
-  region              text,
-  property_kind       property_kind not null default 'apartment',
-  area                numeric(12,2) not null default 0,
-  plate               text,
-  unit                text,
-  floor               text,
-  build_year          text,
-
-  price               numeric(18,0) not null default 0,
-  deposit             numeric(18,0) not null default 0,
-  rent                numeric(18,0) not null default 0,
-  commission_percent   numeric(5,2) not null default 0.5,
-
-  agent_name          text,
-  source              text,
-  tags                text[] not null default '{}',
-  notes               text,
-  extra               jsonb  not null default '{}'::jsonb,   -- فیلدهای دلخواه فرم‌های آینده
+  residence_address   text,
 
   created_by          uuid references users(id) on delete set null,
   created_at          timestamptz not null default now(),
@@ -148,14 +118,12 @@ create table clients (
 );
 
 create index clients_status_idx        on clients (status);
-create index clients_city_idx          on clients (city);
 create index clients_full_name_idx     on clients (full_name);
 create index clients_national_id_idx   on clients (national_id);
 create index clients_case_type_idx     on clients (case_type);
-create index clients_agent_idx         on clients (agent_name);
--- جستجوی متنی فارسی روی نام، نشانی و شماره‌ها
+-- جستجوی متنی فارسی روی نام، نشانی محل سکونت و شماره پرونده
 create index clients_search_idx        on clients
-  using gin (to_tsvector('simple', coalesce(full_name,'') || ' ' || coalesce(address,'') || ' ' || coalesce(code,'')));
+  using gin (to_tsvector('simple', coalesce(full_name,'') || ' ' || coalesce(residence_address,'') || ' ' || coalesce(code,'')));
 
 create table case_workflow_evidence (
   id            uuid primary key default gen_random_uuid(),
@@ -426,10 +394,10 @@ from documents
 group by status;
 
 create or replace view v_clients_by_agent as
-select coalesce(nullif(agent_name, ''), 'بدون کارشناس') as agent_name,
-       count(*)                                        as clients,
-       sum(price + deposit)                            as value
-from clients
+select coalesce(u.full_name, 'کاربر سامانه') as created_by,
+       count(*)                              as clients
+from clients cl
+left join users u on u.id = cl.created_by
 group by 1
 order by clients desc;
 

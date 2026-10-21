@@ -9,11 +9,12 @@ import {
   CLIENT_STATUS_LABELS,
   CLIENT_STATUS_OPTIONS,
   CLIENT_STATUS_TONE,
-  DEAL_KIND_LABELS,
+  CLIENT_CASE_TYPE_LABELS,
+  CLIENT_CASE_TYPE_OPTIONS,
   DOC_STATUS_LABELS,
-  PROPERTY_KIND_LABELS,
 } from '../data/labels';
-import { displayDigits, formatMoneyShort, jalaliMonthKey, lastJalaliMonths } from '../lib/format';
+import { displayDigits, jalaliMonthKey, lastJalaliMonths } from '../lib/format';
+import { jalaliDateFromDate } from '../lib/jalali';
 import { exportCsv } from '../lib/print';
 import { Badge } from '../components/ui/Badge';
 import { Button } from '../components/ui/Button';
@@ -33,7 +34,6 @@ interface AgentRow {
   clients: number;
   documents: number;
   scans: number;
-  value: number;
 }
 
 interface TemplateRow {
@@ -46,7 +46,7 @@ interface TemplateRow {
 }
 
 export default function ReportsPage() {
-  const { clients, documents, templates, scans } = useDb();
+  const { clients, documents, templates, scans, users } = useDb();
   const { can } = useAuth();
   const toast = useToast();
   const navigate = useNavigate();
@@ -65,12 +65,15 @@ export default function ReportsPage() {
     tone: CLIENT_STATUS_TONE[option.value],
   })).filter((item) => item.value > 0);
 
-  const propertyDistribution = useMemo(() => {
+  const caseTypeDistribution = useMemo(() => {
     const counts = new Map<string, number>();
-    clients.forEach((client) => counts.set(client.propertyKind, (counts.get(client.propertyKind) ?? 0) + 1));
+    clients.forEach((client) => {
+      const caseType = client.caseType ?? 'document_request';
+      counts.set(caseType, (counts.get(caseType) ?? 0) + 1);
+    });
     return Array.from(counts.entries())
-      .map(([kind, count]) => ({
-        label: PROPERTY_KIND_LABELS[kind as keyof typeof PROPERTY_KIND_LABELS] ?? kind,
+      .map(([caseType, count]) => ({
+        label: CLIENT_CASE_TYPE_LABELS[caseType as keyof typeof CLIENT_CASE_TYPE_LABELS] ?? caseType,
         value: count,
       }))
       .sort((a, b) => b.value - a.value)
@@ -80,22 +83,20 @@ export default function ReportsPage() {
   const agentRows = useMemo<AgentRow[]>(() => {
     const map = new Map<string, AgentRow>();
     clients.forEach((client) => {
-      const name = client.agentName?.trim() || 'بدون کارشناس';
-      const row = map.get(name) ?? { id: name, name, clients: 0, documents: 0, scans: 0, value: 0 };
+      const name = users.find((user) => user.id === client.createdBy)?.fullName ?? 'کاربر سامانه';
+      const row = map.get(name) ?? { id: name, name, clients: 0, documents: 0, scans: 0 };
       row.clients += 1;
-      row.value += client.price || client.deposit || 0;
       map.set(name, row);
     });
     documents.forEach((document) => {
-      const client = clients.find((item) => item.id === document.clientId);
-      const name = client?.agentName?.trim() || document.createdByName || 'بدون کارشناس';
-      const row = map.get(name) ?? { id: name, name, clients: 0, documents: 0, scans: 0, value: 0 };
+      const name = document.createdByName || 'کاربر سامانه';
+      const row = map.get(name) ?? { id: name, name, clients: 0, documents: 0, scans: 0 };
       row.documents += 1;
       row.scans += document.scanIds.length;
       map.set(name, row);
     });
     return Array.from(map.values()).sort((a, b) => b.documents - a.documents || b.clients - a.clients);
-  }, [clients, documents]);
+  }, [clients, documents, users]);
 
   const templateRows = useMemo<TemplateRow[]>(
     () =>
@@ -123,7 +124,6 @@ export default function ReportsPage() {
       clients: (a, b) => a.clients - b.clients,
       documents: (a, b) => a.documents - b.documents,
       scans: (a, b) => a.scans - b.scans,
-      value: (a, b) => a.value - b.value,
     },
   });
 
@@ -137,24 +137,21 @@ export default function ReportsPage() {
   const scannedRatio = documents.length
     ? Math.round((documents.filter((document) => document.scanIds.length > 0).length / documents.length) * 100)
     : 0;
-  const totalValue = clients.reduce((sum, client) => sum + (client.price || client.deposit || 0), 0);
-
   const handleExport = () => {
     exportCsv(
-      `report-${new Date().toISOString().slice(0, 10)}.csv`,
+      `report-${jalaliDateFromDate(new Date()).replaceAll('/', '-')}.csv`,
       ['بخش', 'عنوان', 'مقدار'],
       [
         ['خلاصه', 'پرونده‌ها', clients.length],
         ['خلاصه', 'اسناد', documents.length],
         ['خلاصه', 'اسکن‌ها', scans.length],
         ['خلاصه', 'نرخ امضا (٪)', signedRatio],
-        ['خلاصه', 'ارزش پرونده‌ها (تومان)', totalValue],
         ...documentsPerMonth.map((item) => ['ماهانه', item.label, item.value] as Array<string | number>),
         ...templateRows.map(
           (row) => ['قالب', row.title, `${row.documents} سند / ${row.scanned} اسکن‌شده`] as Array<string | number>,
         ),
         ...agentRows.map(
-          (row) => ['کارشناس', row.name, `${row.clients} پرونده / ${row.documents} سند`] as Array<string | number>,
+          (row) => ['ثبت‌کننده', row.name, `${row.clients} پرونده / ${row.documents} سند`] as Array<string | number>,
         ),
       ],
     );
@@ -193,20 +190,13 @@ export default function ReportsPage() {
       align: 'center',
       cell: (row) => <span className="num text-[12px] text-fg-muted">{displayDigits(row.scans)}</span>,
     },
-    {
-      key: 'value',
-      header: 'ارزش پرونده‌ها',
-      sortable: true,
-      cell: (row) => <span className="num text-[12px] text-fg">{formatMoneyShort(row.value)}</span>,
-      responsiveClass: 'hidden sm:table-cell',
-    },
   ];
 
   return (
     <div className="flex flex-col gap-4">
       <PageHeader
         title="گزارش‌ها"
-        subtitle="تصویر کلی از پرونده‌ها، اسناد و عملکرد همکاران"
+        subtitle="تصویر کلی از پرونده‌ها و اسناد ثبت‌شده"
         icon="chart"
         breadcrumbs={[{ label: 'داشبورد', to: '/' }, { label: 'گزارش‌ها' }]}
         actions={
@@ -220,10 +210,10 @@ export default function ReportsPage() {
 
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <StatCard
-          label="ارزش کل پرونده‌ها"
-          value={formatMoneyShort(totalValue)}
-          hint={`${displayDigits(clients.length)} پرونده`}
-          icon="percentCircle"
+          label="تعداد پرونده‌ها"
+          value={displayDigits(clients.length)}
+          hint="پرونده ثبت‌شده"
+          icon="users"
           tone="brand"
         />
         <StatCard
@@ -276,10 +266,10 @@ export default function ReportsPage() {
 
       <div className="grid gap-4 lg:grid-cols-2">
         <Card>
-          <CardHeader title="نوع ملک در پرونده‌ها" icon="building" />
+          <CardHeader title="گروه درخواست‌ها" icon="users" />
           <CardBody>
-            {propertyDistribution.length ? (
-              <BarChart data={propertyDistribution} height={160} tone="info" />
+            {caseTypeDistribution.length ? (
+              <BarChart data={caseTypeDistribution} height={160} tone="info" />
             ) : (
               <EmptyState compact icon="building" title="داده‌ای برای نمایش نیست" />
             )}
@@ -316,7 +306,7 @@ export default function ReportsPage() {
       </div>
 
       <div className="card overflow-hidden">
-        <CardHeader title="عملکرد کارشناسان" subtitle="بر پایه پرونده‌ها و اسناد ثبت‌شده" icon="user-cog" />
+        <CardHeader title="ثبت‌کنندگان پرونده و سند" subtitle="بر پایه پرونده‌ها و اسناد ثبت‌شده" icon="user-cog" />
         <DataTable
           rows={query.pageRows}
           columns={agentColumns}
@@ -355,17 +345,16 @@ export default function ReportsPage() {
       </Card>
 
       <Card>
-        <CardHeader title="خلاصه نوع معامله" icon="percent" />
+        <CardHeader title="خلاصه گروه درخواست‌ها" icon="clipboard" />
         <CardBody className="flex flex-wrap gap-2">
-          {Object.entries(DEAL_KIND_LABELS).map(([kind, label]) => {
-            const count = clients.filter((client) => client.dealKind === kind).length;
-            return (
-              <span key={kind} className="chip">
-                {label}
-                <span className="num text-fg">{displayDigits(count)}</span>
+          {CLIENT_CASE_TYPE_OPTIONS.map(({ value, label }) => (
+            <span key={value} className="chip">
+              {label}
+              <span className="num text-fg">
+                {displayDigits(clients.filter((client) => (client.caseType ?? 'document_request') === value).length)}
               </span>
-            );
-          })}
+            </span>
+          ))}
           {Object.entries(CLIENT_STATUS_LABELS).map(([status, label]) => (
             <span key={status} className="chip">
               {label}

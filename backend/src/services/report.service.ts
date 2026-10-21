@@ -18,15 +18,12 @@ export interface DashboardPayload {
 
 export interface OverviewPayload {
   totals: DashboardCounts & {
-    totalValue: number;
     signedDocuments: number;
     scannedDocuments: number;
   };
   ratios: { signedPercent: number; scannedPercent: number };
   clientStatus: Array<{ status: string; count: number }>;
   clientCaseType: Array<{ caseType: string; count: number }>;
-  propertyKind: Array<{ propertyKind: string; count: number }>;
-  dealKind: Array<{ dealKind: string; count: number }>;
   documentStatus: Array<{ status: string; count: number }>;
   templateUsage: Array<{
     id: string;
@@ -73,7 +70,7 @@ export class ReportService {
     }));
 
     return {
-      totals: { ...counts, totalValue: aggregates.totalValue, signedDocuments: aggregates.signedDocuments, scannedDocuments: aggregates.scannedDocuments },
+      totals: { ...counts, signedDocuments: aggregates.signedDocuments, scannedDocuments: aggregates.scannedDocuments },
       ratios: {
         signedPercent: counts.documentsTotal
           ? Math.round((aggregates.signedDocuments / counts.documentsTotal) * 100)
@@ -84,8 +81,6 @@ export class ReportService {
       },
       clientStatus: aggregates.clientStatus,
       clientCaseType: aggregates.clientCaseType,
-      propertyKind: aggregates.propertyKind,
-      dealKind: aggregates.dealKind,
       documentStatus: aggregates.documentStatus,
       templateUsage: aggregates.templateUsage,
       monthly,

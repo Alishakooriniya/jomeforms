@@ -14,7 +14,6 @@ interface ClientListQuery extends ListQuery {
   status?: ClientStatus;
   caseType?: ClientCaseType;
   companyId?: string;
-  agentName?: string;
 }
 
 function sendInlineFile(
@@ -40,7 +39,6 @@ export class ClientController {
       status: query.status,
       caseType: query.caseType,
       companyId: query.companyId,
-      agentName: query.agentName,
     };
     const result = await this.clients.list(filters);
     sendPaginated(res, result, query.page, query.limit);

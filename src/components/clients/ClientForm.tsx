@@ -1,61 +1,25 @@
-/* فرم پرونده — همان اطلاعاتی که بعداً به‌صورت خودکار در فرم‌ها جای‌گذاری می‌شود */
+/* فرم پرونده با تمرکز بر اطلاعات هویتی متقاضی */
 
 import { useState } from 'react';
-import type { AppSettings, Client, ClientCaseType, ClientStatus, DealKind, PartyRole, PropertyKind } from '../../types';
+import type { Client } from '../../types';
 import { isValidMobile, isValidNationalId } from '../../lib/crypto';
 import { onlyDigits } from '../../lib/utils';
-import {
-  CLIENT_STATUS_OPTIONS,
-  DEAL_KIND_OPTIONS,
-  PARTY_ROLE_OPTIONS,
-  PROPERTY_KIND_OPTIONS,
-} from '../../data/labels';
+import { isValidJalaliDate, normalizeJalaliDate } from '../../lib/jalali';
 import { Button } from '../ui/Button';
-import { Checkbox, FormActions, FormGrid, NumberInput } from '../ui/Controls';
-import { Select, TextInput, Textarea } from '../ui/Field';
+import { FormActions, FormGrid } from '../ui/Controls';
+import { TextInput, Textarea } from '../ui/Field';
+import { JalaliDatePicker } from '../ui/JalaliDatePicker';
 import type { ClientDraft } from '../../store/DataProvider';
-import { useDb } from '../../store/DataProvider';
-import { CLIENT_CASE_TYPE_OPTIONS } from '../../data/labels';
-import { createClientWorkflow } from '../../lib/caseWorkflow';
 
-export function emptyClientDraft(settings: AppSettings): ClientDraft {
+export function emptyClientDraft(): ClientDraft {
   return {
     fullName: '',
     nationalId: '',
     mobile: '',
-    caseType: 'document_request',
-    companyId: '',
-    workflow: createClientWorkflow('document_request'),
     phone: '',
-    email: '',
     fatherName: '',
     birthDate: '',
-    partyRole: 'buyer',
-    party2Name: '',
-    party2Role: 'seller',
-    party2NationalId: '',
-    party2Mobile: '',
-    dealKind: 'sale',
-    status: 'new',
-    province: settings.defaultProvince,
-    city: settings.defaultCity,
-    address: '',
-    propertyKind: 'apartment',
-    area: 0,
-    region: '',
-    plate: '',
-    unit: '',
-    floor: '',
-    buildYear: '',
-    price: 0,
-    deposit: 0,
-    rent: 0,
-    commissionPercent: 0.5,
-    agentName: '',
-    source: '',
-    tags: [],
-    notes: '',
-    extra: {},
+    residenceAddress: '',
   };
 }
 
@@ -70,16 +34,14 @@ export interface ClientFormProps {
   onCancel: () => void;
   submitting?: boolean;
   submitLabel?: string;
-  configureWorkflow?: boolean;
 }
 
-function Section({ title, hint, children }: { title: string; hint?: string; children: React.ReactNode }) {
+function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <section className="rounded-card border border-line bg-card-2/40 p-3.5">
       <h3 className="mb-3 flex items-center gap-2 text-[12.5px] font-semibold text-fg">
         <span className="h-3.5 w-1 rounded-full bg-brand-500" />
         {title}
-        {hint ? <span className="text-[10.5px] font-normal text-fg-subtle">{hint}</span> : null}
       </h3>
       {children}
     </section>
@@ -92,33 +54,24 @@ export function ClientForm({
   onCancel,
   submitting,
   submitLabel = 'ذخیره پرونده',
-  configureWorkflow = false,
 }: ClientFormProps) {
-  const { companies } = useDb();
-  const [form, setForm] = useState<ClientDraft>(initial ?? ({} as ClientDraft));
-  const [tagsText, setTagsText] = useState((initial?.tags ?? []).join('، '));
+  const [form, setForm] = useState<ClientDraft>(initial ?? emptyClientDraft());
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   const set = <K extends keyof ClientDraft>(key: K, value: ClientDraft[K]) =>
     setForm((prev) => ({ ...prev, [key]: value }));
-
-  const numberValue = (value: string) => Number(onlyDigits(value) || 0);
-  const setWorkflowOptions = (caseType: ClientCaseType, includePayment: boolean, includeExternal: boolean) => {
-    const current = form.workflow ?? [];
-    const workflow = createClientWorkflow(caseType, includePayment, includeExternal).map((step) => {
-      const previous = current.find((item) => item.id === step.id);
-      return previous ? { ...step, ...previous, title: step.title, kind: step.kind, requiresEvidence: step.requiresEvidence } : step;
-    });
-    setForm((prev) => ({ ...prev, caseType, workflow }));
-  };
 
   const submit = (event: React.FormEvent) => {
     event.preventDefault();
     const nextErrors: Record<string, string> = {};
     if (!form.fullName.trim()) nextErrors.fullName = 'نام و نام خانوادگی الزامی است.';
     if (form.mobile && !isValidMobile(form.mobile)) nextErrors.mobile = 'شماره موبایل باید ۱۱ رقم و با ۰۹ شروع شود.';
-    if (form.party2Mobile && !isValidMobile(form.party2Mobile)) nextErrors.party2Mobile = 'شماره طرف دوم معتبر نیست.';
-    if (form.nationalId && !isValidNationalId(form.nationalId)) nextErrors.nationalId = 'کد ملی معتبر نیست (الگوریتم کنترل).';
+    if (form.nationalId && !isValidNationalId(form.nationalId)) {
+      nextErrors.nationalId = 'کد ملی معتبر نیست (الگوریتم کنترل).';
+    }
+    if (form.birthDate && !isValidJalaliDate(form.birthDate)) {
+      nextErrors.birthDate = 'تاریخ تولد باید شمسی و به‌شکل ۱۴۰۵/۰۷/۳۰ باشد.';
+    }
     setErrors(nextErrors);
     if (Object.keys(nextErrors).length) return;
 
@@ -127,70 +80,15 @@ export function ClientForm({
       fullName: form.fullName.trim(),
       nationalId: onlyDigits(form.nationalId),
       mobile: onlyDigits(form.mobile),
-      party2NationalId: onlyDigits(form.party2NationalId ?? ''),
-      party2Mobile: onlyDigits(form.party2Mobile ?? ''),
-      tags: tagsText
-        .split(/[،,]/)
-        .map((tag) => tag.trim())
-        .filter(Boolean),
+      birthDate: form.birthDate ? normalizeJalaliDate(form.birthDate) ?? '' : '',
+      residenceAddress: form.residenceAddress?.trim() ?? '',
     });
   };
 
   return (
     <form className="flex flex-col gap-4" onSubmit={submit}>
-      <Section title="نوع پرونده و مسیر رسیدگی" hint="ساختار فرم‌های جزئی‌تر بعداً قابل تکمیل است">
-        <FormGrid columns={3}>
-          <Select
-            label="گروه درخواست"
-            value={form.caseType ?? 'document_request'}
-            options={CLIENT_CASE_TYPE_OPTIONS}
-            disabled={!configureWorkflow}
-            onChange={(event) =>
-              setWorkflowOptions(
-                event.target.value as ClientCaseType,
-                Boolean(form.workflow?.some((step) => step.kind === 'payment')),
-                Boolean(form.workflow?.some((step) => step.kind === 'external')),
-              )
-            }
-          />
-          <Select
-            label="نام مجموعه"
-            value={form.companyId ?? ''}
-            placeholder="بدون مجموعه"
-            options={companies
-              .filter((company) => company.active || company.id === form.companyId)
-              .map((company) => ({ value: company.id, label: company.name }))}
-            onChange={(event) => set('companyId', event.target.value)}
-          />
-          {configureWorkflow ? <div className="flex flex-wrap items-center gap-4 md:col-span-3">
-            <Checkbox
-              label="این پرونده مرحله پرداخت دارد"
-              checked={Boolean(form.workflow?.some((step) => step.kind === 'payment'))}
-              onChange={(event) =>
-                setWorkflowOptions(
-                  form.caseType ?? 'document_request',
-                  event.target.checked,
-                  Boolean(form.workflow?.some((step) => step.kind === 'external')),
-                )
-              }
-            />
-            <Checkbox
-              label="پاسخ ارگان خارجی باید دریافت و اسکن شود"
-              checked={Boolean(form.workflow?.some((step) => step.kind === 'external'))}
-              onChange={(event) =>
-                setWorkflowOptions(
-                  form.caseType ?? 'document_request',
-                  Boolean(form.workflow?.some((step) => step.kind === 'payment')),
-                  event.target.checked,
-                )
-              }
-            />
-          </div> : null}
-        </FormGrid>
-      </Section>
-
-      <Section title="اطلاعات هویتی" hint="این اطلاعات در همه فرم‌ها جای‌گذاری می‌شود">
-        <FormGrid columns={3}>
+      <Section title="اطلاعات هویتی">
+        <FormGrid columns={2}>
           <TextInput
             label="نام و نام خانوادگی"
             required
@@ -213,143 +111,28 @@ export function ClientForm({
             error={errors.mobile}
             onChange={(event) => set('mobile', onlyDigits(event.target.value))}
           />
-          <TextInput label="تلفن ثابت" value={form.phone ?? ''} onChange={(event) => set('phone', event.target.value)} />
+          <TextInput
+            label="تلفن ثابت"
+            value={form.phone ?? ''}
+            onChange={(event) => set('phone', event.target.value)}
+          />
           <TextInput
             label="نام پدر"
             value={form.fatherName ?? ''}
             onChange={(event) => set('fatherName', event.target.value)}
           />
-          <TextInput
+          <JalaliDatePicker
             label="تاریخ تولد"
-            type="date"
             value={form.birthDate ?? ''}
-            onChange={(event) => set('birthDate', event.target.value)}
-          />
-          <Select
-            label="نقش در معامله"
-            value={form.partyRole}
-            options={PARTY_ROLE_OPTIONS}
-            onChange={(event) => set('partyRole', event.target.value as PartyRole)}
-          />
-          <TextInput
-            label="ایمیل"
-            type="email"
-            dir="ltr"
-            value={form.email ?? ''}
-            onChange={(event) => set('email', event.target.value)}
-          />
-          <TextInput
-            label="شماره پرونده"
-            value={form.code ?? ''}
-            hint="خالی بگذارید تا خودکار تولید شود"
-            onChange={(event) => set('code', event.target.value)}
-          />
-        </FormGrid>
-      </Section>
-
-      <Section title="طرف دوم معامله" hint="خریدار/فروشنده مقابل">
-        <FormGrid columns={2}>
-          <TextInput
-            label="نام طرف دوم"
-            value={form.party2Name ?? ''}
-            onChange={(event) => set('party2Name', event.target.value)}
-          />
-          <Select
-            label="نقش طرف دوم"
-            value={form.party2Role ?? 'seller'}
-            options={PARTY_ROLE_OPTIONS}
-            onChange={(event) => set('party2Role', event.target.value as PartyRole)}
-          />
-          <TextInput
-            label="کد ملی طرف دوم"
-            value={form.party2NationalId ?? ''}
-            inputMode="numeric"
-            maxLength={10}
-            onChange={(event) => set('party2NationalId', onlyDigits(event.target.value))}
-          />
-          <TextInput
-            label="موبایل طرف دوم"
-            value={form.party2Mobile ?? ''}
-            inputMode="tel"
-            error={errors.party2Mobile}
-            onChange={(event) => set('party2Mobile', onlyDigits(event.target.value))}
-          />
-        </FormGrid>
-      </Section>
-
-      <Section title="مشخصات ملک">
-        <FormGrid columns={3}>
-          <TextInput label="استان" value={form.province} onChange={(event) => set('province', event.target.value)} />
-          <TextInput label="شهر" value={form.city} onChange={(event) => set('city', event.target.value)} />
-          <TextInput label="محله / منطقه" value={form.region ?? ''} onChange={(event) => set('region', event.target.value)} />
-          <Select
-            label="نوع ملک"
-            value={form.propertyKind}
-            options={PROPERTY_KIND_OPTIONS}
-            onChange={(event) => set('propertyKind', event.target.value as PropertyKind)}
-          />
-          <NumberInput
-            label="متراژ"
-            suffix="متر"
-            value={form.area ? String(form.area) : ''}
-            onChange={(value) => set('area', numberValue(value))}
-          />
-          <TextInput label="سال ساخت" value={form.buildYear ?? ''} onChange={(event) => set('buildYear', event.target.value)} />
-          <TextInput label="پلاک ثبتی" value={form.plate ?? ''} onChange={(event) => set('plate', event.target.value)} />
-          <TextInput label="واحد" value={form.unit ?? ''} onChange={(event) => set('unit', event.target.value)} />
-          <TextInput label="طبقه" value={form.floor ?? ''} onChange={(event) => set('floor', event.target.value)} />
-          <Textarea
-            label="نشانی کامل ملک"
-            className="min-h-20"
-            containerClassName="md:col-span-3"
-            value={form.address}
-            onChange={(event) => set('address', event.target.value)}
-          />
-        </FormGrid>
-      </Section>
-
-      <Section title="اطلاعات تکمیلی">
-        <FormGrid columns={3}>
-          <Select
-            label="نوع معامله"
-            value={form.dealKind}
-            options={DEAL_KIND_OPTIONS}
-            onChange={(event) => set('dealKind', event.target.value as DealKind)}
-          />
-          <TextInput
-            label="کارشناس / مشاور"
-            value={form.agentName ?? ''}
-            onChange={(event) => set('agentName', event.target.value)}
-          />
-        </FormGrid>
-      </Section>
-
-      <Section title="وضعیت و یادداشت">
-        <FormGrid columns={3}>
-          <Select
-            label="وضعیت پرونده"
-            value={form.status}
-            options={CLIENT_STATUS_OPTIONS}
-            onChange={(event) => set('status', event.target.value as ClientStatus)}
-          />
-          <TextInput
-            label="منبع آشنایی"
-            value={form.source ?? ''}
-            placeholder="مثال: تماس تلفنی، دیوار، معرفی"
-            onChange={(event) => set('source', event.target.value)}
-          />
-          <TextInput
-            label="برچسب‌ها"
-            value={tagsText}
-            hint="با ویرگول جدا کنید"
-            onChange={(event) => setTagsText(event.target.value)}
+            error={errors.birthDate}
+            onChange={(value) => set('birthDate', value)}
           />
           <Textarea
-            label="یادداشت"
+            label="نشانی محل سکونت"
             className="min-h-20"
-            containerClassName="md:col-span-3"
-            value={form.notes ?? ''}
-            onChange={(event) => set('notes', event.target.value)}
+            containerClassName="md:col-span-2"
+            value={form.residenceAddress ?? ''}
+            onChange={(event) => set('residenceAddress', event.target.value)}
           />
         </FormGrid>
       </Section>

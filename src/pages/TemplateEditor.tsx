@@ -160,7 +160,7 @@ export default function TemplateEditor() {
     <div className="flex flex-col gap-4">
       <PageHeader
         title={existing ? `ویرایش قالب: ${existing.title}` : 'افزودن قالب فرم جدید'}
-        subtitle="فیلدها را تعریف کنید و متن فرم را با نشانه‌های {{نامک}} بنویسید تا از پرونده پر شود."
+        subtitle="متن و فیلدهای فرم را ویرایش کنید؛ چیدمان ثابت برگه در پیش‌نمایش و چاپ حفظ می‌شود."
         icon="template"
         breadcrumbs={[
           { label: 'داشبورد', to: '/' },
@@ -554,6 +554,7 @@ export default function TemplateEditor() {
           <p className="flex items-center gap-1.5 text-[11.5px] text-fg-subtle">
             <Icon name="info" size={13} />
             پیش‌نمایش با مقادیر نمونه ({displayDigits(draft.fields.length)} فیلد) — دسته: {TEMPLATE_CATEGORY_LABELS[draft.category]}
+            {draft.printLayout === 'document-request-a4' ? ' • متن و فیلدها قابل‌ویرایش‌اند؛ کادر و اندازهٔ A4 ثابت است.' : null}
           </p>
           <DocumentPreview
             template={{ ...draft, id: existing?.id ?? 'preview' } as FormTemplate}

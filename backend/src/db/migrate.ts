@@ -3,6 +3,7 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { pool, query } from '../config/database.js';
 import { logger } from '../config/logger.js';
+import { migrateStoredDatesToJalali } from './jalali-date-migration.js';
 
 const MIGRATIONS_DIR = fileURLToPath(new URL('../../db/migrations', import.meta.url));
 const ADVISORY_LOCK_KEY = 48_271_903;
@@ -38,6 +39,7 @@ export async function runMigrations(): Promise<string[]> {
       logger.info({ migration: file }, 'applying migration');
       try {
         await client.query('BEGIN');
+        if (file === '004_persian_dates.sql') await migrateStoredDatesToJalali(client);
         await client.query(sql);
         await client.query('insert into schema_migrations (file) values ($1)', [file]);
         await client.query('COMMIT');

@@ -2,6 +2,7 @@ import type { QueryResultRow } from 'pg';
 import { query } from '../config/database.js';
 import type { DbClient, QueryParam } from '../config/database.js';
 import type { AuditEntity, AuditEntry, ListOptions } from '../types/domain.js';
+import { jalaliToGregorianIso } from '../utils/jalali.js';
 
 export interface AuditFilters extends ListOptions {
   entity?: AuditEntity;
@@ -67,11 +68,15 @@ export class AuditRepository {
       where.push(`user_id = $${params.length}`);
     }
     if (filters.from) {
-      params.push(filters.from);
+      const date = jalaliToGregorianIso(filters.from);
+      if (!date) throw new Error('Invalid Jalali audit date filter reached the repository.');
+      params.push(date);
       where.push(`created_at >= $${params.length}::date`);
     }
     if (filters.to) {
-      params.push(filters.to);
+      const date = jalaliToGregorianIso(filters.to);
+      if (!date) throw new Error('Invalid Jalali audit date filter reached the repository.');
+      params.push(date);
       where.push(`created_at < ($${params.length}::date + interval '1 day')`);
     }
 

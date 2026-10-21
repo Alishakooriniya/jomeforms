@@ -39,11 +39,7 @@ export function clientPayload(overrides: Record<string, unknown> = {}): Record<s
     nationalId: VALID_NATIONAL_ID,
     mobile: '09123456789',
     caseType: 'document_request',
-    province: 'تهران',
-    city: 'تهران',
-    address: 'خیابان ولیعصر',
-    area: 85,
-    price: 5_000_000_000,
+    residenceAddress: 'خیابان ولیعصر',
     ...overrides,
   };
 }

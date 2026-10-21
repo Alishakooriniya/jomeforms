@@ -6,7 +6,7 @@ import type { SequenceRepository } from '../repositories/sequence.repository.js'
 import type { SettingsRepository } from '../repositories/settings.repository.js';
 import type { TemplateRepository } from '../repositories/template.repository.js';
 import type { DocRecord, DocStatus } from '../types/domain.js';
-import { jalaliYear } from '../utils/jalali.js';
+import { jalaliYear, normalizeJalaliDate } from '../utils/jalali.js';
 import { formatSequenceNumber } from '../utils/sequence.js';
 import { autofillValues, missingRequiredFields, pickTemplateValues } from '../utils/template.js';
 import type { AuditContext, AuditService } from './audit.service.js';
@@ -57,11 +57,12 @@ export class DocumentService {
     const client = input.clientId ? await this.clients.findById(input.clientId) : null;
     if (input.clientId && !client) throw new NotFoundError('Case file');
 
-    const values = {
+    let values = {
       ...autofillValues(template.fields, client ?? undefined),
       ...pickTemplateValues(template.fields, input.values ?? {}),
     };
 
+    values = this.normalizeDateValues(template.fields, values);
     this.assertRequiredValues(template.fields, values);
 
     const settings = await this.settings.get();
@@ -105,6 +106,7 @@ export class DocumentService {
       const template = await this.templates.findById(existing.templateId);
       if (template) {
         values = { ...existing.values, ...pickTemplateValues(template.fields, values) };
+        values = this.normalizeDateValues(template.fields, values);
         this.assertRequiredValues(template.fields, values);
       }
     }
@@ -173,6 +175,29 @@ export class DocumentService {
       })),
       'Required template fields are missing.',
     );
+  }
+
+  private normalizeDateValues(
+    fields: Parameters<typeof missingRequiredFields>[0],
+    values: Record<string, string>,
+  ): Record<string, string> {
+    const normalized = { ...values };
+    const issues = [];
+    for (const field of fields) {
+      const value = normalized[field.key]?.trim();
+      if (field.type !== 'date' || !value) continue;
+      const jalaliDate = normalizeJalaliDate(value);
+      if (!jalaliDate) {
+        issues.push({
+          field: `values.${field.key}`,
+          message: `"${field.label}" must be a valid Jalali date in YYYY/MM/DD format.`,
+        });
+      } else {
+        normalized[field.key] = jalaliDate;
+      }
+    }
+    if (issues.length) throw new ValidationError(issues, 'Date fields must use the Jalali calendar.');
+    return normalized;
   }
 
   async delete(id: string, context: AuditContext): Promise<void> {

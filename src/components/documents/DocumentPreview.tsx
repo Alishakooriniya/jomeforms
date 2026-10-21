@@ -6,6 +6,7 @@ import { formatCode, formatDate } from '../../lib/format';
 import { renderDocument } from '../../lib/template';
 import { buildSignatureBlocks, documentDate } from '../../lib/documentActions';
 import { EmptyState } from '../ui/EmptyState';
+import { DocumentRequestFormPreview } from './DocumentRequestFormPreview';
 
 export interface DocumentPreviewProps {
   template?: FormTemplate;
@@ -19,6 +20,9 @@ export interface DocumentPreviewProps {
 export function DocumentPreview({ template, values, document, settings, isTemplatePreview }: DocumentPreviewProps) {
   if (!template) {
     return <EmptyState icon="file" title="قالب سند پیدا نشد" description="ممکن است این قالب حذف شده باشد." />;
+  }
+  if (template.printLayout === 'document-request-a4') {
+    return <DocumentRequestFormPreview template={template} values={values} />;
   }
 
   const rendered = renderDocument(template, values, {

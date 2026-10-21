@@ -2,14 +2,13 @@
    برای تاریخ شمسی از Intl خود مرورگر استفاده می‌کنیم (بدون کتابخانه). */
 
 import { toLatinDigits, toPersianDigits } from './utils';
+import { jalaliDateFromDate, jalaliToLocalDate } from './jalali';
 
 const PERSIAN_CALENDAR = 'fa-IR-u-ca-persian';
 
 const SUPPORTS_PERSIAN_CALENDAR = (() => {
   try {
-    return new Intl.DateTimeFormat(PERSIAN_CALENDAR, { year: 'numeric' })
-      .format(new Date(2024, 2, 20))
-      .includes('۱۴۰۳');
+    return new Intl.DateTimeFormat(PERSIAN_CALENDAR, { year: 'numeric' }).resolvedOptions().calendar === 'persian';
   } catch {
     return false;
   }
@@ -105,8 +104,13 @@ export function formatBytes(bytes: number): string {
 function parseDateValue(value?: string | Date): Date | null {
   if (!value) return null;
   if (value instanceof Date) return Number.isNaN(value.getTime()) ? null : value;
+  if (value.includes('/')) return jalaliToLocalDate(value);
   const isoDay = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
-  if (isoDay) return new Date(Number(isoDay[1]), Number(isoDay[2]) - 1, Number(isoDay[3]));
+  if (isoDay) {
+    const year = Number(isoDay[1]);
+    if (year >= 1200 && year <= 1600) return jalaliToLocalDate(value.replaceAll('-', '/'));
+    return new Date(year, Number(isoDay[2]) - 1, Number(isoDay[3]));
+  }
   const parsed = new Date(value);
   return Number.isNaN(parsed.getTime()) ? null : parsed;
 }
@@ -114,10 +118,11 @@ function parseDateValue(value?: string | Date): Date | null {
 const formatterCache = new Map<string, Intl.DateTimeFormat>();
 
 function formatter(options: Intl.DateTimeFormatOptions): Intl.DateTimeFormat {
+  if (!SUPPORTS_PERSIAN_CALENDAR) throw new Error('این مرورگر از تقویم شمسی پشتیبانی نمی‌کند.');
   const key = JSON.stringify(options);
   const cached = formatterCache.get(key);
   if (cached) return cached;
-  const created = new Intl.DateTimeFormat(SUPPORTS_PERSIAN_CALENDAR ? PERSIAN_CALENDAR : 'fa-IR', options);
+  const created = new Intl.DateTimeFormat(PERSIAN_CALENDAR, options);
   formatterCache.set(key, created);
   return created;
 }
@@ -158,13 +163,11 @@ export function formatRelative(value?: string | Date): string {
   return formatDate(value);
 }
 
-/** مقدار امروز برای input[type=date] به شکل YYYY-MM-DD */
+/** مقدار تاریخ امروز با قالب شمسی YYYY/MM/DD */
 export function todayInputValue(offsetDays = 0): string {
   const now = new Date();
   now.setDate(now.getDate() + offsetDays);
-  const month = String(now.getMonth() + 1).padStart(2, '0');
-  const day = String(now.getDate()).padStart(2, '0');
-  return `${now.getFullYear()}-${month}-${day}`;
+  return jalaliDateFromDate(now);
 }
 
 /** الان به شکل ISO (برای زمان‌های رکورد) */
@@ -179,11 +182,8 @@ export function dateInputHint(value?: string): string {
 
 /** سال شمسی جاری (برای شماره‌گذاری اسناد) */
 export function jalaliYear(): string {
-  const date = parseDateValue(todayInputValue()) ?? new Date();
-  if (!SUPPORTS_PERSIAN_CALENDAR) return String(date.getFullYear());
-  const parts = formatter({ year: 'numeric' }).formatToParts(date);
-  const year = parts.find((p) => p.type === 'year')?.value ?? '';
-  return toLatinDigits(year).replace(/\D/g, '');
+  const parts = jalaliDateFromDate(new Date()).split('/');
+  return parts[0] ?? '';
 }
 
 /* -------------------- گروه‌بندی ماهانه (برای گزارش‌ها) -------------------- */

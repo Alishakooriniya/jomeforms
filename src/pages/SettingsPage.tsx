@@ -8,6 +8,7 @@ import { useTheme } from '../store/ThemeProvider';
 import { useToast } from '../store/ToastProvider';
 import { DEMO_ACCOUNTS } from '../data/seed';
 import { formatBytes, formatDate, nowISO } from '../lib/format';
+import { jalaliDateFromDate } from '../lib/jalali';
 import { storageFootprint } from '../lib/storage';
 import { estimateBlobUsage } from '../lib/idb';
 import { cn, downloadFile } from '../lib/utils';
@@ -52,7 +53,11 @@ export default function SettingsPage() {
   };
 
   const handleBackup = () => {
-    downloadFile(`crm-backup-${nowISO().slice(0, 10)}.json`, exportBackup(), 'application/json');
+    downloadFile(
+      `crm-backup-${jalaliDateFromDate(new Date()).replaceAll('/', '-')}.json`,
+      exportBackup(),
+      'application/json',
+    );
     toast.success('فایل پشتیبان دانلود شد');
   };
 

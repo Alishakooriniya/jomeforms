@@ -3,14 +3,16 @@
    ساختار داده دقیقاً همان چیزی است که در docs/database-schema.sql آمده. */
 
 import type { DbShape, ScanFile, User } from '../types';
-import { buildSeedDb, DEFAULT_SETTINGS, SEED_COMPANIES } from '../data/seed';
+import { buildSeedDb, DEFAULT_SETTINGS, SEED_CLIENTS, SEED_COMPANIES } from '../data/seed';
 import { PRESET_ROLES } from '../data/permissions';
 import { nowISO } from '../lib/format';
+import { normalizeLegacyJalaliDate } from '../lib/jalali';
 import { createClientWorkflow } from '../lib/caseWorkflow';
 import { putBlob } from '../lib/idb';
 import { KEYS, readJSON, readString, removeItem, writeJSON } from '../lib/storage';
+import { SEED_TEMPLATES } from '../data/templates';
 
-const SEED_VERSION = 1;
+const SEED_VERSION = 4;
 
 export function emptyDb(): DbShape {
   return {
@@ -84,12 +86,12 @@ async function generateDemoScans(scans: ScanFile[]) {
   }
 }
 
-export function saveDb(db: DbShape) {
+export function saveDb(db: DbShape, persistTemplates = true) {
   writeJSON(KEYS.users, db.users);
   writeJSON(KEYS.companies, db.companies);
   writeJSON(KEYS.clients, db.clients);
   writeJSON(KEYS.documents, db.documents);
-  writeJSON(KEYS.templates, db.templates);
+  if (persistTemplates) writeJSON(KEYS.templates, db.templates);
   writeJSON(KEYS.roles, db.roles);
   writeJSON(KEYS.scans, db.scans);
   writeJSON(KEYS.workflowEvidence, db.workflowEvidence);
@@ -127,7 +129,7 @@ function upgradePresetUsers(users: User[]): { users: User[]; changed: boolean } 
 /** بارگذاری داده‌ها؛ در اجرای اول داده نمونه ساخته می‌شود */
 export function loadDb(): DbShape {
   const users = readJSON<DbShape['users']>(KEYS.users, []);
-  const templates = readJSON<DbShape['templates']>(KEYS.templates, []);
+  let templates = readJSON<DbShape['templates']>(KEYS.templates, []);
   const meta = readJSON<{ seedVersion?: number }>(KEYS.meta, {});
 
   if (!users.length && !templates.length && !meta.seedVersion) {
@@ -136,6 +138,16 @@ export function loadDb(): DbShape {
     writeJSON(KEYS.meta, { seedVersion: SEED_VERSION, seededAt: nowISO() });
     void generateDemoScans(seeded.scans);
     return seeded;
+  }
+
+  if ((meta.seedVersion ?? 0) < SEED_VERSION) {
+    const templateIds = new Set(templates.map((template) => template.id));
+    const added = SEED_TEMPLATES.filter((template) => !templateIds.has(template.id));
+    if (added.length) {
+      templates = [...templates, ...added];
+      writeJSON(KEYS.templates, templates);
+    }
+    writeJSON(KEYS.meta, { ...meta, seedVersion: SEED_VERSION, upgradedAt: nowISO() });
   }
 
   // ارتقای نقش‌های آماده‌ای که در نسخه جدید دسترسی مجموعه‌ها گرفته‌اند
@@ -150,13 +162,43 @@ export function loadDb(): DbShape {
     writeJSON(KEYS.companies, companies);
   }
 
-  const clients = readJSON<DbShape['clients']>(KEYS.clients, []).map((client) => {
-    if (client.workflow?.length) return { ...client, caseType: client.caseType ?? 'document_request' };
-    const workflow = createClientWorkflow(client.caseType ?? 'document_request');
+  const legacyClientSchema = (meta.seedVersion ?? 0) < 3;
+  const legacyDateValues = (meta.seedVersion ?? 0) < 4;
+  const storedClients = readJSON<DbShape['clients']>(KEYS.clients, []);
+  const demoClientIds = new Set(Array.from({ length: 8 }, (_, index) => `cl-${index + 1}`));
+  const replacingDemoClients =
+    legacyClientSchema &&
+    storedClients.some((client) => demoClientIds.has(client.id) && client.createdBy === 'u-admin');
+  const clientsToMigrate = replacingDemoClients
+    ? [
+        ...storedClients.filter((client) => !(demoClientIds.has(client.id) && client.createdBy === 'u-admin')),
+        ...SEED_CLIENTS,
+      ]
+    : storedClients;
+  const clients = clientsToMigrate.map((client) => {
+    const caseType = client.caseType ?? 'document_request';
+    const workflow = client.workflow?.length ? client.workflow : createClientWorkflow(caseType);
+    const migrated: DbShape['clients'][number] = {
+      id: client.id,
+      code: client.code,
+      fullName: client.fullName,
+      nationalId: client.nationalId ?? '',
+      mobile: client.mobile ?? '',
+      caseType,
+      companyId: client.companyId,
+      workflow,
+      phone: client.phone,
+      fatherName: client.fatherName,
+      birthDate: normalizeLegacyJalaliDate(client.birthDate) ?? client.birthDate,
+      residenceAddress: client.residenceAddress ?? '',
+      status: client.status ?? 'new',
+      createdAt: client.createdAt,
+      updatedAt: client.updatedAt,
+      createdBy: client.createdBy,
+    };
     if (client.status === 'done') {
       return {
-        ...client,
-        caseType: client.caseType ?? 'document_request',
+        ...migrated,
         workflow: workflow.map((step) => ({
           ...step,
           status: 'completed' as const,
@@ -164,18 +206,55 @@ export function loadDb(): DbShape {
         })),
       };
     }
-    return { ...client, caseType: client.caseType ?? 'document_request', workflow };
+    return migrated;
   });
+  if (legacyClientSchema || legacyDateValues) writeJSON(KEYS.clients, clients);
+  const demoClientsById = new Map(SEED_CLIENTS.map((client) => [client.id, client]));
+  const dateFieldsByTemplate = new Map(
+    [...templates, ...SEED_TEMPLATES].map((template) => [
+      template.id,
+      template.fields.filter((field) => field.type === 'date').map((field) => field.key),
+    ]),
+  );
+  let migratedDates = false;
+  const documents = readJSON<DbShape['documents']>(KEYS.documents, []).map((document) => {
+    let next = document;
+    if (replacingDemoClients && document.clientId && demoClientIds.has(document.clientId)) {
+      const target = demoClientsById.get(Number(document.clientId.slice(3)) % 2 === 0 ? 'cl-2' : 'cl-1');
+      if (target) next = { ...next, clientId: target.id, clientName: target.fullName, clientCode: target.code };
+    }
+    if (!legacyDateValues) return next;
+
+    const values = { ...next.values };
+    let changed = false;
+    for (const key of dateFieldsByTemplate.get(next.templateId) ?? []) {
+      const converted = normalizeLegacyJalaliDate(values[key]);
+      if (converted && converted !== values[key]) {
+        values[key] = converted;
+        changed = true;
+      }
+    }
+    if (changed) {
+      migratedDates = true;
+      next = { ...next, values };
+    }
+    return next;
+  });
+  if (replacingDemoClients || migratedDates) writeJSON(KEYS.documents, documents);
+  const workflowEvidence = readJSON<DbShape['workflowEvidence']>(KEYS.workflowEvidence, []).filter(
+    (item) => !replacingDemoClients || !demoClientIds.has(item.clientId),
+  );
+  if (replacingDemoClients) writeJSON(KEYS.workflowEvidence, workflowEvidence);
 
   return {
     users: upgraded.users,
     companies,
     clients,
-    documents: readJSON<DbShape['documents']>(KEYS.documents, []),
+    documents,
     templates,
     roles: readJSON<DbShape['roles']>(KEYS.roles, []),
     scans: readJSON<DbShape['scans']>(KEYS.scans, []),
-    workflowEvidence: readJSON<DbShape['workflowEvidence']>(KEYS.workflowEvidence, []),
+    workflowEvidence,
     audit: readJSON<DbShape['audit']>(KEYS.audit, []),
     settings: { ...DEFAULT_SETTINGS, ...readJSON<Partial<DbShape['settings']>>(KEYS.settings, {}) },
   };

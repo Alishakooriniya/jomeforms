@@ -7,10 +7,7 @@ import type {
   ClientStatus,
   ClientWithRelations,
   ClientWorkflowStep,
-  DealKind,
   ListOptions,
-  PartyRole,
-  PropertyKind,
   WorkflowEvidence,
 } from '../types/domain.js';
 
@@ -18,7 +15,6 @@ export interface ClientFilters extends ListOptions {
   status?: ClientStatus;
   caseType?: ClientCaseType;
   companyId?: string;
-  agentName?: string;
 }
 
 export interface ClientInput {
@@ -30,35 +26,10 @@ export interface ClientInput {
   companyId?: string | null;
   workflow: ClientWorkflowStep[];
   phone?: string | null;
-  email?: string | null;
   fatherName?: string | null;
   birthDate?: string | null;
-  partyRole: PartyRole;
-  party2Name?: string | null;
-  party2Role?: PartyRole;
-  party2NationalId?: string | null;
-  party2Mobile?: string | null;
-  dealKind: DealKind;
   status: ClientStatus;
-  province: string;
-  city: string;
-  address: string;
-  propertyKind: PropertyKind;
-  area: number;
-  region?: string | null;
-  plate?: string | null;
-  unit?: string | null;
-  floor?: string | null;
-  buildYear?: string | null;
-  price: number;
-  deposit: number;
-  rent: number;
-  commissionPercent: number;
-  agentName?: string | null;
-  source?: string | null;
-  tags: string[];
-  notes?: string | null;
-  extra: Record<string, string>;
+  residenceAddress?: string | null;
 }
 
 interface ClientRow extends QueryResultRow {
@@ -71,35 +42,10 @@ interface ClientRow extends QueryResultRow {
   company_id: string | null;
   workflow: ClientWorkflowStep[];
   phone: string | null;
-  email: string | null;
   father_name: string | null;
   birth_date: string | null;
-  party_role: PartyRole;
-  party2_name: string | null;
-  party2_role: PartyRole;
-  party2_national_id: string | null;
-  party2_mobile: string | null;
-  deal_kind: DealKind;
   status: ClientStatus;
-  province: string;
-  city: string;
-  address: string;
-  property_kind: PropertyKind;
-  area: string;
-  region: string | null;
-  plate: string | null;
-  unit: string | null;
-  floor: string | null;
-  build_year: string | null;
-  price: string;
-  deposit: string;
-  rent: string;
-  commission_percent: string;
-  agent_name: string | null;
-  source: string | null;
-  tags: string[];
-  notes: string | null;
-  extra: Record<string, string>;
+  residence_address: string | null;
   created_by: string | null;
   created_at: Date;
   updated_at: Date;
@@ -138,35 +84,10 @@ function mapClient(row: ClientRow): Client {
     companyId: row.company_id ?? undefined,
     workflow: row.workflow ?? [],
     phone: row.phone ?? undefined,
-    email: row.email ?? undefined,
     fatherName: row.father_name ?? undefined,
     birthDate: row.birth_date ?? undefined,
-    partyRole: row.party_role,
-    party2Name: row.party2_name ?? undefined,
-    party2Role: row.party2_role,
-    party2NationalId: row.party2_national_id ?? undefined,
-    party2Mobile: row.party2_mobile ?? undefined,
-    dealKind: row.deal_kind,
     status: row.status,
-    province: row.province,
-    city: row.city,
-    address: row.address,
-    propertyKind: row.property_kind,
-    area: Number(row.area),
-    region: row.region ?? undefined,
-    plate: row.plate ?? undefined,
-    unit: row.unit ?? undefined,
-    floor: row.floor ?? undefined,
-    buildYear: row.build_year ?? undefined,
-    price: Number(row.price),
-    deposit: Number(row.deposit),
-    rent: Number(row.rent),
-    commissionPercent: Number(row.commission_percent),
-    agentName: row.agent_name ?? undefined,
-    source: row.source ?? undefined,
-    tags: row.tags ?? [],
-    notes: row.notes ?? undefined,
-    extra: row.extra ?? {},
+    residenceAddress: row.residence_address ?? undefined,
     createdAt: new Date(row.created_at).toISOString(),
     updatedAt: new Date(row.updated_at).toISOString(),
     createdBy: row.created_by ?? 'system',
@@ -196,35 +117,10 @@ const COLUMNS: Record<keyof ClientInput, string> = {
   companyId: 'company_id',
   workflow: 'workflow',
   phone: 'phone',
-  email: 'email',
   fatherName: 'father_name',
   birthDate: 'birth_date',
-  partyRole: 'party_role',
-  party2Name: 'party2_name',
-  party2Role: 'party2_role',
-  party2NationalId: 'party2_national_id',
-  party2Mobile: 'party2_mobile',
-  dealKind: 'deal_kind',
   status: 'status',
-  province: 'province',
-  city: 'city',
-  address: 'address',
-  propertyKind: 'property_kind',
-  area: 'area',
-  region: 'region',
-  plate: 'plate',
-  unit: 'unit',
-  floor: 'floor',
-  buildYear: 'build_year',
-  price: 'price',
-  deposit: 'deposit',
-  rent: 'rent',
-  commissionPercent: 'commission_percent',
-  agentName: 'agent_name',
-  source: 'source',
-  tags: 'tags',
-  notes: 'notes',
-  extra: 'extra',
+  residenceAddress: 'residence_address',
 };
 
 export class ClientRepository {
@@ -255,17 +151,10 @@ export class ClientRepository {
       params.push(filters.companyId);
       where.push(`cl.company_id = $${params.length}`);
     }
-    if (filters.agentName) {
-      params.push(filters.agentName);
-      where.push(`cl.agent_name = $${params.length}`);
-    }
-
     const whereSql = where.length ? `where ${where.join(' and ')}` : '';
     const sortable: Record<string, string> = {
       code: 'cl.code',
       fullName: 'cl.full_name',
-      area: 'cl.area',
-      price: 'cl.price',
       updatedAt: 'cl.updated_at',
       createdAt: 'cl.created_at',
     };
@@ -312,12 +201,9 @@ export class ClientRepository {
   async create(input: ClientInput, createdBy: string): Promise<Client> {
     const result = await query<ClientRow>(
       `insert into clients
-        (code, full_name, national_id, mobile, case_type, company_id, workflow, phone, email, father_name,
-         birth_date, party_role, party2_name, party2_role, party2_national_id, party2_mobile, deal_kind, status,
-         province, city, address, property_kind, area, region, plate, unit, floor, build_year,
-         price, deposit, rent, commission_percent, agent_name, source, tags, notes, extra, created_by)
-       values ($1, $2, $3, $4, $5, $6, $7::jsonb, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18,
-               $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30, $31, $32, $33, $34, $35, $36, $37::jsonb, $38)
+        (code, full_name, national_id, mobile, case_type, company_id, workflow, phone, father_name,
+         birth_date, status, residence_address, created_by)
+       values ($1, $2, $3, $4, $5, $6, $7::jsonb, $8, $9, $10, $11, $12, $13)
        returning *`,
       [
         input.code ?? '',
@@ -328,35 +214,10 @@ export class ClientRepository {
         input.companyId ?? null,
         JSON.stringify(input.workflow),
         input.phone ?? null,
-        input.email ?? null,
         input.fatherName ?? null,
         input.birthDate ?? null,
-        input.partyRole,
-        input.party2Name ?? null,
-        input.party2Role ?? 'seller',
-        input.party2NationalId ?? null,
-        input.party2Mobile ?? null,
-        input.dealKind,
         input.status,
-        input.province,
-        input.city,
-        input.address,
-        input.propertyKind,
-        input.area,
-        input.region ?? null,
-        input.plate ?? null,
-        input.unit ?? null,
-        input.floor ?? null,
-        input.buildYear ?? null,
-        input.price,
-        input.deposit,
-        input.rent,
-        input.commissionPercent,
-        input.agentName ?? null,
-        input.source ?? null,
-        input.tags,
-        input.notes ?? null,
-        JSON.stringify(input.extra),
+        input.residenceAddress ?? null,
         createdBy,
       ],
     );
@@ -371,8 +232,8 @@ export class ClientRepository {
 
     for (const [key, value] of Object.entries(patch) as Array<[keyof ClientInput, unknown]>) {
       if (value === undefined) continue;
-      params.push((key === 'workflow' || key === 'extra' ? JSON.stringify(value) : value) as QueryParam);
-      const cast = key === 'workflow' || key === 'extra' ? '::jsonb' : '';
+      params.push((key === 'workflow' ? JSON.stringify(value) : value) as QueryParam);
+      const cast = key === 'workflow' ? '::jsonb' : '';
       assignments.push(`${COLUMNS[key]} = $${params.length}${cast}`);
     }
 
