@@ -17,6 +17,7 @@ servers:
 tags:
   - name: Auth
   - name: Users
+  - name: Admin users
   - name: Roles
   - name: Permissions
   - name: Companies
@@ -94,6 +95,149 @@ paths:
                     properties:
                       data: { $ref: '#/components/schemas/User' }
         '401': { $ref: '#/components/responses/Unauthorized' }
+  /auth/change-password:
+    post:
+      tags: [Auth]
+      summary: Change the authenticated user's password
+      description: Requires the current password; revokes all refresh sessions after a successful change.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ChangePassword' }
+      responses:
+        '200':
+          description: Password changed.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Success' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+
+  /admin-users:
+    get:
+      tags: [Admin users]
+      summary: List manager accounts
+      description: Superadmin only. Returns accounts with the `admin` role.
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Search'
+        - $ref: '#/components/parameters/SortBy'
+        - $ref: '#/components/parameters/SortOrder'
+      responses:
+        '200':
+          description: Paginated manager accounts.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Success'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items: { $ref: '#/components/schemas/User' }
+                      meta: { $ref: '#/components/schemas/PaginationMeta' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+    post:
+      tags: [Admin users]
+      summary: Create a manager account
+      description: Superadmin only. The role is always `admin`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreateAdmin' }
+      responses:
+        '201':
+          description: Created manager account.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Success'
+                  - type: object
+                    properties:
+                      data: { $ref: '#/components/schemas/User' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+  /admin-users/{id}:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+    patch:
+      tags: [Admin users]
+      summary: Update a manager account
+      description: Superadmin only. Role changes are not accepted.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/UpdateAdmin' }
+      responses:
+        '200':
+          description: Updated manager account.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Success'
+                  - type: object
+                    properties:
+                      data: { $ref: '#/components/schemas/User' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    delete:
+      tags: [Admin users]
+      summary: Permanently delete a manager account
+      description: Superadmin only. Revokes all active sessions.
+      responses:
+        '204': { description: Deleted. }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /admin-users/{id}/permissions:
+    put:
+      tags: [Admin users]
+      summary: Replace a manager's permissions
+      description: Superadmin only.
+      parameters:
+        - $ref: '#/components/parameters/Id'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [permissions]
+              properties:
+                permissions:
+                  type: array
+                  items: { type: string }
+      responses:
+        '200': { description: Permissions updated. }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /admin-users/{id}/status:
+    patch:
+      tags: [Admin users]
+      summary: Activate or deactivate a manager account
+      description: Superadmin only. Deactivation revokes all refresh sessions.
+      parameters:
+        - $ref: '#/components/parameters/Id'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [active]
+              properties:
+                active: { type: boolean }
+      responses:
+        '200': { description: Status updated. }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
 
   /users:
     get:
@@ -512,7 +656,6 @@ paths:
         - { name: status, in: query, schema: { type: string, enum: [new, in_progress, awaiting_docs, done, archived] } }
         - { name: caseType, in: query, schema: { type: string, enum: [document_request, rent_renewal] } }
         - { name: companyId, in: query, schema: { type: string, format: uuid } }
-        - { name: agentName, in: query, schema: { type: string } }
       responses:
         '200':
           description: Paginated case files with workflow and evidence.
@@ -822,8 +965,14 @@ paths:
         - { name: templateId, in: query, schema: { type: string, format: uuid } }
         - { name: clientId, in: query, schema: { type: string, format: uuid } }
         - { name: createdBy, in: query, schema: { type: string, format: uuid } }
-        - { name: from, in: query, schema: { type: string, format: date } }
-        - { name: to, in: query, schema: { type: string, format: date } }
+        - name: from
+          in: query
+          description: Jalali date in YYYY/MM/DD format; Persian and Arabic digits are accepted.
+          schema: { type: string, pattern: '^[0-9]{4}/[0-9]{1,2}/[0-9]{1,2}$', example: '1405/07/30' }
+        - name: to
+          in: query
+          description: Jalali date in YYYY/MM/DD format; Persian and Arabic digits are accepted.
+          schema: { type: string, pattern: '^[0-9]{4}/[0-9]{1,2}/[0-9]{1,2}$', example: '1405/07/30' }
       responses:
         '200':
           description: Paginated documents.
@@ -855,6 +1004,7 @@ paths:
                 values:
                   type: object
                   additionalProperties: { type: string }
+                  description: Values for fields of type date must use a valid Jalali YYYY/MM/DD date.
                 status: { $ref: '#/components/schemas/DocStatus' }
                 tags:
                   type: array
@@ -906,6 +1056,7 @@ paths:
                 values:
                   type: object
                   additionalProperties: { type: string }
+                  description: Values for fields of type date must use a valid Jalali YYYY/MM/DD date.
                 tags:
                   type: array
                   items: { type: string }
@@ -1109,7 +1260,6 @@ paths:
                             clients: { type: integer }
                             documents: { type: integer }
                             scans: { type: integer }
-                            value: { type: number }
                       meta: { $ref: '#/components/schemas/PaginationMeta' }
 
   /audit-logs:
@@ -1123,8 +1273,14 @@ paths:
         - $ref: '#/components/parameters/Search'
         - { name: entity, in: query, schema: { type: string } }
         - { name: userId, in: query, schema: { type: string, format: uuid } }
-        - { name: from, in: query, schema: { type: string, format: date } }
-        - { name: to, in: query, schema: { type: string, format: date } }
+        - name: from
+          in: query
+          description: Jalali date in YYYY/MM/DD format; Persian and Arabic digits are accepted.
+          schema: { type: string, pattern: '^[0-9]{4}/[0-9]{1,2}/[0-9]{1,2}$', example: '1405/07/30' }
+        - name: to
+          in: query
+          description: Jalali date in YYYY/MM/DD format; Persian and Arabic digits are accepted.
+          schema: { type: string, pattern: '^[0-9]{4}/[0-9]{1,2}/[0-9]{1,2}$', example: '1405/07/30' }
       responses:
         '200':
           description: Paginated audit entries (newest first).
@@ -1326,6 +1482,27 @@ components:
         companyId: { type: string, format: uuid, nullable: true }
         active: { type: boolean }
         note: { type: string }
+    CreateAdmin:
+      type: object
+      required: [username, fullName, password]
+      properties:
+        username: { type: string, minLength: 3, maxLength: 40 }
+        fullName: { type: string, minLength: 2, maxLength: 120 }
+        password: { type: string, minLength: 8, maxLength: 200 }
+        permissions:
+          type: array
+          items: { type: string }
+        title: { type: string }
+        mobile: { type: string }
+        active: { type: boolean }
+        note: { type: string }
+    ChangePassword:
+      type: object
+      required: [currentPassword, newPassword, confirmPassword]
+      properties:
+        currentPassword: { type: string, minLength: 1, maxLength: 200 }
+        newPassword: { type: string, minLength: 8, maxLength: 200 }
+        confirmPassword: { type: string, minLength: 1, maxLength: 200 }
     UpdateUser:
       type: object
       description: Any subset of CreateUser fields; a new password revokes existing sessions.
@@ -1340,6 +1517,19 @@ components:
         title: { type: string, nullable: true }
         mobile: { type: string, nullable: true }
         companyId: { type: string, format: uuid, nullable: true }
+        active: { type: boolean }
+        note: { type: string, nullable: true }
+    UpdateAdmin:
+      type: object
+      properties:
+        username: { type: string, minLength: 3, maxLength: 40 }
+        fullName: { type: string, minLength: 2, maxLength: 120 }
+        password: { type: string, minLength: 8, maxLength: 200 }
+        permissions:
+          type: array
+          items: { type: string }
+        title: { type: string, nullable: true }
+        mobile: { type: string, nullable: true }
         active: { type: boolean }
         note: { type: string, nullable: true }
     Role:
@@ -1424,39 +1614,14 @@ components:
           type: array
           items: { $ref: '#/components/schemas/WorkflowStep' }
         phone: { type: string }
-        email: { type: string, format: email }
         fatherName: { type: string }
-        birthDate: { type: string, example: '1370-01-01' }
-        partyRole: { type: string, enum: [buyer, seller, tenant, landlord, consultant] }
-        party2Name: { type: string }
-        party2Role: { type: string, enum: [buyer, seller, tenant, landlord, consultant] }
-        party2NationalId: { type: string }
-        party2Mobile: { type: string }
-        dealKind: { type: string, enum: [sale, rent, mortgage, presale, partnership] }
+        birthDate:
+          type: string
+          description: Valid Jalali date in YYYY/MM/DD format; Gregorian-formatted dates are rejected.
+          pattern: '^[0-9]{4}/[0-9]{1,2}/[0-9]{1,2}$'
+          example: '1370/01/01'
         status: { type: string, enum: [new, in_progress, awaiting_docs, done, archived] }
-        province: { type: string }
-        city: { type: string }
-        address: { type: string }
-        propertyKind: { type: string, enum: [apartment, house, villa, land, office, store, warehouse] }
-        area: { type: number, minimum: 0 }
-        region: { type: string }
-        plate: { type: string }
-        unit: { type: string }
-        floor: { type: string }
-        buildYear: { type: string }
-        price: { type: number, minimum: 0 }
-        deposit: { type: number, minimum: 0 }
-        rent: { type: number, minimum: 0 }
-        commissionPercent: { type: number, minimum: 0, maximum: 100 }
-        agentName: { type: string }
-        source: { type: string }
-        tags:
-          type: array
-          items: { type: string }
-        notes: { type: string }
-        extra:
-          type: object
-          additionalProperties: { type: string }
+        residenceAddress: { type: string, maxLength: 500 }
     Client:
       allOf:
         - $ref: '#/components/schemas/ClientInput'
@@ -1518,6 +1683,10 @@ components:
       properties:
         title: { type: string, minLength: 2, maxLength: 200 }
         category: { $ref: '#/components/schemas/TemplateCategory' }
+        printLayout:
+          type: string
+          enum: [document-request-a4]
+          nullable: true
         description: { type: string, nullable: true }
         fields:
           type: array

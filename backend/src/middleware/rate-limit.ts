@@ -9,7 +9,7 @@ function limitHandler(_req: unknown, res: Response): void {
     success: false,
     error: {
       code: ErrorCode.RATE_LIMITED,
-      message: 'Too many requests. Please try again later.',
+      message: 'تعداد درخواست‌ها بیش از حد مجاز است؛ کمی بعد دوباره تلاش کنید.',
     },
   });
 }

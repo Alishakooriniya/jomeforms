@@ -16,6 +16,7 @@ import type {
   User,
 } from '../types';
 import { hashPassword } from '../lib/crypto';
+import { jalaliDateFromDate } from '../lib/jalali';
 import { nowISO, sequenceNumber } from '../lib/format';
 import { createClientWorkflow } from '../lib/caseWorkflow';
 import { autofillValues } from '../lib/template';
@@ -48,6 +49,10 @@ function daysAgo(days: number, hourOffset = 0): string {
   date.setDate(date.getDate() - days);
   date.setHours(9 + hourOffset, 30, 0, 0);
   return date.toISOString();
+}
+
+function jalaliDaysAgo(days: number): string {
+  return jalaliDateFromDate(new Date(daysAgo(days)));
 }
 
 function presetPermissions(id: string): string[] {
@@ -130,199 +135,40 @@ const USERS: User[] = [
 
 /* ------------------------------ پرونده‌ها ------------------------------ */
 
-let clientSeq = 0;
-
-type ClientSeed = Partial<Client> &
-  Pick<Client, 'fullName' | 'partyRole' | 'dealKind' | 'address'>;
-
-function makeClient(data: ClientSeed): Client {
-  clientSeq += 1;
-  const created = daysAgo(95 - clientSeq * 9, clientSeq % 6);
-  return {
-    id: `cl-${clientSeq}`,
-    code: sequenceNumber(DEFAULT_SETTINGS.clientPrefix, clientSeq),
-    nationalId: '',
-    mobile: '',
-    province: DEFAULT_SETTINGS.defaultProvince,
-    city: DEFAULT_SETTINGS.defaultCity,
-    propertyKind: 'apartment',
-    area: 0,
-    price: 0,
-    deposit: 0,
-    rent: 0,
-    commissionPercent: 0.5,
+export const SEED_CLIENTS: Client[] = [
+  {
+    id: 'cl-1',
+    code: sequenceNumber(DEFAULT_SETTINGS.clientPrefix, 1),
+    fullName: 'نمونه آزمایشی یک',
+    nationalId: '0123456789',
+    mobile: '09120000001',
+    phone: '02100000001',
+    fatherName: 'نمونه',
+    birthDate: '1370/01/01',
+    residenceAddress: 'نشانی آزمایشی شماره یک، تهران',
+    caseType: 'document_request',
+    workflow: createClientWorkflow('document_request'),
     status: 'new',
-    tags: [],
-    extra: {},
-    createdAt: created,
-    updatedAt: created,
+    createdAt: daysAgo(2),
+    updatedAt: daysAgo(2),
     createdBy: 'u-admin',
-    ...data,
-  };
-}
-
-const CLIENTS: Client[] = [
-  makeClient({
-    fullName: 'مهدی رستگار',
-    nationalId: '2291745638',
-    mobile: '09121230011',
-    fatherName: 'اکبر',
-    birthDate: '1985-04-12',
-    partyRole: 'seller',
-    party2Name: 'زهرا احمدی',
-    party2Role: 'buyer',
-    party2NationalId: '0084575948',
-    party2Mobile: '09351120022',
-    dealKind: 'sale',
+  },
+  {
+    id: 'cl-2',
+    code: sequenceNumber(DEFAULT_SETTINGS.clientPrefix, 2),
+    fullName: 'نمونه آزمایشی دو',
+    nationalId: '0123456789',
+    mobile: '09120000002',
+    fatherName: 'آزمایش',
+    birthDate: '1375/05/10',
+    residenceAddress: 'نشانی آزمایشی شماره دو، تهران',
+    caseType: 'document_request',
+    workflow: createClientWorkflow('document_request'),
     status: 'in_progress',
-    address: 'تهران، خیابان ولیعصر، کوچه بهار، پلاک ۱۲، واحد ۳',
-    region: 'ولیعصر',
-    propertyKind: 'apartment',
-    area: 92,
-    plate: '۳/۱۲۴۵۸',
-    unit: '۳',
-    floor: '۲',
-    buildYear: '1396',
-    price: 8_400_000_000,
-    deposit: 1_200_000_000,
-    commissionPercent: 0.5,
-    agentName: 'علی محمدی',
-    source: 'تماس تلفنی',
-    tags: ['فوری', 'وام‌دار'],
-    notes: 'خریدار برای تسویه به فروش آپارتمان خود وابسته است.',
-  }),
-  makeClient({
-    fullName: 'زهرا احمدی',
-    nationalId: '0084575948',
-    mobile: '09351120022',
-    fatherName: 'منصور',
-    partyRole: 'buyer',
-    dealKind: 'sale',
-    status: 'new',
-    address: 'تهران، سعادت‌آباد، بلوار دریا، پلاک ۸۸، واحد ۱۱',
-    region: 'سعادت‌آباد',
-    propertyKind: 'apartment',
-    area: 85,
-    price: 7_200_000_000,
-    commissionPercent: 0.5,
-    agentName: 'رضا کریمی',
-    tags: ['نقدی'],
-  }),
-  makeClient({
-    fullName: 'حسین نوری',
-    nationalId: '1250968739',
-    mobile: '09193440055',
-    partyRole: 'landlord',
-    party2Name: 'سمیرا موسوی',
-    party2Role: 'tenant',
-    party2NationalId: '3645129081',
-    party2Mobile: '09122340066',
-    dealKind: 'rent',
-    status: 'awaiting_docs',
-    address: 'تهران، خیابان شریعتی، خیابان یخچال، پلاک ۴۵، واحد ۶',
-    region: 'قلهک',
-    propertyKind: 'apartment',
-    area: 105,
-    unit: '۶',
-    floor: '۳',
-    buildYear: '1392',
-    deposit: 500_000_000,
-    rent: 35_000_000,
-    commissionPercent: 0.25,
-    agentName: 'علی محمدی',
-    tags: ['اجاره یک‌ساله'],
-    notes: 'مدارک هویتی مستأجر در انتظار تحویل است.',
-  }),
-  makeClient({
-    fullName: 'سمیرا موسوی',
-    nationalId: '3645129081',
-    mobile: '09122340066',
-    partyRole: 'tenant',
-    dealKind: 'rent',
-    status: 'done',
-    address: 'تهران، شریعتی، قلهک، پلاک ۴۵، واحد ۶',
-    region: 'قلهک',
-    area: 105,
-    deposit: 500_000_000,
-    rent: 35_000_000,
-    commissionPercent: 0.25,
-    agentName: 'علی محمدی',
-    tags: [],
-  }),
-  makeClient({
-    fullName: 'امیرحسین طاهری',
-    nationalId: '0079543219',
-    mobile: '09128889977',
-    partyRole: 'buyer',
-    dealKind: 'presale',
-    status: 'in_progress',
-    address: 'تهران، منطقه ۲۲، بلوار اردستانی، پروژه نگین',
-    region: 'چیتگر',
-    propertyKind: 'apartment',
-    area: 118,
-    unit: '۱۴',
-    floor: '۵',
-    price: 12_500_000_000,
-    deposit: 3_000_000_000,
-    commissionPercent: 0.5,
-    agentName: 'مرضیه صادقی',
-    tags: ['پیش‌فروش', 'پرداخت مرحله‌ای'],
-  }),
-  makeClient({
-    fullName: 'فاطمه شریفی',
-    nationalId: '1892037653',
-    mobile: '09364445566',
-    partyRole: 'seller',
-    dealKind: 'sale',
-    status: 'done',
-    address: 'کرج، عظیمیه، بلوار اصلی، کوچه گلستان، پلاک ۷',
-    city: 'کرج',
-    province: 'البرز',
-    region: 'عظیمیه',
-    propertyKind: 'house',
-    area: 240,
-    plate: '۲/۹۸۷۶',
-    buildYear: '1388',
-    price: 15_800_000_000,
-    commissionPercent: 0.5,
-    agentName: 'رضا کریمی',
-    tags: ['معامله نهایی‌شده'],
-  }),
-  makeClient({
-    fullName: 'بابک فتحی',
-    nationalId: '0451209869',
-    mobile: '09121117788',
-    partyRole: 'seller',
-    dealKind: 'sale',
-    status: 'new',
-    address: 'تهران، خیابان جمهوری، پاساژ نور، طبقه اول، واحد ۱۲',
-    region: 'جمهوری',
-    propertyKind: 'store',
-    area: 32,
-    plate: '۴/۵۵۶۷۸',
-    price: 9_900_000_000,
-    commissionPercent: 0.75,
-    agentName: 'علی محمدی',
-    tags: ['تجاری'],
-    notes: 'سند تجاری با کاربری مغازه.',
-  }),
-  makeClient({
-    fullName: 'نگار سلطانی',
-    nationalId: '2349876519',
-    mobile: '09353330011',
-    partyRole: 'buyer',
-    dealKind: 'mortgage',
-    status: 'archived',
-    address: 'تهران، لواسان، بلوار امام خمینی، کوچه چنار، پلاک ۳',
-    region: 'لواسان',
-    propertyKind: 'villa',
-    area: 310,
-    price: 32_000_000_000,
-    deposit: 8_000_000_000,
-    commissionPercent: 1,
-    agentName: 'مرضیه صادقی',
-    tags: ['رهن کامل', 'بایگانی‌شده'],
-  }),
+    createdAt: daysAgo(1),
+    updatedAt: daysAgo(1),
+    createdBy: 'u-admin',
+  },
 ];
 
 /* -------------------------------- اسناد -------------------------------- */
@@ -354,11 +200,11 @@ const DOC_SEEDS: DocSeed[] = [
     scans: 2,
     createdBy: 'u-admin',
     overrides: {
-      doc_date: daysAgo(22).slice(0, 10),
+      doc_date: jalaliDaysAgo(22),
       payment_terms: '۱ میلیارد تومان نقد در زمان امضا، ۲ میلیارد تومان هنگام تنظیم سند رسمی، الباقی با چک ۹۰ روزه.',
       notary_office: 'دفتر اسناد رسمی ۲۳ تهران',
       extra_terms: 'کلیه لوازم برقی و کابینت‌ها جزء مورد معامله است.',
-      delivery_date: daysAgo(-8).slice(0, 10),
+      delivery_date: jalaliDaysAgo(-8),
     },
     tags: ['معامله بزرگ'],
   },
@@ -370,7 +216,7 @@ const DOC_SEEDS: DocSeed[] = [
     scans: 0,
     createdBy: 'u-admin',
     overrides: {
-      doc_date: daysAgo(9).slice(0, 10),
+      doc_date: jalaliDaysAgo(9),
       payment_terms: 'کل مبلغ به‌صورت نقدی در دفتر اسناد رسمی پرداخت می‌شود.',
       notary_office: 'دفتر اسناد رسمی ۱۰۱ تهران',
       extra_terms: 'خریدار متعهد به پرداخت هزینه انتقال و دفترخانه است.',
@@ -378,15 +224,15 @@ const DOC_SEEDS: DocSeed[] = [
   },
   {
     templateId: 'tpl-rent',
-    clientId: 'cl-3',
+    clientId: 'cl-2',
     status: 'signed',
     ago: 15,
     scans: 1,
     createdBy: 'u-contracts',
     overrides: {
-      doc_date: daysAgo(15).slice(0, 10),
-      start_date: daysAgo(10).slice(0, 10),
-      end_date: daysAgo(-355).slice(0, 10),
+      doc_date: jalaliDaysAgo(15),
+      start_date: jalaliDaysAgo(10),
+      end_date: jalaliDaysAgo(-355),
       duration_months: '12',
       payment_day: '5',
       utilities_note: 'قبوض آب، برق و گاز و شارژ ساختمان بر عهده مستأجر است.',
@@ -396,12 +242,12 @@ const DOC_SEEDS: DocSeed[] = [
   },
   {
     templateId: 'tpl-rent',
-    clientId: 'cl-4',
+    clientId: 'cl-2',
     status: 'draft',
     ago: 3,
     scans: 0,
     createdBy: 'u-admin',
-    overrides: { doc_date: daysAgo(3).slice(0, 10), duration_months: '12' },
+    overrides: { doc_date: jalaliDaysAgo(3), duration_months: '12' },
   },
   {
     templateId: 'tpl-commission',
@@ -411,24 +257,24 @@ const DOC_SEEDS: DocSeed[] = [
     scans: 1,
     createdBy: 'u-admin',
     overrides: {
-      doc_date: daysAgo(21).slice(0, 10),
+      doc_date: jalaliDaysAgo(21),
       commission_amount: '84000000',
       deal_type: 'فروش',
       payment_method: 'کارت به کارت',
-      due_date: daysAgo(-2).slice(0, 10),
+      due_date: jalaliDaysAgo(-2),
       extra_terms: 'کمیسیون در دو قسط از طرفین معامله دریافت می‌شود.',
     },
   },
   {
     templateId: 'tpl-visit',
-    clientId: 'cl-6',
+    clientId: 'cl-1',
     status: 'signed',
     ago: 30,
     scans: 0,
     createdBy: 'u-contracts',
     overrides: {
-      doc_date: daysAgo(30).slice(0, 10),
-      visit_date: daysAgo(31).slice(0, 10),
+      doc_date: jalaliDaysAgo(30),
+      visit_date: jalaliDaysAgo(31),
       visit_time: '۱۷:۰۰',
       visit_result: 'مورد پسند بود',
       visitor_note: 'متقاضی برای بررسی قیمت و مشورت با خانواده یک هفته فرصت خواست.',
@@ -436,32 +282,32 @@ const DOC_SEEDS: DocSeed[] = [
   },
   {
     templateId: 'tpl-presale',
-    clientId: 'cl-5',
+    clientId: 'cl-2',
     status: 'awaiting_signature',
     ago: 6,
     scans: 0,
     createdBy: 'u-contracts',
     tags: ['پرداخت مرحله‌ای'],
     overrides: {
-      doc_date: daysAgo(6).slice(0, 10),
+      doc_date: jalaliDaysAgo(6),
       unit_no: '۱۴',
       unit_area: '118',
       total_units: '24',
       payment_steps: '۳ میلیارد تومان عند‌الامضا، ۴ میلیارد تومان پس از اتمام سفت‌کاری، ۵.۵ میلیارد تومان زمان تحویل.',
-      delivery_date: daysAgo(-540).slice(0, 10),
+      delivery_date: jalaliDaysAgo(-540),
       extra_terms: 'کلیه عوارض و هزینه‌های تفکیک بر عهده سازنده است.',
     },
   },
   {
     templateId: 'tpl-handover',
-    clientId: 'cl-4',
+    clientId: 'cl-2',
     status: 'scanned',
     ago: 40,
     scans: 2,
     createdBy: 'u-admin',
     overrides: {
-      doc_date: daysAgo(40).slice(0, 10),
-      delivery_date: daysAgo(41).slice(0, 10),
+      doc_date: jalaliDaysAgo(40),
+      delivery_date: jalaliDaysAgo(41),
       electricity_meter: '۷۸۴۵۱۲',
       gas_meter: '۱۲۰۹۸۷',
       water_meter: '۴۵۶۷۸۹',
@@ -472,13 +318,13 @@ const DOC_SEEDS: DocSeed[] = [
   },
   {
     templateId: 'tpl-commission',
-    clientId: 'cl-8',
+    clientId: 'cl-1',
     status: 'scanned',
     ago: 52,
     scans: 1,
     createdBy: 'u-contracts',
     overrides: {
-      doc_date: daysAgo(52).slice(0, 10),
+      doc_date: jalaliDaysAgo(52),
       commission_amount: '320000000',
       deal_type: 'رهن کامل',
       payment_method: 'چک',
@@ -493,20 +339,20 @@ const DOC_SEEDS: DocSeed[] = [
     scans: 0,
     createdBy: 'u-admin',
     overrides: {
-      doc_date: daysAgo(62).slice(0, 10),
-      visit_date: daysAgo(63).slice(0, 10),
+      doc_date: jalaliDaysAgo(62),
+      visit_date: jalaliDaysAgo(63),
       visit_result: 'مورد پسند نبود',
       visitor_note: 'نورگیری واحد مناسب نبود؛ پرونده بایگانی شد.',
     },
   },
   {
     templateId: 'tpl-sale',
-    clientId: 'cl-7',
+    clientId: 'cl-1',
     status: 'draft',
     ago: 1,
     scans: 0,
     createdBy: 'u-admin',
-    overrides: { doc_date: daysAgo(1).slice(0, 10) },
+    overrides: { doc_date: jalaliDaysAgo(1) },
   },
 ];
 
@@ -517,7 +363,7 @@ function buildDocuments(): { documents: DocRecord[]; scans: ScanFile[] } {
   const scans: ScanFile[] = [];
   DOC_SEEDS.forEach((seed, index) => {
     const template = templateById(seed.templateId);
-    const client = seed.clientId ? CLIENTS.find((item) => item.id === seed.clientId) : undefined;
+    const client = seed.clientId ? SEED_CLIENTS.find((item) => item.id === seed.clientId) : undefined;
     const author = USERS.find((user) => user.id === seed.createdBy) ?? USERS[1];
     const createdAt = daysAgo(seed.ago, index % 5);
     const scanIds: string[] = [];
@@ -651,13 +497,13 @@ export const SEED_COMPANIES: Company[] = [
 const AUDIT_SEED: Array<Omit<AuditEntry, 'id' | 'at'> & { ago: number }> = [
   { ago: 0, userId: 'u-super', userName: 'سارا رضایی', action: 'ورود به سامانه', entity: 'auth' },
   { ago: 1, userId: 'u-admin', userName: 'علی محمدی', action: 'ایجاد سند', entity: 'document', entityId: 'doc-11', entityLabel: 'مبایعه‌نامه ملک مسکونی' },
-  { ago: 1, userId: 'u-admin', userName: 'علی محمدی', action: 'ایجاد پرونده', entity: 'client', entityId: 'cl-8', entityLabel: 'نگار سلطانی' },
+  { ago: 1, userId: 'u-admin', userName: 'علی محمدی', action: 'ایجاد پرونده', entity: 'client', entityId: 'cl-2', entityLabel: 'نمونه آزمایشی دو' },
   { ago: 2, userId: 'u-contracts', userName: 'مرضیه صادقی', action: 'بارگذاری اسکن امضاشده', entity: 'scan', entityId: 'scan-8-1', entityLabel: 'صورتجلسه تحویل و تخلیه ملک' },
   { ago: 3, userId: 'u-admin', userName: 'علی محمدی', action: 'چاپ سند', entity: 'document', entityId: 'doc-4', entityLabel: 'اجاره‌نامه ملک مسکونی' },
   { ago: 5, userId: 'u-super', userName: 'سارا رضایی', action: 'ویرایش دسترسی کاربر', entity: 'user', entityId: 'u-viewer', entityLabel: 'رضا کریمی', detail: 'افزودن دسترسی مشاهده گزارش‌ها' },
   { ago: 6, userId: 'u-contracts', userName: 'مرضیه صادقی', action: 'ایجاد سند', entity: 'document', entityId: 'doc-7', entityLabel: 'قرارداد پیش‌فروش واحد ساختمانی' },
   { ago: 8, userId: 'u-super', userName: 'سارا رضایی', action: 'افزودن قالب فرم', entity: 'template', entityId: 'tpl-handover', entityLabel: 'صورتجلسه تحویل و تخلیه ملک' },
-  { ago: 9, userId: 'u-admin', userName: 'علی محمدی', action: 'ویرایش پرونده', entity: 'client', entityId: 'cl-1', entityLabel: 'مهدی رستگار' },
+  { ago: 9, userId: 'u-admin', userName: 'علی محمدی', action: 'ویرایش پرونده', entity: 'client', entityId: 'cl-1', entityLabel: 'نمونه آزمایشی یک' },
   { ago: 12, userId: 'u-super', userName: 'سارا رضایی', action: 'ایجاد کاربر', entity: 'user', entityId: 'u-archive', entityLabel: 'نرگس بیات' },
   { ago: 13, userId: 'u-super', userName: 'سارا رضایی', action: 'ویرایش مجموعه', entity: 'company', entityId: 'co-3', entityLabel: 'شرکت عمران دشت‌پردیس', detail: 'به‌روزرسانی رابط و متراژ کل' },
   { ago: 16, userId: 'u-super', userName: 'سارا رضایی', action: 'اتصال کاربر به مجموعه', entity: 'company', entityId: 'co-2', entityLabel: 'تعاونی مسکن سبزینه', detail: 'مرضیه صادقی' },
@@ -682,7 +528,7 @@ export function buildSeedDb(): DbShape {
   return {
     users: USERS,
     companies: SEED_COMPANIES,
-    clients: CLIENTS.map((client) => ({
+    clients: SEED_CLIENTS.map((client) => ({
       ...client,
       caseType: 'document_request',
       workflow: createClientWorkflow('document_request'),

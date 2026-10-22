@@ -27,6 +27,7 @@ export class TemplateService {
       {
         title: input.title.trim(),
         category: input.category,
+        printLayout: input.printLayout,
         description: input.description,
         fields: input.fields,
         body: input.body,
@@ -79,6 +80,7 @@ export class TemplateService {
       {
         title: `${source.title} (کپی)`,
         category: source.category as TemplateCategory,
+        printLayout: source.printLayout,
         description: source.description,
         fields: source.fields.map((field) => ({ ...field, id: randomUUID() })),
         body: source.body,

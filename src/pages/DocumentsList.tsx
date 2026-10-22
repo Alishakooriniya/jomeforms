@@ -12,6 +12,7 @@ import { useListQuery } from '../lib/hooks';
 import { compareText } from '../lib/utils';
 import { exportCsv } from '../lib/print';
 import { printDocument } from '../lib/documentActions';
+import { jalaliDateFromDate, jalaliToGregorianIso } from '../lib/jalali';
 import { Badge } from '../components/ui/Badge';
 import { Button } from '../components/ui/Button';
 import { Dropdown } from '../components/ui/Dropdown';
@@ -22,6 +23,7 @@ import { DataTable } from '../components/ui/Table';
 import type { Column } from '../components/ui/Table';
 import { ActiveFilterChip, FilterBar, FilterSelect, ResultsSummary, SearchInput } from '../components/ui/Toolbar';
 import { PageHeader } from '../components/ui/Avatar';
+import { JalaliDatePicker } from '../components/ui/JalaliDatePicker';
 
 export default function DocumentsList() {
   const { documents, templates, settings } = useDb();
@@ -48,8 +50,14 @@ export default function DocumentsList() {
       status: (document, value) => document.status === value,
       templateId: (document, value) => document.templateId === value,
       createdBy: (document, value) => document.createdBy === value,
-      from: (document, value) => document.createdAt.slice(0, 10) >= value,
-      to: (document, value) => document.createdAt.slice(0, 10) <= value,
+      from: (document, value) => {
+        const date = jalaliToGregorianIso(value);
+        return Boolean(date && document.createdAt.slice(0, 10) >= date);
+      },
+      to: (document, value) => {
+        const date = jalaliToGregorianIso(value);
+        return Boolean(date && document.createdAt.slice(0, 10) <= date);
+      },
     },
     sorters: {
       title: (a, b) => compareText(a.title, b.title),
@@ -97,7 +105,7 @@ export default function DocumentsList() {
 
   const handleExport = () => {
     exportCsv(
-      `documents-${new Date().toISOString().slice(0, 10)}.csv`,
+      `documents-${jalaliDateFromDate(new Date()).replaceAll('/', '-')}.csv`,
       ['شماره سند', 'عنوان', 'پرونده', 'وضعیت', 'اسکن', 'سازنده', 'تاریخ ثبت'],
       rows.map((document) => [
         document.number,
@@ -106,7 +114,7 @@ export default function DocumentsList() {
         DOC_STATUS_LABELS[document.status],
         document.scanIds.length,
         document.createdByName,
-        document.createdAt.slice(0, 10),
+        formatDate(document.createdAt, 'numeric'),
       ]),
     );
     toast.success('خروجی CSV آماده شد');
@@ -286,24 +294,26 @@ export default function DocumentsList() {
           options={templateOptions}
           placeholder="همه قالب‌ها"
         />
-        <label className="flex items-center gap-1.5 text-[11.5px] text-fg-subtle">
-          از تاریخ
-          <input
-            type="date"
-            className="field h-9 w-36 py-0 text-[12px]"
+        <div className="flex items-center gap-1.5 text-[11.5px] text-fg-subtle">
+          <span>از تاریخ</span>
+          <JalaliDatePicker
+            ariaLabel="از تاریخ"
+            containerClassName="w-36"
+            className="h-9 py-0 text-[12px]"
             value={query.filters.from && query.filters.from !== 'all' ? query.filters.from : ''}
-            onChange={(event) => query.setFilter('from', event.target.value)}
+            onChange={(value) => query.setFilter('from', value)}
           />
-        </label>
-        <label className="flex items-center gap-1.5 text-[11.5px] text-fg-subtle">
-          تا تاریخ
-          <input
-            type="date"
-            className="field h-9 w-36 py-0 text-[12px]"
+        </div>
+        <div className="flex items-center gap-1.5 text-[11.5px] text-fg-subtle">
+          <span>تا تاریخ</span>
+          <JalaliDatePicker
+            ariaLabel="تا تاریخ"
+            containerClassName="w-36"
+            className="h-9 py-0 text-[12px]"
             value={query.filters.to && query.filters.to !== 'all' ? query.filters.to : ''}
-            onChange={(event) => query.setFilter('to', event.target.value)}
+            onChange={(value) => query.setFilter('to', value)}
           />
-        </label>
+        </div>
         {query.hasActiveFilters ? (
           <Button variant="ghost" size="sm" icon="refresh" onClick={query.clearAll}>
             پاک‌کردن فیلترها

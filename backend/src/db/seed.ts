@@ -2,6 +2,7 @@ import { PERMISSION_CATALOG, PRESET_ROLES } from '../config/permissions.js';
 import { logger } from '../config/logger.js';
 import { query, withTransaction } from '../config/database.js';
 import { hashPassword } from '../utils/password.js';
+import { createClientWorkflow } from '../domain/workflow.js';
 
 async function seedPermissions(): Promise<void> {
   const groups = Array.from(new Set(PERMISSION_CATALOG.map((permission) => permission.group)));
@@ -81,8 +82,68 @@ async function seedAdmin(): Promise<void> {
   logger.info({ username }, 'initial superadmin created');
 }
 
+async function seedDemoClients(): Promise<void> {
+  if (process.env.NODE_ENV === 'test') return;
+
+  const clients = [
+    {
+      code: 'TEST-IDENTITY-001',
+      fullName: 'نمونه آزمایشی یک',
+      nationalId: '0123456789',
+      mobile: '09120000001',
+      phone: '02100000001',
+      fatherName: 'نمونه',
+      birthDate: '1370/01/01',
+      residenceAddress: 'نشانی آزمایشی شماره یک، تهران',
+    },
+    {
+      code: 'TEST-IDENTITY-002',
+      fullName: 'نمونه آزمایشی دو',
+      nationalId: '0123456789',
+      mobile: '09120000002',
+      fatherName: 'آزمایش',
+      birthDate: '1375/05/10',
+      residenceAddress: 'نشانی آزمایشی شماره دو، تهران',
+    },
+  ];
+
+  for (const client of clients) {
+    await query(
+      `insert into clients
+        (code, full_name, national_id, mobile, case_type, workflow, phone, father_name,
+         birth_date, residence_address, status)
+       values ($1, $2, $3, $4, 'document_request', $5::jsonb, $6, $7, $8, $9, 'new')
+       on conflict (code) do update set
+         full_name = excluded.full_name,
+         national_id = excluded.national_id,
+         mobile = excluded.mobile,
+         case_type = excluded.case_type,
+         workflow = excluded.workflow,
+         phone = excluded.phone,
+         father_name = excluded.father_name,
+         birth_date = excluded.birth_date,
+         residence_address = excluded.residence_address,
+         status = excluded.status`,
+      [
+        client.code,
+        client.fullName,
+        client.nationalId,
+        client.mobile,
+        JSON.stringify(createClientWorkflow('document_request')),
+        client.phone ?? null,
+        client.fatherName,
+        client.birthDate,
+        client.residenceAddress,
+      ],
+    );
+  }
+
+  logger.info({ clients: clients.length }, 'identity-only demo cases seeded');
+}
+
 export async function seed(): Promise<void> {
   await seedPermissions();
   await seedPresetRoles();
   await seedAdmin();
+  await seedDemoClients();
 }

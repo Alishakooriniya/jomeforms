@@ -26,10 +26,12 @@ import { autofillValues } from '../lib/template';
 import { deleteBlob, putBlob } from '../lib/idb';
 import { compressImage, uid } from '../lib/utils';
 import { createClientWorkflow } from '../lib/caseWorkflow';
+import { normalizeJalaliDate, normalizeLegacyJalaliDate } from '../lib/jalali';
 
 /* ------------------------------ ورودی‌ها ------------------------------ */
 
-export type ClientDraft = Omit<Client, 'id' | 'code' | 'createdAt' | 'updatedAt' | 'createdBy'> & {
+export type ClientDraft = Pick<Client, 'fullName' | 'nationalId' | 'mobile'> &
+  Partial<Omit<Client, 'id' | 'code' | 'createdAt' | 'updatedAt' | 'createdBy' | 'fullName' | 'nationalId' | 'mobile'>> & {
   code?: string;
 };
 
@@ -125,6 +127,27 @@ function nextSequence(values: string[], prefix: string): number {
   return max + 1;
 }
 
+function normalizeClientBirthDate(value?: string | null): string | undefined {
+  if (!value?.trim()) return value ?? undefined;
+  const normalized = normalizeJalaliDate(value);
+  if (!normalized) throw new Error('تاریخ تولد باید شمسی و به‌شکل YYYY/MM/DD باشد.');
+  return normalized;
+}
+
+function normalizeDocumentDateValues(
+  template: FormTemplate | undefined,
+  values: Record<string, string>,
+): Record<string, string> {
+  const normalized = { ...values };
+  for (const field of template?.fields ?? []) {
+    if (field.type !== 'date' || !normalized[field.key]?.trim()) continue;
+    const date = normalizeJalaliDate(normalized[field.key]);
+    if (!date) throw new Error(`تاریخ «${field.label}» باید شمسی و به‌شکل YYYY/MM/DD باشد.`);
+    normalized[field.key] = date;
+  }
+  return normalized;
+}
+
 function pushAudit(draft: DbShape, entry: { action: string; entity: AuditEntity; entityId?: string; entityLabel?: string; detail?: string }) {
   const record: AuditEntry = {
     id: uid('log'),
@@ -180,11 +203,12 @@ export function DataProvider({ children }: { children: ReactNode }) {
       /* ------------------------------ پرونده‌ها ------------------------------ */
       saveClient(input, id) {
         const now = nowISO();
+        const normalizedInput = { ...input, birthDate: normalizeClientBirthDate(input.birthDate) };
         if (id) {
           const existing = dbRef.current.clients.find((item) => item.id === id);
           const updated: Client = {
             ...(existing as Client),
-            ...input,
+            ...normalizedInput,
             id,
             code: input.code || existing?.code || '',
             updatedAt: now,
@@ -211,9 +235,10 @@ export function DataProvider({ children }: { children: ReactNode }) {
             ),
           );
         const created: Client = {
-          ...input,
+          ...normalizedInput,
           caseType: input.caseType ?? 'document_request',
-          workflow: input.workflow ?? createClientWorkflow(input.caseType ?? 'document_request'),
+          workflow: input.workflow?.length ? input.workflow : createClientWorkflow(input.caseType ?? 'document_request'),
+          status: input.status ?? 'new',
           id: uid('cl-'),
           code,
           createdAt: now,
@@ -378,7 +403,10 @@ export function DataProvider({ children }: { children: ReactNode }) {
         const client = input.clientId
           ? dbRef.current.clients.find((item) => item.id === input.clientId)
           : undefined;
-        const values = { ...(template ? autofillValues(template, client) : {}), ...input.values };
+        const values = normalizeDocumentDateValues(
+          template,
+          { ...(template ? autofillValues(template, client) : {}), ...input.values },
+        );
         const number = sequenceNumber(
           dbRef.current.settings.docPrefix,
           nextSequence(
@@ -421,10 +449,14 @@ export function DataProvider({ children }: { children: ReactNode }) {
 
       updateDocument(id, patch, logAction) {
         const target = dbRef.current.documents.find((item) => item.id === id);
+        const template = target ? dbRef.current.templates.find((item) => item.id === target.templateId) : undefined;
+        const normalizedPatch = patch.values
+          ? { ...patch, values: normalizeDocumentDateValues(template, patch.values) }
+          : patch;
         commit((draft) => {
           const index = draft.documents.findIndex((item) => item.id === id);
           if (index < 0) return;
-          draft.documents[index] = { ...draft.documents[index], ...patch, updatedAt: nowISO() };
+          draft.documents[index] = { ...draft.documents[index], ...normalizedPatch, updatedAt: nowISO() };
           if (logAction !== undefined) {
             pushAudit(draft, {
               action: logAction || 'ویرایش سند',
@@ -904,7 +936,43 @@ export function DataProvider({ children }: { children: ReactNode }) {
             audit: parsed.audit ?? [],
             settings: { ...dbRef.current.settings, ...(parsed.settings ?? {}) },
           };
-          setDb(next);
+          const importedClients: Client[] = [];
+          for (const client of next.clients) {
+            if (!client.birthDate?.trim()) {
+              importedClients.push(client);
+              continue;
+            }
+            const birthDate = normalizeLegacyJalaliDate(client.birthDate);
+            if (!birthDate) {
+              return { ok: false, error: `تاریخ تولد پرونده «${client.fullName}» معتبر نیست؛ فایل پشتیبان بازیابی نشد.` };
+            }
+            importedClients.push({ ...client, birthDate });
+          }
+
+          const templateDateFields = new Map(
+            next.templates.map((template) => [
+              template.id,
+              template.fields.filter((field) => field.type === 'date').map((field) => field.key),
+            ]),
+          );
+          const importedDocuments: DocRecord[] = [];
+          for (const document of next.documents) {
+            const values = { ...document.values };
+            for (const key of templateDateFields.get(document.templateId) ?? []) {
+              if (!values[key]?.trim()) continue;
+              const date = normalizeLegacyJalaliDate(values[key]);
+              if (!date) {
+                return {
+                  ok: false,
+                  error: `تاریخ فیلد «${key}» در سند «${document.title}» معتبر نیست؛ فایل پشتیبان بازیابی نشد.`,
+                };
+              }
+              values[key] = date;
+            }
+            importedDocuments.push({ ...document, values });
+          }
+
+          setDb({ ...next, clients: importedClients, documents: importedDocuments });
           return { ok: true };
         } catch {
           return { ok: false, error: 'خواندن فایل پشتیبان ناموفق بود.' };

@@ -2,6 +2,7 @@ import type { QueryResultRow } from 'pg';
 import { query, withTransaction } from '../config/database.js';
 import type { QueryParam } from '../config/database.js';
 import type { DocRecord, DocStatus, ListOptions } from '../types/domain.js';
+import { jalaliToGregorianIso } from '../utils/jalali.js';
 
 export interface DocumentFilters extends ListOptions {
   status?: DocStatus;
@@ -122,11 +123,15 @@ export class DocumentRepository {
       where.push(`d.created_by = $${params.length}`);
     }
     if (filters.from) {
-      params.push(filters.from);
+      const date = jalaliToGregorianIso(filters.from);
+      if (!date) throw new Error('Invalid Jalali document date filter reached the repository.');
+      params.push(date);
       where.push(`d.created_at >= $${params.length}::date`);
     }
     if (filters.to) {
-      params.push(filters.to);
+      const date = jalaliToGregorianIso(filters.to);
+      if (!date) throw new Error('Invalid Jalali document date filter reached the repository.');
+      params.push(date);
       where.push(`d.created_at < ($${params.length}::date + interval '1 day')`);
     }
 

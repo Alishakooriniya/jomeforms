@@ -5,7 +5,7 @@ import type { AuditRepository } from '../repositories/audit.repository.js';
 import type { SessionRepository } from '../repositories/session.repository.js';
 import type { UserRepository } from '../repositories/user.repository.js';
 import type { User } from '../types/domain.js';
-import { verifyPassword } from '../utils/password.js';
+import { hashPassword, verifyPassword } from '../utils/password.js';
 import {
   createRefreshToken,
   hashRefreshToken,
@@ -109,6 +109,32 @@ export class AuthService {
       refreshToken: refresh.token,
       refreshExpiresAt: refresh.expiresAt,
     };
+  }
+
+  async changePassword(
+    userId: string,
+    currentPassword: string,
+    newPassword: string,
+    meta: RequestMeta,
+  ): Promise<void> {
+    const user = await this.users.findById(userId);
+    if (!user) throw new AuthenticationError('Account no longer exists.', ErrorCode.INVALID_TOKEN);
+    if (!(await verifyPassword(currentPassword, user.passwordHash))) {
+      throw new AuthenticationError('Current password is incorrect.', ErrorCode.INVALID_CURRENT_PASSWORD);
+    }
+
+    const updated = await this.users.update(userId, { passwordHash: await hashPassword(newPassword) });
+    if (!updated) throw new AuthenticationError('Account no longer exists.', ErrorCode.INVALID_TOKEN);
+    await this.sessions.deleteAllForUser(userId);
+    await this.audit.create({
+      userId: user.id,
+      userName: user.fullName,
+      action: 'تغییر رمز عبور',
+      entity: 'auth',
+      entityId: user.id,
+      entityLabel: user.fullName,
+      ipAddress: meta.ipAddress,
+    });
   }
 
   async refresh(refreshToken: string, meta: RequestMeta): Promise<LoginResult> {

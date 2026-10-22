@@ -5,11 +5,8 @@ import type {
   ClientStatus,
   ClientCaseType,
   CompanyKind,
-  DealKind,
   DocStatus,
   FieldType,
-  PartyRole,
-  PropertyKind,
   RoleId,
   TemplateCategory,
 } from '../types';
@@ -72,32 +69,6 @@ export const COMPANY_KIND_LABELS: Record<CompanyKind, string> = {
   other: 'سایر',
 };
 
-export const DEAL_KIND_LABELS: Record<DealKind, string> = {
-  sale: 'خرید و فروش',
-  rent: 'اجاره',
-  mortgage: 'رهن کامل',
-  presale: 'پیش‌فروش',
-  partnership: 'مشارکت در ساخت',
-};
-
-export const PROPERTY_KIND_LABELS: Record<PropertyKind, string> = {
-  apartment: 'آپارتمان',
-  house: 'خانه ویلایی',
-  villa: 'ویلا',
-  land: 'زمین',
-  office: 'دفتر کار',
-  store: 'مغازه',
-  warehouse: 'انبار',
-};
-
-export const PARTY_ROLE_LABELS: Record<PartyRole, string> = {
-  buyer: 'خریدار',
-  seller: 'فروشنده',
-  tenant: 'مستأجر',
-  landlord: 'موجر',
-  consultant: 'مشاور',
-};
-
 export const TEMPLATE_CATEGORY_LABELS: Record<TemplateCategory, string> = {
   sale: 'خرید و فروش',
   rent: 'اجاره',
@@ -142,8 +113,5 @@ export function toOptions<T extends string>(labels: Record<T, string>): Array<{ 
 export const COMPANY_KIND_OPTIONS = toOptions(COMPANY_KIND_LABELS);
 export const CLIENT_STATUS_OPTIONS = toOptions(CLIENT_STATUS_LABELS);
 export const DOC_STATUS_OPTIONS = toOptions(DOC_STATUS_LABELS);
-export const DEAL_KIND_OPTIONS = toOptions(DEAL_KIND_LABELS);
-export const PROPERTY_KIND_OPTIONS = toOptions(PROPERTY_KIND_LABELS);
-export const PARTY_ROLE_OPTIONS = toOptions(PARTY_ROLE_LABELS);
 export const TEMPLATE_CATEGORY_OPTIONS = toOptions(TEMPLATE_CATEGORY_LABELS);
 export const FIELD_TYPE_OPTIONS = toOptions(FIELD_TYPE_LABELS);

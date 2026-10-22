@@ -27,19 +27,28 @@ export const createUserSchema = z.object({
   password: z.string().min(8, 'Password must be at least 8 characters.').max(200),
 });
 
-export const updateUserSchema = z
-  .object({
-    username: userBase.username.optional(),
-    fullName: userBase.fullName.optional(),
-    role: roleSchema.optional(),
-    permissions: z.array(permissionKeySchema).max(PERMISSION_KEYS.length).optional(),
-    title: z.string().trim().max(80).nullish(),
-    mobile: z.string().trim().max(20).nullish(),
-    companyId: uuidSchema.nullish(),
-    active: z.boolean().optional(),
-    note: z.string().trim().max(1000).nullish(),
-    password: z.string().min(8, 'Password must be at least 8 characters.').max(200).optional(),
-  })
+export const createAdminUserSchema = createUserSchema.omit({ role: true });
+
+const updateUserFields = z.object({
+  username: userBase.username.optional(),
+  fullName: userBase.fullName.optional(),
+  role: roleSchema.optional(),
+  permissions: z.array(permissionKeySchema).max(PERMISSION_KEYS.length).optional(),
+  title: z.string().trim().max(80).nullish(),
+  mobile: z.string().trim().max(20).nullish(),
+  companyId: uuidSchema.nullish(),
+  active: z.boolean().optional(),
+  note: z.string().trim().max(1000).nullish(),
+  password: z.string().min(8, 'Password must be at least 8 characters.').max(200).optional(),
+});
+
+export const updateUserSchema = updateUserFields.refine(
+  (value) => Object.keys(value).length > 0,
+  'At least one field must be provided.',
+);
+
+export const updateAdminUserSchema = updateUserFields
+  .omit({ role: true })
   .refine((value) => Object.keys(value).length > 0, 'At least one field must be provided.');
 
 export const userListQuerySchema = listQuerySchema.extend({

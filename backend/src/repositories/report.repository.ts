@@ -31,13 +31,10 @@ export interface EvidenceFollowUpRow {
 }
 
 export interface OverviewAggregates {
-  totalValue: number;
   signedDocuments: number;
   scannedDocuments: number;
   clientStatus: Array<{ status: string; count: number }>;
   clientCaseType: Array<{ caseType: string; count: number }>;
-  propertyKind: Array<{ propertyKind: string; count: number }>;
-  dealKind: Array<{ dealKind: string; count: number }>;
   documentStatus: Array<{ status: string; count: number }>;
   templateUsage: Array<{
     id: string;
@@ -57,7 +54,6 @@ export interface AgentRow {
   clients: number;
   documents: number;
   scans: number;
-  value: number;
 }
 
 interface CountRow {
@@ -165,12 +161,6 @@ export class ReportRepository {
     const caseTypeResult = await query<{ case_type: string; count: string }>(
       `select case_type::text, count(*)::text as count from clients group by case_type`,
     );
-    const propertyResult = await query<{ property_kind: string; count: string }>(
-      `select property_kind::text, count(*)::text as count from clients group by property_kind order by count(*) desc`,
-    );
-    const dealResult = await query<{ deal_kind: string; count: string }>(
-      `select deal_kind::text, count(*)::text as count from clients group by deal_kind`,
-    );
     const docStatusResult = await query<{ status: string; count: string }>(
       `select status::text, count(*)::text as count from documents group by status`,
     );
@@ -193,12 +183,10 @@ export class ReportRepository {
       order by count(d.id) desc, t.title
     `);
     const totalsResult = await query<{
-      total_value: string | null;
       signed_documents: string;
       scanned_documents: string;
     }>(`
       select
-        (select coalesce(sum(case when price <> 0 then price else deposit end), 0)::text from clients) as total_value,
         (select count(*)::text from documents where status in ('signed', 'scanned')) as signed_documents,
         (select count(*)::text from documents
           where exists (select 1 from document_scans s where s.document_id = documents.id)) as scanned_documents
@@ -216,13 +204,10 @@ export class ReportRepository {
 
     const totals = totalsResult.rows[0];
     return {
-      totalValue: Number(totals?.total_value ?? 0),
       signedDocuments: Number(totals?.signed_documents ?? 0),
       scannedDocuments: Number(totals?.scanned_documents ?? 0),
       clientStatus: statusResult.rows.map((row) => ({ status: row.status, count: Number(row.count) })),
       clientCaseType: caseTypeResult.rows.map((row) => ({ caseType: row.case_type, count: Number(row.count) })),
-      propertyKind: propertyResult.rows.map((row) => ({ propertyKind: row.property_kind, count: Number(row.count) })),
-      dealKind: dealResult.rows.map((row) => ({ dealKind: row.deal_kind, count: Number(row.count) })),
       documentStatus: docStatusResult.rows.map((row) => ({ status: row.status, count: Number(row.count) })),
       templateUsage: templateResult.rows.map((row) => ({
         id: row.id,
@@ -250,33 +235,30 @@ export class ReportRepository {
       clients: 'clients',
       documents: 'documents',
       scans: 'scans',
-      value: 'value',
     };
     const sortColumn = sortable[filters.sortBy ?? 'documents'] ?? 'documents';
     const direction = filters.sortOrder === 'asc' ? 'asc' : 'desc';
 
     const base = `
       with client_agents as (
-        select coalesce(nullif(trim(agent_name), ''), 'بدون کارشناس') as name,
-               count(*)::int as clients,
-               sum(case when price <> 0 then price else deposit end)::numeric as value
-        from clients
+        select coalesce(u.full_name, 'کاربر سامانه') as name,
+               count(*)::int as clients
+        from clients cl
+        left join users u on u.id = cl.created_by
         group by 1
       ),
       document_agents as (
-        select coalesce(nullif(trim(cl.agent_name), ''), d.created_by_name) as name,
+        select coalesce(nullif(trim(d.created_by_name), ''), 'کاربر سامانه') as name,
                count(*)::int as documents,
                coalesce(sum((select count(*) from document_scans s where s.document_id = d.id)), 0)::int as scans
         from documents d
-        left join clients cl on cl.id = d.client_id
         group by 1
       ),
       agents as (
         select coalesce(ca.name, da.name) as name,
                coalesce(ca.clients, 0) as clients,
                coalesce(da.documents, 0) as documents,
-               coalesce(da.scans, 0) as scans,
-               coalesce(ca.value, 0) as value
+               coalesce(da.scans, 0) as scans
         from client_agents ca
         full outer join document_agents da on da.name = ca.name
       )
@@ -289,10 +271,9 @@ export class ReportRepository {
       clients: number;
       documents: number;
       scans: number;
-      value: string;
     }>(
       `${base}
-       select name, clients, documents, scans, value
+       select name, clients, documents, scans
        from agents ${whereSql}
        order by ${sortColumn} ${direction}, name
        limit $${listParams.length - 1} offset $${listParams.length}`,
@@ -306,7 +287,6 @@ export class ReportRepository {
         clients: row.clients,
         documents: row.documents,
         scans: row.scans,
-        value: Number(row.value),
       })),
       total: Number(countResult.rows[0]?.total ?? 0),
     };

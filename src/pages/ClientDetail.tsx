@@ -13,12 +13,9 @@ import {
   CLIENT_CASE_TYPE_LABELS,
   DOC_STATUS_LABELS,
   DOC_STATUS_TONE,
-  PARTY_ROLE_LABELS,
-  PROPERTY_KIND_LABELS,
 } from '../data/labels';
 import {
   displayDigits,
-  formatArea,
   formatCode,
   formatDate,
   formatRelative,
@@ -33,7 +30,6 @@ import { Tabs } from '../components/ui/Tabs';
 import { DataTable } from '../components/ui/Table';
 import type { Column } from '../components/ui/Table';
 import { ClientForm, clientToDraft } from '../components/clients/ClientForm';
-import { Icon } from '../components/ui/Icon';
 import { TextInput } from '../components/ui/Field';
 import { createClientWorkflow } from '../lib/caseWorkflow';
 import { getBlob } from '../lib/idb';
@@ -226,50 +222,14 @@ export default function ClientDetail() {
                   { label: 'تلفن ثابت', value: client.phone ? displayDigits(client.phone) : '—', icon: 'phone' },
                   { label: 'نام پدر', value: client.fatherName ?? '—' },
                   { label: 'تاریخ تولد', value: client.birthDate ? formatDate(client.birthDate, 'long') : '—', icon: 'calendar' },
-                  { label: 'نقش در معامله', value: PARTY_ROLE_LABELS[client.partyRole] },
-                  { label: 'ایمیل', value: client.email ?? '—' },
+                  { label: 'نشانی محل سکونت', value: client.residenceAddress || '—', icon: 'pin' },
                 ]}
               />
             </CardBody>
           </Card>
 
           <Card>
-            <CardHeader title="طرف دوم معامله" icon="users" />
-            <CardBody>
-              <InfoList
-                items={[
-                  { label: 'نام', value: client.party2Name ?? '—', icon: 'user' },
-                  { label: 'نقش', value: client.party2Role ? PARTY_ROLE_LABELS[client.party2Role] : '—' },
-                  { label: 'کد ملی', value: client.party2NationalId ? displayDigits(client.party2NationalId) : '—' },
-                  { label: 'موبایل', value: client.party2Mobile ? displayDigits(client.party2Mobile) : '—', icon: 'phone' },
-                  { label: 'کارشناس / مشاور', value: client.agentName ?? '—', icon: 'user-cog' },
-                  { label: 'منبع آشنایی', value: client.source ?? '—' },
-                ]}
-              />
-            </CardBody>
-          </Card>
-
-          <Card>
-            <CardHeader title="مشخصات ملک" icon="building" />
-            <CardBody>
-              <InfoList
-                items={[
-                  { label: 'نوع ملک', value: PROPERTY_KIND_LABELS[client.propertyKind], icon: 'building' },
-                  { label: 'متراژ', value: formatArea(client.area) },
-                  { label: 'استان / شهر', value: `${client.province} / ${client.city}`, icon: 'pin' },
-                  { label: 'محله / منطقه', value: client.region ?? '—' },
-                  { label: 'پلاک ثبتی', value: client.plate ? displayDigits(client.plate) : '—' },
-                  { label: 'واحد / طبقه', value: `${client.unit || '—'} / ${client.floor || '—'}` },
-                  { label: 'سال ساخت', value: client.buildYear ? displayDigits(client.buildYear) : '—' },
-                  { label: 'نشانی', value: client.address, icon: 'pin' },
-                ]}
-                columns={1}
-              />
-            </CardBody>
-          </Card>
-
-          <Card>
-            <CardHeader title="ثبت پرونده و توضیحات" icon="clipboard" />
+            <CardHeader title="ثبت پرونده" icon="clipboard" />
             <CardBody className="flex flex-col gap-3">
               <InfoList
                 items={[
@@ -281,19 +241,6 @@ export default function ClientDetail() {
                 ]}
                 columns={2}
               />
-              {client.tags.length ? (
-                <div className="flex flex-wrap items-center gap-1.5">
-                  <Icon name="tag" size={14} className="text-fg-subtle" />
-                  {client.tags.map((tag) => (
-                    <Badge key={tag} tone="neutral" size="sm">
-                      {tag}
-                    </Badge>
-                  ))}
-                </div>
-              ) : null}
-              {client.notes ? (
-                <p className="rounded-field bg-card-2 p-3 text-[12px] leading-6 text-fg-muted">{client.notes}</p>
-              ) : null}
             </CardBody>
           </Card>
         </div>

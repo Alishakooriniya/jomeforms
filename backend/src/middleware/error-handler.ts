@@ -1,7 +1,6 @@
 import type { ErrorRequestHandler, RequestHandler } from 'express';
 import multer from 'multer';
 import type { DatabaseError } from 'pg';
-import { env } from '../config/env.js';
 import { logger } from '../config/logger.js';
 import {
   AppError,
@@ -16,11 +15,81 @@ export const notFoundHandler: RequestHandler = (req, res) => {
     success: false,
     error: {
       code: ErrorCode.RESOURCE_NOT_FOUND,
-      message: `Route ${req.method} ${req.path} was not found.`,
+      message: 'مسیر درخواستی پیدا نشد.',
       requestId: req.requestId,
     },
   });
 };
+
+function persianMessage(error: AppError): string {
+  switch (error.code) {
+    case ErrorCode.VALIDATION_ERROR:
+      return 'اطلاعات واردشده معتبر نیست.';
+    case ErrorCode.BAD_REQUEST:
+      if (/upload/i.test(error.message)) return 'فایل بارگذاری‌شده معتبر نیست.';
+      if (/identifier/i.test(error.message)) return 'شناسهٔ ارسالی معتبر نیست.';
+      if (/json/i.test(error.message)) return 'ساختار درخواست معتبر نیست.';
+      return 'درخواست ارسالی نامعتبر است.';
+    case ErrorCode.AUTHENTICATION_REQUIRED:
+      return 'برای ادامه وارد حساب کاربری شوید.';
+    case ErrorCode.INVALID_CREDENTIALS:
+      return 'نام کاربری یا رمز عبور نادرست است.';
+    case ErrorCode.INVALID_CURRENT_PASSWORD:
+      return 'رمز عبور فعلی نادرست است.';
+    case ErrorCode.ACCOUNT_DISABLED:
+      return 'این حساب کاربری غیرفعال است.';
+    case ErrorCode.INVALID_TOKEN:
+    case ErrorCode.TOKEN_EXPIRED:
+      return 'نشست شما معتبر نیست؛ دوباره وارد شوید.';
+    case ErrorCode.FORBIDDEN:
+      return 'اجازهٔ انجام این عملیات را ندارید.';
+    case ErrorCode.RESOURCE_NOT_FOUND:
+      return 'مورد درخواستی پیدا نشد.';
+    case ErrorCode.CONFLICT:
+      if (/username.*taken/i.test(error.message)) return 'این نام کاربری قبلاً ثبت شده است.';
+      if (/own account/i.test(error.message)) return 'نمی‌توانید حساب خودتان را حذف کنید.';
+      if (/last superadmin/i.test(error.message)) return 'تنها مدیر ارشد فعال را نمی‌توان غیرفعال یا تنزل رتبه داد.';
+      if (/superadmin accounts cannot be deleted/i.test(error.message)) return 'حساب مدیر ارشد را نمی‌توان حذف کرد.';
+      if (/only manager accounts/i.test(error.message)) return 'فقط حساب مدیر را می‌توان از این بخش مدیریت کرد.';
+      if (/already exists/i.test(error.message)) return 'رکوردی با این اطلاعات از قبل وجود دارد.';
+      return 'این عملیات با وضعیت فعلی اطلاعات سازگار نیست.';
+    case ErrorCode.PAYLOAD_TOO_LARGE:
+      return 'حجم فایل از حد مجاز بیشتر است.';
+    case ErrorCode.UNSUPPORTED_MEDIA_TYPE:
+      return 'نوع فایل پشتیبانی نمی‌شود.';
+    case ErrorCode.RATE_LIMITED:
+      return 'تعداد درخواست‌ها بیش از حد مجاز است؛ کمی بعد دوباره تلاش کنید.';
+    default:
+      return error.statusCode >= 500 ? 'خطای داخلی سرور رخ داد.' : 'درخواست با خطا روبه‌رو شد.';
+  }
+}
+
+function persianDetails(error: AppError): AppError['details'] {
+  if (!Array.isArray(error.details)) return error.details;
+  const labels: Record<string, string> = {
+    username: 'نام کاربری',
+    fullName: 'نام و نام خانوادگی',
+    password: 'رمز عبور',
+    currentPassword: 'رمز عبور فعلی',
+    newPassword: 'رمز عبور جدید',
+    confirmPassword: 'تکرار رمز عبور',
+    permissions: 'دسترسی‌ها',
+    companyId: 'مجموعه',
+    id: 'شناسه',
+  };
+  return error.details.map((detail) => {
+    let message = 'مقدار واردشده معتبر نیست.';
+    if (/at least|too small|minimum/i.test(detail.message)) message = 'این مقدار کوتاه‌تر از حد مجاز است.';
+    else if (/at most|too big|maximum/i.test(detail.message)) message = 'این مقدار بلندتر از حد مجاز است.';
+    else if (/required|expected/i.test(detail.message)) message = 'وارد کردن این مقدار الزامی است.';
+    else if (/match/i.test(detail.message)) message = 'مقادیر واردشده با هم مطابقت ندارند.';
+    else if (/valid uuid/i.test(detail.message)) message = 'شناسه معتبر نیست.';
+    return {
+      field: detail.field ? labels[detail.field] ?? 'اطلاعات' : undefined,
+      message,
+    };
+  });
+}
 
 function normalizeError(error: unknown): AppError {
   if (error instanceof AppError) return error;
@@ -62,17 +131,12 @@ export const errorHandler: ErrorRequestHandler = (error, req, res, _next) => {
     );
   }
 
-  const message =
-    appError.statusCode >= 500 && env.isProduction
-      ? 'An unexpected error occurred.'
-      : appError.message;
-
   res.status(appError.statusCode).json({
     success: false,
     error: {
       code: appError.code,
-      message,
-      ...(appError.details && appError.expose ? { details: appError.details } : {}),
+      message: persianMessage(appError),
+      ...(appError.details && appError.expose ? { details: persianDetails(appError) } : {}),
       requestId: req.requestId,
     },
   });

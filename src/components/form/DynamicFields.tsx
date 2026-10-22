@@ -4,12 +4,13 @@
 import { useMemo } from 'react';
 import type { Client, TemplateField } from '../../types';
 import { isValidMobile, isValidNationalId } from '../../lib/crypto';
-import { dateInputHint, formatMoney } from '../../lib/format';
+import { formatMoney } from '../../lib/format';
 import { clientSourceValue, sourceLabel } from '../../lib/template';
 import { CurrencyInput, FormGrid, NumberInput, Switch } from '../ui/Controls';
 import { Select, TextInput, Textarea } from '../ui/Field';
 import { Icon } from '../ui/Icon';
 import { cn } from '../../lib/utils';
+import { JalaliDatePicker } from '../ui/JalaliDatePicker';
 
 export interface DynamicFieldsProps {
   fields: TemplateField[];
@@ -145,13 +146,12 @@ export function DynamicFields({
 
       case 'date':
         return (
-          <TextInput
+          <JalaliDatePicker
             {...common}
-            type="date"
             value={value}
             disabled={readOnly}
-            hint={value ? dateInputHint(value) : (field.help ?? 'تاریخ شمسی نمایش داده می‌شود')}
-            onChange={(event) => handle(field.key, event.target.value)}
+            hint={field.help ?? 'تاریخ شمسی'}
+            onChange={(next) => handle(field.key, next)}
           />
         );
 

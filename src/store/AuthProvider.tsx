@@ -36,18 +36,7 @@ const AuthContext = createContext<AuthApi | null>(null);
 /** پیام‌های سرور انگلیسی هستند؛ برای کاربر فارسی‌زبان ترجمه می‌شوند. */
 function authErrorMessage(error: unknown): string {
   if (error instanceof ApiError) {
-    switch (error.code) {
-      case 'INVALID_CREDENTIALS':
-        return 'نام کاربری یا رمز عبور اشتباه است.';
-      case 'ACCOUNT_DISABLED':
-        return 'این حساب غیرفعال است؛ با مدیر ارشد تماس بگیرید.';
-      case 'VALIDATION_ERROR':
-        return 'نام کاربری و رمز عبور را درست وارد کنید.';
-      case 'RATE_LIMITED':
-        return 'تلاش‌های ورود بیش از حد مجاز است؛ کمی بعد دوباره امتحان کنید.';
-      default:
-        return 'ورود ناموفق بود. دوباره تلاش کنید.';
-    }
+    return error.message;
   }
   return 'ارتباط با سرور برقرار نشد. اتصال شبکه را بررسی کنید.';
 }

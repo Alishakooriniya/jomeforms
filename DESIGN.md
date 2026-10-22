@@ -73,6 +73,10 @@ and the local-first guarantees are unchanged. In server mode:
   in-memory access token, refresh-cookie session recovery, typed resources)
 - `AuthProvider` authenticates through `POST /auth/login`, restores the session
   through the rotating HttpOnly cookie, and reads permissions from the server
+- account profiles and password changes use authenticated API endpoints; password
+  changes revoke all refresh sessions and return the user to sign-in
+- superadmin-only manager administration uses dedicated API routes for account
+  lifecycle, permission assignment, and audit-backed activity history
 - the access token is never persisted in local storage
 - indexedDB/local storage still owns everything else until the data provider is
   migrated deliberately; that migration must keep the `useDb`/`useDbActions`
@@ -133,7 +137,28 @@ The app uses a consistent product-style system:
 
 Case registration is a dedicated page rather than a creation modal. The primary global search is deliberately limited to full name, national ID, case number, and related company name. Creating a new form/document remains available as a secondary operation from the relevant case.
 
+Case registration captures only the applicant's identity and contact details:
+full name, national ID, mobile and landline, father's name, birth date, and
+residential address. Counterparty and property/financial data are not part of a
+case record. The API and database follow the same shape; a database migration
+drops the obsolete columns, while case number, request type, company link,
+status, workflow, audit metadata, and document relations remain operational
+case-management fields.
+
+User-entered date-only values use the Jalali calendar throughout the UI and API,
+are stored as `YYYY/MM/DD`, and reject Gregorian-formatted inputs. Audit and
+other operational timestamps remain ISO instants in storage and are displayed
+using the Jalali calendar; they must not be converted into calendar strings.
+
 When introducing new UI, prefer existing patterns and token names over hard-coded values.
+
+Official forms with a fixed paper frame are rendered from frontend HTML/SVG,
+not by placing a PDF or image behind the form. Keep the A4 frame and its
+non-editable geometry in a named frontend print layout; keep editable wording
+and field definitions in the template data so they continue to persist and be
+versioned with the backend template. Preview and print must use the same
+code-rendered layout, preserve the source form's page dimensions, and leave the
+surrounding app layout and shared document patterns unchanged.
 
 ## 5. Component conventions
 

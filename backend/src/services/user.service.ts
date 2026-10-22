@@ -1,4 +1,4 @@
-import { ConflictError, NotFoundError, ValidationError } from '../errors/index.js';
+import { AuthorizationError, ConflictError, NotFoundError, ValidationError } from '../errors/index.js';
 import type { CompanyRepository } from '../repositories/company.repository.js';
 import type { UserFilters, UserRepository } from '../repositories/user.repository.js';
 import type { RoleId, User } from '../types/domain.js';
@@ -47,6 +47,41 @@ export class UserService {
     return { items: result.items.map(toPublicUser), total: result.total };
   }
 
+  async listAdmins(filters: UserFilters): Promise<{ items: User[]; total: number }> {
+    return this.list({ ...filters, role: 'admin' });
+  }
+
+  async createAdmin(
+    input: Omit<CreateUserInput, 'role'>,
+    context: AuditContext,
+  ): Promise<User> {
+    return this.create({ ...input, role: 'admin' }, context);
+  }
+
+  async updateAdmin(
+    id: string,
+    input: Omit<UpdateUserInput, 'role'>,
+    context: AuditContext,
+  ): Promise<User> {
+    await this.assertAdminUser(id);
+    return this.update(id, input, context);
+  }
+
+  async setAdminPermissions(id: string, permissions: string[], context: AuditContext): Promise<User> {
+    await this.assertAdminUser(id);
+    return this.setPermissions(id, permissions, context);
+  }
+
+  async setAdminActive(id: string, active: boolean, context: AuditContext): Promise<User> {
+    await this.assertAdminUser(id);
+    return this.setActive(id, active, context);
+  }
+
+  async deleteAdmin(id: string, context: AuditContext): Promise<void> {
+    await this.assertAdminUser(id);
+    await this.delete(id, context);
+  }
+
   async getById(id: string): Promise<User> {
     const user = await this.users.findById(id);
     if (!user) throw new NotFoundError('User');
@@ -54,6 +89,7 @@ export class UserService {
   }
 
   async create(input: CreateUserInput, context: AuditContext): Promise<User> {
+    await this.assertSuperadminActor(context.actor.id);
     const existing = await this.users.findByUsername(input.username);
     if (existing) throw new ConflictError('This username is already taken.');
 
@@ -88,6 +124,9 @@ export class UserService {
   async update(id: string, input: UpdateUserInput, context: AuditContext): Promise<User> {
     const existing = await this.users.findById(id);
     if (!existing) throw new NotFoundError('User');
+    if (existing.role === 'admin' || input.role === 'admin' || input.role === 'superadmin') {
+      await this.assertSuperadminActor(context.actor.id);
+    }
 
     if (input.username && input.username.toLowerCase() !== existing.username.toLowerCase()) {
       const duplicate = await this.users.findByUsername(input.username);
@@ -143,6 +182,7 @@ export class UserService {
   async setPermissions(id: string, permissions: string[], context: AuditContext): Promise<User> {
     const user = await this.users.findById(id);
     if (!user) throw new NotFoundError('User');
+    if (user.role === 'admin') await this.assertSuperadminActor(context.actor.id);
     if (user.role === 'superadmin') {
       throw new ValidationError([
         { field: 'permissions', message: 'Superadmin permissions are implicit and cannot be edited.' },
@@ -170,6 +210,7 @@ export class UserService {
   async delete(id: string, context: AuditContext): Promise<void> {
     const user = await this.users.findById(id);
     if (!user) throw new NotFoundError('User');
+    if (user.role === 'admin') await this.assertSuperadminActor(context.actor.id);
 
     if (id === context.actor.id) {
       throw new ConflictError('You cannot delete your own account.');
@@ -194,5 +235,16 @@ export class UserService {
     if (!company) {
       throw new ValidationError([{ field: 'companyId', message: 'Company not found.' }]);
     }
+  }
+
+  private async assertAdminUser(id: string): Promise<void> {
+    const user = await this.users.findById(id);
+    if (!user) throw new NotFoundError('User');
+    if (user.role !== 'admin') throw new ConflictError('Only manager accounts can be managed here.');
+  }
+
+  private async assertSuperadminActor(actorId: string): Promise<void> {
+    const actor = await this.users.findById(actorId);
+    if (actor?.role !== 'superadmin') throw new AuthorizationError();
   }
 }

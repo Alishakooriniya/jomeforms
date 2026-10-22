@@ -87,10 +87,6 @@ export interface WorkflowEvidence {
   uploadedBy: string;
 }
 
-export type PartyRole = 'buyer' | 'seller' | 'tenant' | 'landlord' | 'consultant';
-export type PropertyKind = 'apartment' | 'house' | 'villa' | 'land' | 'office' | 'store' | 'warehouse';
-export type DealKind = 'sale' | 'rent' | 'mortgage' | 'presale' | 'partnership';
-
 export interface Client {
   id: string;
   /** شماره پرونده مثل ۱۴۰۵-۰۰۱۲ */
@@ -102,42 +98,10 @@ export interface Client {
   companyId?: string;
   workflow?: ClientWorkflowStep[];
   phone?: string;
-  email?: string;
   fatherName?: string;
   birthDate?: string;
-
-  partyRole: PartyRole;
-  /** طرف دوم معامله (خریدار/فروشنده روبه‌رو) */
-  party2Name?: string;
-  party2Role?: PartyRole;
-  party2NationalId?: string;
-  party2Mobile?: string;
-
-  dealKind: DealKind;
   status: ClientStatus;
-
-  province: string;
-  city: string;
-  address: string;
-  propertyKind: PropertyKind;
-  area: number;
-  region?: string;
-  plate?: string;
-  unit?: string;
-  floor?: string;
-  buildYear?: string;
-
-  price: number;
-  deposit: number;
-  rent: number;
-  commissionPercent: number;
-
-  agentName?: string;
-  source?: string;
-  tags: string[];
-  notes?: string;
-  /** فیلدهای دلخواه برای فرم‌های آینده */
-  extra: Record<string, string>;
+  residenceAddress?: string;
 
   createdAt: string;
   updatedAt: string;
@@ -181,6 +145,7 @@ export interface FormTemplate {
   id: string;
   title: string;
   category: TemplateCategory;
+  printLayout?: 'document-request-a4';
   description?: string;
   fields: TemplateField[];
   /** متن قالب با نشانه‌های {{key}} */

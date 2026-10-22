@@ -17,6 +17,7 @@ export interface TemplateFilters extends ListOptions {
 export interface TemplateInput {
   title: string;
   category: TemplateCategory;
+  printLayout?: 'document-request-a4' | null;
   description?: string | null;
   fields: TemplateField[];
   body: string;
@@ -31,6 +32,7 @@ interface TemplateRow extends QueryResultRow {
   id: string;
   title: string;
   category: TemplateCategory;
+  print_layout: 'document-request-a4' | null;
   description: string | null;
   fields: TemplateField[];
   body: string;
@@ -56,6 +58,7 @@ export function mapTemplate(row: TemplateRow): FormTemplate {
     id: row.id,
     title: row.title,
     category: row.category,
+    printLayout: row.print_layout ?? undefined,
     description: row.description ?? undefined,
     fields: row.fields ?? [],
     body: row.body,
@@ -73,6 +76,7 @@ export function mapTemplate(row: TemplateRow): FormTemplate {
 const COLUMNS: Record<keyof TemplateInput, string> = {
   title: 'title',
   category: 'category',
+  printLayout: 'print_layout',
   description: 'description',
   fields: 'fields',
   body: 'body',
@@ -143,13 +147,14 @@ export class TemplateRepository {
   async create(input: TemplateInput, createdBy: string): Promise<FormTemplate> {
     const result = await query<TemplateRow>(
       `insert into form_templates
-        (title, category, description, fields, body, header_note, footer_note,
+        (title, category, print_layout, description, fields, body, header_note, footer_note,
          requires_signature, active, version, created_by)
-       values ($1, $2, $3, $4::jsonb, $5, $6, $7, $8, $9, $10, $11)
+       values ($1, $2, $3, $4, $5::jsonb, $6, $7, $8, $9, $10, $11, $12)
        returning *`,
       [
         input.title,
         input.category,
+        input.printLayout ?? null,
         input.description ?? null,
         JSON.stringify(input.fields),
         input.body,
@@ -197,8 +202,8 @@ export class TemplateRepository {
   /** Store an immutable snapshot of a published template version. */
   async saveVersion(template: FormTemplate, changedBy: string): Promise<void> {
     await query(
-      `insert into form_template_versions (template_id, version, title, fields, body, changed_by)
-       values ($1, $2, $3, $4::jsonb, $5, $6)
+      `insert into form_template_versions (template_id, version, title, fields, body, print_layout, changed_by)
+       values ($1, $2, $3, $4::jsonb, $5, $6, $7)
        on conflict (template_id, version) do nothing`,
       [
         template.id,
@@ -206,6 +211,7 @@ export class TemplateRepository {
         template.title,
         JSON.stringify(template.fields),
         template.body,
+        template.printLayout ?? null,
         changedBy,
       ],
     );

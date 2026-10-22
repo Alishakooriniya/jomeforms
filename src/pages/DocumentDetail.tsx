@@ -8,6 +8,7 @@ import { useDb, useDbActions } from '../store/DataProvider';
 import { useToast } from '../store/ToastProvider';
 import { DOC_STATUS_LABELS, DOC_STATUS_TONE, TEMPLATE_CATEGORY_LABELS } from '../data/labels';
 import { displayDigits, formatCode, formatDate, formatRelative, nowISO } from '../lib/format';
+import { normalizeJalaliDate } from '../lib/jalali';
 import {
   copyDocumentText,
   downloadDocumentAsHtml,
@@ -39,6 +40,7 @@ export default function DocumentDetail() {
   const [tab, setTab] = useState('preview');
   const [editing, setEditing] = useState(false);
   const [draftValues, setDraftValues] = useState<Record<string, string>>({});
+  const [draftErrors, setDraftErrors] = useState<Record<string, string>>({});
   const [pendingDelete, setPendingDelete] = useState(false);
   const [noteDraft, setNoteDraft] = useState('');
 
@@ -149,6 +151,7 @@ export default function DocumentDetail() {
                 icon="edit"
                 onClick={() => {
                   setDraftValues({ ...document.values });
+                  setDraftErrors({});
                   setEditing(true);
                 }}
               >
@@ -408,7 +411,20 @@ export default function DocumentDetail() {
               variant="primary"
               icon="save"
               onClick={() => {
-                updateDocument(document.id, { values: draftValues }, 'ویرایش سند');
+                const normalizedValues = { ...draftValues };
+                const nextErrors: Record<string, string> = {};
+                template?.fields.forEach((field) => {
+                  if (field.type !== 'date' || !draftValues[field.key]?.trim()) return;
+                  const normalized = normalizeJalaliDate(draftValues[field.key]);
+                  if (!normalized) nextErrors[field.key] = 'تاریخ باید شمسی و به‌شکل ۱۴۰۵/۰۷/۳۰ باشد.';
+                  else normalizedValues[field.key] = normalized;
+                });
+                setDraftErrors(nextErrors);
+                if (Object.keys(nextErrors).length) {
+                  toast.error('تاریخ نامعتبر است', 'تاریخ‌های مشخص‌شده باید شمسی باشند.');
+                  return;
+                }
+                updateDocument(document.id, { values: normalizedValues }, 'ویرایش سند');
                 setEditing(false);
                 toast.success('سند به‌روزرسانی شد');
               }}
@@ -422,6 +438,7 @@ export default function DocumentDetail() {
           <DynamicFields
             fields={template.fields}
             values={draftValues}
+            errors={draftErrors}
             client={undefined}
             onChange={(key, value) => setDraftValues((prev) => ({ ...prev, [key]: value }))}
           />

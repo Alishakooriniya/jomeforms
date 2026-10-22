@@ -10,10 +10,12 @@ import { Avatar } from '../ui/Avatar';
 import { Button } from '../ui/Button';
 
 export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
-  const { user, can, logout } = useAuth();
+  const { user, can, logout, serverMode } = useAuth();
   if (!user) return null;
 
-  const visibleItems = NAV_ITEMS.filter((item) => can(item.permission));
+  const visibleItems = NAV_ITEMS.filter(
+    (item) => can(item.permission) && (item.to !== '/admin-users' || serverMode),
+  );
 
   return (
     <div className="flex h-full flex-col bg-card">
@@ -66,6 +68,16 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
 
       {/* کاربر */}
       <div className="border-t border-line p-4">
+        <Button
+          to="/profile"
+          variant="ghost"
+          fullWidth
+          icon="user"
+          className="mb-2 justify-start"
+          onClick={onNavigate}
+        >
+          پروفایل
+        </Button>
         <div className="flex items-center gap-2.5">
           <Avatar name={user.fullName} size={34} />
           <div className="min-w-0 flex-1">

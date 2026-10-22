@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { isValidMobile, isValidNationalId } from '../utils/validation.js';
-import { dateSchema, listQuerySchema, stringRecordSchema, tagsSchema, uuidSchema } from './common.validator.js';
+import { dateSchema, listQuerySchema, uuidSchema } from './common.validator.js';
 
 const optionalMobile = z
   .string()
@@ -16,9 +16,6 @@ const optionalNationalId = z
   .refine((value) => !value || isValidNationalId(value), 'National ID is invalid.')
   .optional();
 
-const partyRoleSchema = z.enum(['buyer', 'seller', 'tenant', 'landlord', 'consultant']);
-const propertyKindSchema = z.enum(['apartment', 'house', 'villa', 'land', 'office', 'store', 'warehouse']);
-const dealKindSchema = z.enum(['sale', 'rent', 'mortgage', 'presale', 'partnership']);
 const clientStatusSchema = z.enum(['new', 'in_progress', 'awaiting_docs', 'done', 'archived']);
 const caseTypeSchema = z.enum(['document_request', 'rent_renewal']);
 
@@ -38,7 +35,6 @@ export const clientListQuerySchema = listQuerySchema.extend({
   status: clientStatusSchema.optional(),
   caseType: caseTypeSchema.optional(),
   companyId: uuidSchema.optional(),
-  agentName: z.string().trim().max(120).optional(),
 });
 
 const clientFields = {
@@ -50,42 +46,21 @@ const clientFields = {
   companyId: z.union([uuidSchema, z.literal(''), z.null()]).optional(),
   workflow: z.array(workflowStepSchema).max(20).optional(),
   phone: z.string().trim().max(30).nullish(),
-  email: z.union([z.string().trim().email('Email is invalid.').max(160), z.literal('')]).nullish(),
   fatherName: z.string().trim().max(120).nullish(),
-  birthDate: z.union([dateSchema, z.literal('')]).nullish(),
-  partyRole: partyRoleSchema.default('buyer'),
-  party2Name: z.string().trim().max(160).nullish(),
-  party2Role: partyRoleSchema.default('seller'),
-  party2NationalId: z.string().trim().max(20).nullish(),
-  party2Mobile: z.string().trim().max(20).nullish(),
-  dealKind: dealKindSchema.default('sale'),
+  birthDate: z
+    .union([dateSchema, z.literal('')])
+    .nullish()
+    .transform((value) => (value === '' ? null : value)),
   status: clientStatusSchema.default('new'),
-  province: z.string().trim().max(80).default(''),
-  city: z.string().trim().max(80).default(''),
-  address: z.string().trim().max(500).default(''),
-  propertyKind: propertyKindSchema.default('apartment'),
-  area: z.coerce.number().min(0).max(10_000_000).default(0),
-  region: z.string().trim().max(120).nullish(),
-  plate: z.string().trim().max(60).nullish(),
-  unit: z.string().trim().max(30).nullish(),
-  floor: z.string().trim().max(30).nullish(),
-  buildYear: z.string().trim().max(20).nullish(),
-  price: z.coerce.number().min(0).max(1_000_000_000_000_000).default(0),
-  deposit: z.coerce.number().min(0).max(1_000_000_000_000_000).default(0),
-  rent: z.coerce.number().min(0).max(1_000_000_000_000_000).default(0),
-  commissionPercent: z.coerce.number().min(0).max(100).default(0.5),
-  agentName: z.string().trim().max(120).nullish(),
-  source: z.string().trim().max(120).nullish(),
-  tags: tagsSchema.default([]),
-  notes: z.string().trim().max(4000).nullish(),
-  extra: stringRecordSchema.default({}),
+  residenceAddress: z.string().trim().max(500).nullish(),
 };
 
-export const createClientSchema = z.object(clientFields);
+export const createClientSchema = z.object(clientFields).strict();
 
 export const updateClientSchema = z
   .object(clientFields)
   .partial()
+  .strict()
   .refine((value) => Object.keys(value).length > 0, 'At least one field must be provided.');
 
 export const clientStepParamsSchema = z.object({

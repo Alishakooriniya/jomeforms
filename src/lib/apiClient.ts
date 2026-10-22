@@ -232,6 +232,13 @@ export const authApi = {
   async me(): Promise<User> {
     return toAppUser(await request<ApiUser>('/auth/me'));
   },
+
+  async changePassword(currentPassword: string, newPassword: string, confirmPassword: string): Promise<void> {
+    await request<null>('/auth/change-password', {
+      method: 'POST',
+      body: { currentPassword, newPassword, confirmPassword },
+    });
+  },
 };
 
 /* ------------------------------ resources ------------------------------ */
@@ -259,7 +266,29 @@ export type UserInput = Omit<User, 'id' | 'createdAt' | 'updatedAt' | 'lastLogin
   password?: string;
 };
 
+export type AdminUserInput = Pick<User, 'username' | 'fullName'> & {
+  password: string;
+  permissions: string[];
+  title?: string;
+  mobile?: string;
+  active?: boolean;
+  note?: string;
+};
+
+export type AdminUserPatch = Partial<AdminUserInput>;
+
 export const api = {
+  adminUsers: {
+    list: (query?: QueryParams) => list<ApiUser>('/admin-users', query),
+    create: (input: AdminUserInput) => request<ApiUser>('/admin-users', { method: 'POST', body: input }),
+    update: (id: string, input: AdminUserPatch) =>
+      request<ApiUser>(`/admin-users/${id}`, { method: 'PATCH', body: input }),
+    setPermissions: (id: string, permissions: string[]) =>
+      request<ApiUser>(`/admin-users/${id}/permissions`, { method: 'PUT', body: { permissions } }),
+    setActive: (id: string, active: boolean) =>
+      request<ApiUser>(`/admin-users/${id}/status`, { method: 'PATCH', body: { active } }),
+    remove: (id: string) => request<void>(`/admin-users/${id}`, { method: 'DELETE' }),
+  },
   users: {
     list: (query?: QueryParams) => list<ApiUser>('/users', query),
     get: (id: string) => request<ApiUser>(`/users/${id}`),

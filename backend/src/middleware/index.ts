@@ -1,7 +1,7 @@
 export { requestContext } from './request-context.js';
 export { requestLogger } from './request-logger.js';
 export { authenticate } from './authenticate.js';
-export { requirePermission, hasPermission } from './authorize.js';
+export { requirePermission, requireSuperadmin, hasPermission } from './authorize.js';
 export { validate } from './validate.js';
 export { requireSameOrigin } from './same-origin.js';
 export { uploadSingleFile, toUploadedFile } from './upload.js';
