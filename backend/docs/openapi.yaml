@@ -1613,8 +1613,9 @@ components:
         workflow:
           type: array
           items: { $ref: '#/components/schemas/WorkflowStep' }
-        phone: { type: string }
-        fatherName: { type: string }
+        birthCertificateNumber: { type: string, maxLength: 40 }
+        fatherName: { type: string, maxLength: 120 }
+        issuePlace: { type: string, maxLength: 120 }
         birthDate:
           type: string
           description: Valid Jalali date in YYYY/MM/DD format; Gregorian-formatted dates are rejected.
@@ -1670,13 +1671,23 @@ components:
         required: { type: boolean }
         options:
           type: array
-          items: { type: string }
+          description: Required for select fields; each choice must contain at least one character.
+          items: { type: string, minLength: 1 }
         source: { type: string }
         placeholder: { type: string }
         help: { type: string }
         group: { type: string }
         suffix: { type: string }
         defaultValue: { type: string }
+      allOf:
+        - if:
+            properties:
+              type: { const: select }
+            required: [type]
+          then:
+            required: [options]
+            properties:
+              options: { type: array, minItems: 1 }
     TemplateInput:
       type: object
       required: [title, fields]
@@ -1698,7 +1709,7 @@ components:
         footerNote: { type: string, nullable: true }
         requiresSignature: { type: boolean }
         active: { type: boolean }
-        version: { type: integer, minimum: 1 }
+        version: { type: integer, minimum: 1, description: Starts at this value and increments automatically on each update. }
     Template:
       allOf:
         - $ref: '#/components/schemas/TemplateInput'

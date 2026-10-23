@@ -9,7 +9,7 @@ import { useToast } from '../store/ToastProvider';
 import { TEMPLATE_CATEGORY_LABELS, TEMPLATE_CATEGORY_OPTIONS } from '../data/labels';
 import { displayDigits, formatDate } from '../lib/format';
 import { useListQuery } from '../lib/hooks';
-import { analyzeTokens } from '../lib/template';
+import { analyzeTokens, SYSTEM_TOKENS } from '../lib/template';
 import { Badge } from '../components/ui/Badge';
 import { Button } from '../components/ui/Button';
 import { Dropdown } from '../components/ui/Dropdown';
@@ -43,14 +43,14 @@ export default function TemplatesList() {
 
   const issues = (template: FormTemplate) => {
     const tokens = analyzeTokens(template);
-    return tokens.filter((token) => !token.inFields).length;
+    return tokens.filter((token) => !token.inFields && !(token.key in SYSTEM_TOKENS)).length;
   };
 
   return (
     <div className="flex flex-col gap-4">
       <PageHeader
         title="قالب فرم‌ها"
-        subtitle="هر قالب شامل فیلدها و متن فرم است؛ متن با {{نشانه}} جای‌گذاری می‌شود."
+        subtitle="فرم‌ها را بسازید و ویرایش کنید؛ عنوان فیلدها هنگام نوشتن متن قابل درج هستند."
         icon="template"
         breadcrumbs={[{ label: 'داشبورد', to: '/' }, { label: 'قالب فرم‌ها' }]}
         actions={
@@ -68,7 +68,7 @@ export default function TemplatesList() {
         <SearchInput
           value={query.q}
           onChange={query.setQ}
-          placeholder="جستجوی عنوان یا متن قالب…"
+          placeholder="جستجوی نام یا توضیح فرم…"
           className="w-full sm:w-72"
         />
         <FilterSelect
@@ -136,7 +136,7 @@ export default function TemplatesList() {
                 {issues(template) ? (
                   <span className="flex items-center gap-1 text-warn-fg">
                     <Icon name="alert" size={12} />
-                    {displayDigits(issues(template))} نشانه بی‌فیلد
+                    {displayDigits(issues(template))} نشانهٔ نامعتبر در متن
                   </span>
                 ) : null}
               </div>
@@ -207,7 +207,7 @@ export default function TemplatesList() {
             description={
               query.hasActiveFilters
                 ? 'عبارت جستجو را تغییر دهید.'
-                : 'قالب فرم جدید بسازید؛ فیلدها را تعیین کنید و متن فرم را با نشانه‌ها بنویسید.'
+                : 'با سه قدم شروع کنید: نام فرم را وارد کنید، پرسش‌ها را اضافه کنید و متن چاپی را بنویسید.'
             }
             action={
               can('templates.create') ? (

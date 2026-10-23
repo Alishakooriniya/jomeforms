@@ -6,8 +6,9 @@ export const CLIENT_SOURCE_KEYS = [
   'fullName',
   'nationalId',
   'mobile',
-  'phone',
+  'birthCertificateNumber',
   'fatherName',
+  'issuePlace',
   'birthDate',
   'address',
 ] as const;

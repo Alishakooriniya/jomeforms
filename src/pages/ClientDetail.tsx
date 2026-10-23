@@ -219,8 +219,9 @@ export default function ClientDetail() {
                   { label: 'نام و نام خانوادگی', value: client.fullName, icon: 'user' },
                   { label: 'کد ملی', value: displayDigits(client.nationalId), icon: 'clipboard' },
                   { label: 'موبایل', value: displayDigits(client.mobile), icon: 'phone' },
-                  { label: 'تلفن ثابت', value: client.phone ? displayDigits(client.phone) : '—', icon: 'phone' },
-                  { label: 'نام پدر', value: client.fatherName ?? '—' },
+                  { label: 'شماره شناسنامه', value: client.birthCertificateNumber || '—' },
+                  { label: 'نام پدر', value: client.fatherName || '—' },
+                  { label: 'شهر صادره شناسنامه', value: client.issuePlace || '—' },
                   { label: 'تاریخ تولد', value: client.birthDate ? formatDate(client.birthDate, 'long') : '—', icon: 'calendar' },
                   { label: 'نشانی محل سکونت', value: client.residenceAddress || '—', icon: 'pin' },
                 ]}

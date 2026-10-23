@@ -118,6 +118,7 @@ export interface NumberInputProps {
   onChange: (value: string) => void;
   placeholder?: string;
   required?: boolean;
+  disabled?: boolean;
   suffix?: string;
   max?: number;
   containerClassName?: string;
@@ -131,6 +132,7 @@ export function NumberInput({
   onChange,
   placeholder,
   required,
+  disabled,
   suffix,
   max,
   containerClassName,
@@ -141,6 +143,7 @@ export function NumberInput({
         <input
           className={cn('field num', suffix && 'pe-14', error && 'field-invalid')}
           value={value}
+          disabled={disabled}
           inputMode="numeric"
           placeholder={placeholder ?? '0'}
           onChange={(event) => {

@@ -2,6 +2,8 @@
    ⚠️ فقط برای دموی سمت کلاینت: این الگوریتم امنیتی نیست.
    در بک‌اند واقعی از bcrypt/argon2 استفاده شود (docs/database-schema.sql). */
 
+import { toLatinDigits } from './utils';
+
 const SALT = 'estate-crm::v1';
 
 function fnv1a(text: string, seed: number): number {
@@ -56,6 +58,9 @@ export function isValidNationalId(value: string): boolean {
 
 /** اعتبارسنجی موبایل ایران */
 export function isValidMobile(value: string): boolean {
-  const digits = value.replace(/\D/g, '');
-  return /^09\d{9}$/.test(digits);
+  return /^09\d{9}$/.test(toLatinDigits(value));
+}
+
+export function isAlphabeticName(value: string): boolean {
+  return /^[\p{L}\p{M}\s\u200c]+$/u.test(value.trim());
 }

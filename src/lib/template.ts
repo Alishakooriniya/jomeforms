@@ -18,6 +18,30 @@ export const SYSTEM_TOKENS: Record<string, string> = {
   __org_name: 'نام سازمان',
 };
 
+const PERSIAN_KEY_TRANSLITERATION: Record<string, string> = {
+  ا: 'a', آ: 'a', ب: 'b', پ: 'p', ت: 't', ث: 's', ج: 'j', چ: 'ch', ح: 'h',
+  خ: 'kh', د: 'd', ذ: 'z', ر: 'r', ز: 'z', ژ: 'zh', س: 's', ش: 'sh', ص: 's',
+  ض: 'z', ط: 't', ظ: 'z', ع: 'a', غ: 'gh', ف: 'f', ق: 'gh', ک: 'k', گ: 'g',
+  ل: 'l', م: 'm', ن: 'n', و: 'v', ه: 'h', ی: 'y',
+};
+
+/** Generate the internal field key so template authors do not need to write one. */
+export function createTemplateFieldKey(label: string, fields: TemplateField[]): string {
+  const transliterated = normalizeText(label)
+    .replace(/[آ-ی]/g, (character) => PERSIAN_KEY_TRANSLITERATION[character] ?? '')
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '');
+  const base = /^[a-z]/.test(transliterated) ? transliterated : `field_${transliterated || 'value'}`;
+  const existing = new Set(fields.map((field) => field.key));
+  let candidate = base;
+  let suffix = 2;
+  while (existing.has(candidate)) {
+    candidate = `${base}_${suffix}`;
+    suffix += 1;
+  }
+  return candidate;
+}
+
 export function extractTokens(body: string): string[] {
   const found = new Set<string>();
   for (const match of body.matchAll(TOKEN_PATTERN)) found.add(match[1]);
@@ -160,8 +184,9 @@ export const CLIENT_SOURCES: SourceOption[] = [
   { key: 'fullName', label: 'نام و نام خانوادگی', group: 'پرونده' },
   { key: 'nationalId', label: 'کد ملی', group: 'پرونده' },
   { key: 'mobile', label: 'موبایل', group: 'پرونده' },
-  { key: 'phone', label: 'تلفن ثابت', group: 'پرونده' },
+  { key: 'birthCertificateNumber', label: 'شماره شناسنامه', group: 'پرونده' },
   { key: 'fatherName', label: 'نام پدر', group: 'پرونده' },
+  { key: 'issuePlace', label: 'شهر صادره شناسنامه', group: 'پرونده' },
   { key: 'birthDate', label: 'تاریخ تولد', group: 'پرونده' },
   { key: 'address', label: 'نشانی محل سکونت', group: 'پرونده' },
 ];

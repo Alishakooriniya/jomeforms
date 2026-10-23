@@ -81,8 +81,9 @@ export interface Client {
   caseType: ClientCaseType;
   companyId?: string;
   workflow: ClientWorkflowStep[];
-  phone?: string;
+  birthCertificateNumber?: string;
   fatherName?: string;
+  issuePlace?: string;
   birthDate?: string;
   status: ClientStatus;
   residenceAddress?: string;

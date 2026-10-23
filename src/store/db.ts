@@ -12,7 +12,7 @@ import { putBlob } from '../lib/idb';
 import { KEYS, readJSON, readString, removeItem, writeJSON } from '../lib/storage';
 import { SEED_TEMPLATES } from '../data/templates';
 
-const SEED_VERSION = 4;
+const SEED_VERSION = 6;
 
 export function emptyDb(): DbShape {
   return {
@@ -141,6 +141,52 @@ export function loadDb(): DbShape {
   }
 
   if ((meta.seedVersion ?? 0) < SEED_VERSION) {
+    if ((meta.seedVersion ?? 0) < 5) {
+      templates = templates.map((template) =>
+        template.id === 'tpl-document-request'
+          ? {
+              ...template,
+              fields: template.fields.filter(
+                (field) => !['father_name', 'birth_certificate_number', 'issue_place'].includes(field.key),
+              ),
+              body: template.body
+                ?.replace(
+                  /\s*فرزند\s+\{\{father_name\}\}\s+شماره شناسنامه\s+\{\{birth_certificate_number\}\}/,
+                  '',
+                )
+                .replace(/\s*صادره از\s+\{\{issue_place\}\}/, ''),
+            }
+          : template,
+      );
+      writeJSON(KEYS.templates, templates);
+    }
+    if ((meta.seedVersion ?? 0) < 6) {
+      const defaultTemplate = SEED_TEMPLATES.find((template) => template.id === 'tpl-document-request');
+      templates = templates.map((template) => {
+        if (template.id !== 'tpl-document-request' || !defaultTemplate) return template;
+
+        const identityFields = defaultTemplate.fields.filter((field) =>
+          ['father_name', 'birth_certificate_number', 'issue_place'].includes(field.key),
+        );
+        const existingKeys = new Set(template.fields.map((field) => field.key));
+        const missingFields = identityFields.filter((field) => !existingKeys.has(field.key));
+        const fields = [...template.fields];
+        const applicantIndex = fields.findIndex((field) => field.key === 'applicant_name');
+        fields.splice(applicantIndex >= 0 ? applicantIndex + 1 : fields.length, 0, ...missingFields);
+
+        return {
+          ...template,
+          fields,
+          body: template.body
+            ?.replace(
+              '{{applicant_name}} دارای کد ملی',
+              '{{applicant_name}} فرزند {{father_name}} شماره شناسنامه {{birth_certificate_number}} دارای کد ملی',
+            )
+            .replace('{{national_id}} ساکن', '{{national_id}} صادره از {{issue_place}} ساکن'),
+        };
+      });
+      writeJSON(KEYS.templates, templates);
+    }
     const templateIds = new Set(templates.map((template) => template.id));
     const added = SEED_TEMPLATES.filter((template) => !templateIds.has(template.id));
     if (added.length) {
@@ -163,6 +209,7 @@ export function loadDb(): DbShape {
   }
 
   const legacyClientSchema = (meta.seedVersion ?? 0) < 3;
+  const legacyClientFields = (meta.seedVersion ?? 0) < 5;
   const legacyDateValues = (meta.seedVersion ?? 0) < 4;
   const storedClients = readJSON<DbShape['clients']>(KEYS.clients, []);
   const demoClientIds = new Set(Array.from({ length: 8 }, (_, index) => `cl-${index + 1}`));
@@ -187,8 +234,9 @@ export function loadDb(): DbShape {
       caseType,
       companyId: client.companyId,
       workflow,
-      phone: client.phone,
-      fatherName: client.fatherName,
+      birthCertificateNumber: client.birthCertificateNumber ?? '',
+      fatherName: client.fatherName ?? '',
+      issuePlace: client.issuePlace ?? '',
       birthDate: normalizeLegacyJalaliDate(client.birthDate) ?? client.birthDate,
       residenceAddress: client.residenceAddress ?? '',
       status: client.status ?? 'new',
@@ -208,7 +256,9 @@ export function loadDb(): DbShape {
     }
     return migrated;
   });
-  if (legacyClientSchema || legacyDateValues) writeJSON(KEYS.clients, clients);
+  if (legacyClientSchema || legacyClientFields || legacyDateValues || (meta.seedVersion ?? 0) < 6) {
+    writeJSON(KEYS.clients, clients);
+  }
   const demoClientsById = new Map(SEED_CLIENTS.map((client) => [client.id, client]));
   const dateFieldsByTemplate = new Map(
     [...templates, ...SEED_TEMPLATES].map((template) => [

@@ -91,8 +91,9 @@ async function seedDemoClients(): Promise<void> {
       fullName: 'نمونه آزمایشی یک',
       nationalId: '0123456789',
       mobile: '09120000001',
-      phone: '02100000001',
+      birthCertificateNumber: '123456',
       fatherName: 'نمونه',
+      issuePlace: 'تهران',
       birthDate: '1370/01/01',
       residenceAddress: 'نشانی آزمایشی شماره یک، تهران',
     },
@@ -101,7 +102,9 @@ async function seedDemoClients(): Promise<void> {
       fullName: 'نمونه آزمایشی دو',
       nationalId: '0123456789',
       mobile: '09120000002',
+      birthCertificateNumber: '654321',
       fatherName: 'آزمایش',
+      issuePlace: 'تهران',
       birthDate: '1375/05/10',
       residenceAddress: 'نشانی آزمایشی شماره دو، تهران',
     },
@@ -110,17 +113,19 @@ async function seedDemoClients(): Promise<void> {
   for (const client of clients) {
     await query(
       `insert into clients
-        (code, full_name, national_id, mobile, case_type, workflow, phone, father_name,
+        (code, full_name, national_id, mobile, case_type, workflow,
+         birth_certificate_number, father_name, issue_place,
          birth_date, residence_address, status)
-       values ($1, $2, $3, $4, 'document_request', $5::jsonb, $6, $7, $8, $9, 'new')
+       values ($1, $2, $3, $4, 'document_request', $5::jsonb, $6, $7, $8, $9, $10, 'new')
        on conflict (code) do update set
          full_name = excluded.full_name,
          national_id = excluded.national_id,
          mobile = excluded.mobile,
          case_type = excluded.case_type,
          workflow = excluded.workflow,
-         phone = excluded.phone,
+         birth_certificate_number = excluded.birth_certificate_number,
          father_name = excluded.father_name,
+         issue_place = excluded.issue_place,
          birth_date = excluded.birth_date,
          residence_address = excluded.residence_address,
          status = excluded.status`,
@@ -130,8 +135,9 @@ async function seedDemoClients(): Promise<void> {
         client.nationalId,
         client.mobile,
         JSON.stringify(createClientWorkflow('document_request')),
-        client.phone ?? null,
+        client.birthCertificateNumber,
         client.fatherName,
+        client.issuePlace,
         client.birthDate,
         client.residenceAddress,
       ],
