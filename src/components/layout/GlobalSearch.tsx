@@ -88,7 +88,7 @@ export function GlobalSearch() {
   };
 
   return (
-    <div className="relative min-w-0 flex-1 sm:max-w-md" ref={containerRef}>
+    <div className="relative min-w-0 flex-1 sm:max-w-[23rem]" ref={containerRef}>
       <span className="pointer-events-none absolute start-3 top-1/2 -translate-y-1/2 text-fg-subtle">
         <Icon name="search" size={15} />
       </span>
@@ -103,7 +103,7 @@ export function GlobalSearch() {
         onKeyDown={(event) => {
           if (event.key === 'Enter' && results[0]) go(results[0].to);
         }}
-        placeholder="جستجوی نام کامل، کد ملی، شماره پرونده یا مجموعه…"
+        placeholder="جستجوی پرونده، کد ملی یا مجموعه…"
         className="field ps-9 pe-14"
         aria-label="جستجوی سراسری"
       />

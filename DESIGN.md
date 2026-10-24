@@ -247,7 +247,46 @@ These are the non-negotiables to preserve:
 - theme-driven visual identity
 - Persian/RTL-first UX
 
-## 10. Summary
+## 10. UI refinement decisions (2026-10)
+
+The frontend was tightened around scan-ability and lower cognitive load. The backend, API contracts, permissions, audit logging, and data model were left untouched. These decisions are now the reference for future UI work:
+
+### Page headers
+
+- Top-level pages (lists, dashboard, reports, settings) do not show breadcrumbs; breadcrumbs render only when a route is more than one level below a section (for example a case or document detail).
+- Large decorative icon tiles are removed from page headers. Page identity comes from the title, subtitle, and the active sidebar item. The `icon` prop remains accepted for compatibility but is not rendered as a header ornament.
+- One primary action per page stays in the header; secondary actions (export, delete, alternate outputs) are secondary buttons or inside an overflow menu.
+
+### Tables
+
+- Tables are the primary scanning surface and every row is single-line. Global table cells use `whitespace-nowrap`; long text is truncated with a `title` tooltip, never wrapped into multiple lines. Row height is 40px (compact) and must not grow because of secondary information.
+- Columns are chosen for the task, not for completeness. Secondary fields belong in the record detail, an expandable section, or a context menu.
+- Empty states render inside the table body so the header and result area stay coherent. List pages use the shared `DataTable`; one-off table markup is not allowed.
+
+### List toolbars
+
+- Lists show one search field, one (occasionally two) primary filters, and a `فیلتر بیشتر` disclosure for template/date/company/membership/permission filters. The disclosure opens inline and is not a second page.
+- Active filters appear as removable chips inside the toolbar. Search stays full-width on small screens and shares the row with filters only from `sm` upward.
+
+### Case detail (no tabs)
+
+The case page is a single coherent screen instead of four tabs. The primary column holds the workflow (current step, evidence upload, completion, and manager override behind a disclosure) and the case documents. The secondary column holds applicant identity and activity history. A compact four-cell summary strip replaces the three large stat cards. All previous actions and audit data remain available; only their presentation changed.
+
+### Document detail (no tabs)
+
+The document preview is the primary surface. Recorded values are an expandable section directly below the preview. The side column holds document path, archived scans, and notes. Basic metadata lives in the header subtitle and the path card instead of a separate card. Print, edit, status changes, downloads, and deletion keep their existing behavior.
+
+### Dashboard
+
+The dashboard is action-first: open work (overdue evidence, documents awaiting signature), then active case metrics, then recent cases and the activity feed. Every metric has a working link with the correct filter; numbers are only shown when they lead somewhere.
+
+### Navigation and forms
+
+The sidebar brand reads from `settings.orgName`; the management group is collapsed unless one of its routes is active. The client form shows name, national ID, and mobile immediately and places certificate, birth, father, and address fields under `اطلاعات تکمیلی` (auto-open when editing a record that already has them). Redundant dashboard-style stat cards and duplicated summary cards were removed from collections, audit, reports, and role pages; the information they repeated is still available in the main list or detail view.
+
+All of these are frontend-only changes. Do not move filtering, numbering, permissions, or workflow rules out of the store/API while refining presentation.
+
+## 11. Summary
 
 The app's design is intentionally structured, domain-oriented, and stateful. The goal is not to create a generic React template, but to maintain a coherent internal CRM product with a clear business workflow and a stable design language.
 

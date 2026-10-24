@@ -21,22 +21,22 @@ export function AppLayout() {
   return (
     <div className="flex min-h-screen bg-bg">
       {/* منوی ثابت دسکتاپ */}
-      <aside className="sticky top-0 hidden h-screen w-[280px] shrink-0 border-s border-line lg:block">
+      <aside className="sticky top-0 hidden h-screen w-[248px] shrink-0 border-s border-line lg:block">
         <Sidebar />
       </aside>
 
       {/* منوی موبایل */}
       <Drawer open={drawer.isOpen} onClose={drawer.close} title={settings.orgName}>
-        <Sidebar onNavigate={drawer.close} />
+        <Sidebar onNavigate={drawer.close} showBrand={false} />
       </Drawer>
 
       <div className="flex min-w-0 flex-1 flex-col">
         <Topbar onOpenMenu={drawer.open} />
-        <main className="mx-auto w-full max-w-[1440px] flex-1 p-4 sm:p-5 lg:p-7">
+        <main className="mx-auto w-full max-w-[1360px] flex-1 px-4 py-4 sm:px-5 lg:px-6 lg:py-5">
           <Outlet />
         </main>
-        <footer className="px-4 pb-5 pt-2 text-center text-[12px] text-fg-subtle">
-          Jome Forms — داده‌ها به‌صورت محلی در مرورگر ذخیره می‌شوند
+        <footer className="px-4 pb-4 pt-1 text-center text-[10.5px] text-fg-subtle">
+          Jome Forms — داده‌ها به‌صورت محلی و ایمن در همین مرورگر ذخیره می‌شوند
         </footer>
       </div>
     </div>

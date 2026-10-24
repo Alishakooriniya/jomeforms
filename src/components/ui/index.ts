@@ -4,7 +4,7 @@
 export { Badge, CountBadge } from './Badge';
 export { Button, IconButton } from './Button';
 export type { ButtonProps, ButtonSize, ButtonVariant } from './Button';
-export { Card, CardBody, CardHeader, InfoList, SectionTitle, StatCard } from './Card';
+export { Card, CardBody, CardHeader, InfoList, Progress, SectionTitle, StatCard } from './Card';
 export type { InfoItem } from './Card';
 export { BarChart, DonutChart } from './Charts';
 export { Checkbox, CurrencyInput, FormActions, FormGrid, NumberInput, RadioGroup, Switch } from './Controls';
@@ -28,7 +28,9 @@ export type { TabItem } from './Tabs';
 export {
   ActiveFilterChip,
   FilterBar,
+  FilterField,
   FilterSelect,
+  ListToolbar,
   ResultsSummary,
   SearchInput,
   SegmentedControl,

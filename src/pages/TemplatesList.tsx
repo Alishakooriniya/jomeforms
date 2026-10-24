@@ -17,7 +17,14 @@ import { Icon } from '../components/ui/Icon';
 import { EmptyState } from '../components/ui/EmptyState';
 import { ConfirmDialog } from '../components/ui/Modal';
 import { PageHeader } from '../components/ui/Avatar';
-import { FilterBar, FilterSelect, ResultsSummary, SearchInput } from '../components/ui/Toolbar';
+import {
+  ActiveFilterChip,
+  FilterField,
+  FilterSelect,
+  ListToolbar,
+  ResultsSummary,
+  SearchInput,
+} from '../components/ui/Toolbar';
 
 export default function TemplatesList() {
   const { templates, documents } = useDb();
@@ -50,9 +57,7 @@ export default function TemplatesList() {
     <div className="flex flex-col gap-4">
       <PageHeader
         title="قالب فرم‌ها"
-        subtitle="فرم‌ها را بسازید و ویرایش کنید؛ عنوان فیلدها هنگام نوشتن متن قابل درج هستند."
-        icon="template"
-        breadcrumbs={[{ label: 'داشبورد', to: '/' }, { label: 'قالب فرم‌ها' }]}
+        subtitle="کتابخانه فرم‌های چاپی؛ برای ساخت سند، یک قالب انتخاب می‌شود"
         actions={
           <>
             {can('templates.create') ? (
@@ -64,61 +69,92 @@ export default function TemplatesList() {
         }
       />
 
-      <FilterBar actions={<ResultsSummary total={query.total} unit="قالب" />}>
-        <SearchInput
-          value={query.q}
-          onChange={query.setQ}
-          placeholder="جستجوی نام یا توضیح فرم…"
-          className="w-full sm:w-72"
-        />
+      <ListToolbar
+        advancedCount={query.filters.state && query.filters.state !== 'all' ? 1 : 0}
+        summary={<ResultsSummary total={query.total} unit="قالب" />}
+        advanced={
+          <>
+            <FilterField label="وضعیت قالب">
+              <FilterSelect
+                value={query.filters.state ?? 'all'}
+                onChange={(value) => query.setFilter('state', value)}
+                options={[
+                  { value: 'active', label: 'فعال' },
+                  { value: 'inactive', label: 'غیرفعال' },
+                ]}
+                placeholder="همه"
+              />
+            </FilterField>
+            {query.hasActiveFilters ? (
+              <Button variant="ghost" size="sm" icon="refresh" onClick={query.clearAll}>
+                پاک‌کردن فیلترها
+              </Button>
+            ) : null}
+          </>
+        }
+        activeFilters={
+          query.hasActiveFilters ? (
+            <>
+              {query.q ? <ActiveFilterChip label={`جستجو: ${query.q}`} onRemove={() => query.setQ('')} /> : null}
+              {query.filters.category && query.filters.category !== 'all' ? (
+                <ActiveFilterChip
+                  label={`دسته: ${TEMPLATE_CATEGORY_LABELS[query.filters.category as FormTemplate['category']]}`}
+                  onRemove={() => query.setFilter('category', 'all')}
+                />
+              ) : null}
+              {query.filters.state && query.filters.state !== 'all' ? (
+                <ActiveFilterChip
+                  label={query.filters.state === 'active' ? 'فعال' : 'غیرفعال'}
+                  onRemove={() => query.setFilter('state', 'all')}
+                />
+              ) : null}
+            </>
+          ) : null
+        }
+      >
+        <SearchInput value={query.q} onChange={query.setQ} placeholder="نام یا توضیح فرم…" />
         <FilterSelect
           value={query.filters.category ?? 'all'}
           onChange={(value) => query.setFilter('category', value)}
           options={TEMPLATE_CATEGORY_OPTIONS}
           placeholder="همه دسته‌ها"
           icon="filter"
+          className="w-40"
         />
-        <FilterSelect
-          value={query.filters.state ?? 'all'}
-          onChange={(value) => query.setFilter('state', value)}
-          options={[
-            { value: 'active', label: 'فعال' },
-            { value: 'inactive', label: 'غیرفعال' },
-          ]}
-          placeholder="همه وضعیت‌ها"
-        />
-      </FilterBar>
+      </ListToolbar>
 
       {query.rows.length ? (
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
           {query.rows.map((template) => (
-            <article key={template.id} className="card flex h-full flex-col gap-2.5 p-4">
-              <div className="flex items-start justify-between gap-2">
-                <span className="flex h-9 w-9 items-center justify-center rounded-field bg-brand-50 text-brand-600 dark:bg-brand-500/12 dark:text-brand-300">
-                  <span className="text-[11px] font-medium">
-                    {displayDigits(template.fields.length)}
-                  </span>
-                </span>
+            <article
+              key={template.id}
+              className="card flex h-full flex-col gap-2 p-3.5 transition-colors hover:border-line-strong"
+            >
+              <div className="flex items-center justify-between gap-2">
                 <div className="flex items-center gap-1.5">
+                  <Badge tone="brand" size="sm">
+                    {TEMPLATE_CATEGORY_LABELS[template.category]}
+                  </Badge>
                   {!template.active ? (
                     <Badge tone="neutral" size="sm">
                       غیرفعال
                     </Badge>
                   ) : null}
-                  <Badge tone="brand" size="sm">
-                    {TEMPLATE_CATEGORY_LABELS[template.category]}
-                  </Badge>
                 </div>
+                <span className="num text-[10px] text-fg-subtle">ویرایش {formatDate(template.updatedAt)}</span>
               </div>
 
               <button
                 type="button"
                 onClick={() => navigate(`/templates/${template.id}`)}
-                className="text-start text-[13px] font-semibold text-fg hover:text-brand-700 dark:hover:text-brand-300"
+                className="truncate text-start text-[13px] font-semibold text-fg hover:text-brand-700 dark:hover:text-brand-300"
+                title={template.title}
               >
                 {template.title}
               </button>
-              <p className="line-clamp-2 text-[11.5px] leading-5 text-fg-subtle">{template.description}</p>
+              <p className="line-clamp-2 min-h-9 text-[11px] leading-5 text-fg-subtle">
+                {template.description || 'بدون توضیح'}
+              </p>
 
               <div className="mt-auto flex flex-wrap items-center gap-x-3 gap-y-1 border-t border-line pt-2.5 text-[10.5px] text-fg-subtle">
                 <span className="flex items-center gap-1">
@@ -141,10 +177,7 @@ export default function TemplatesList() {
                 ) : null}
               </div>
 
-              <div className="flex items-center justify-between gap-2">
-                <span className="num text-[10.5px] text-fg-subtle">
-                  آخرین ویرایش {formatDate(template.updatedAt)}
-                </span>
+              <div className="flex items-center justify-end gap-2">
                 <Dropdown
                   label="عملیات قالب"
                   items={[

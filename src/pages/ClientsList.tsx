@@ -1,8 +1,9 @@
-/* فهرست پرونده‌ها — جستجو، فیلتر، مرتب‌سازی، خروجی و ساخت/ویرایش */
+/* فهرست پرونده‌ها — جستجو، فیلتر، مرتب‌سازی، خروجی و ساخت/ویرایش.
+   جدول تک‌خطی و فشرده است؛ اطلاعات کم‌کاربردتر در صفحه پرونده دیده می‌شود. */
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import type { Client } from '../types';
+import type { Client, ClientCaseType, ClientStatus } from '../types';
 import { useAuth } from '../store/AuthProvider';
 import { useDb, useDbActions } from '../store/DataProvider';
 import type { ClientDraft } from '../store/DataProvider';
@@ -22,6 +23,7 @@ import { exportCsv } from '../lib/print';
 import { Avatar, PageHeader } from '../components/ui/Avatar';
 import { Badge } from '../components/ui/Badge';
 import { Button } from '../components/ui/Button';
+import { Progress } from '../components/ui/Card';
 import { Dropdown } from '../components/ui/Dropdown';
 import { EmptyState } from '../components/ui/EmptyState';
 import { Modal, ConfirmDialog } from '../components/ui/Modal';
@@ -30,15 +32,16 @@ import { DataTable } from '../components/ui/Table';
 import type { Column } from '../components/ui/Table';
 import {
   ActiveFilterChip,
-  FilterBar,
+  FilterField,
   FilterSelect,
+  ListToolbar,
   ResultsSummary,
   SearchInput,
 } from '../components/ui/Toolbar';
 import { ClientForm, clientToDraft } from '../components/clients/ClientForm';
 
 export default function ClientsList() {
-  const { clients, companies, settings, documents } = useDb();
+  const { clients, companies, settings } = useDb();
   const { saveClient, deleteClient } = useDbActions();
   const { can } = useAuth();
   const toast = useToast();
@@ -49,18 +52,16 @@ export default function ClientsList() {
   const [pendingDelete, setPendingDelete] = useState<Client | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
+  const companyName = (id?: string) => companies.find((company) => company.id === id)?.name ?? '';
+
   const query = useListQuery<Client>(clients, {
     pageSize: settings.defaultPageSize,
     search: (client) =>
-      [
-        client.fullName,
-        client.code,
-        client.nationalId,
-        companies.find((company) => company.id === client.companyId)?.name ?? '',
-      ].join(' '),
+      [client.fullName, client.code, client.nationalId, companyName(client.companyId)].join(' '),
     filters: {
       status: (client, value) => client.status === value,
       caseType: (client, value) => (client.caseType ?? 'document_request') === value,
+      companyId: (client, value) => client.companyId === value,
     },
     sorters: {
       code: (a, b) => compareText(a.code, b.code),
@@ -69,14 +70,22 @@ export default function ClientsList() {
     },
   });
 
+  const { setFilter } = query;
   useEffect(() => {
     const caseType = searchParams.get('caseType');
-    if (caseType === 'document_request' || caseType === 'rent_renewal') {
-      query.setFilter('caseType', caseType);
-    }
-  }, [query.setFilter, searchParams]);
+    const status = searchParams.get('status');
+    if (caseType === 'document_request' || caseType === 'rent_renewal') setFilter('caseType', caseType);
+    if (status && status in CLIENT_STATUS_LABELS) setFilter('status', status);
+  }, [setFilter, searchParams]);
 
-  const documentCount = (clientId: string) => documents.filter((document) => document.clientId === clientId).length;
+  const advancedCount = useMemo(
+    () =>
+      ['caseType', 'companyId'].filter((key) => {
+        const value = query.filters[key];
+        return value && value !== 'all';
+      }).length,
+    [query.filters],
+  );
 
   const handleExport = () => {
     exportCsv(
@@ -88,7 +97,7 @@ export default function ClientsList() {
         client.nationalId,
         client.mobile,
         CLIENT_CASE_TYPE_LABELS[client.caseType ?? 'document_request'],
-        companies.find((company) => company.id === client.companyId)?.name ?? '',
+        companyName(client.companyId),
         CLIENT_STATUS_LABELS[client.status],
         formatDate(client.createdAt, 'numeric'),
       ]),
@@ -104,55 +113,82 @@ export default function ClientsList() {
     toast.success(editing ? 'پرونده ویرایش شد' : 'پرونده ثبت شد', `${saved.fullName} — ${formatCode(saved.code)}`);
   };
 
+  const workflowOf = (client: Client) => client.workflow ?? [];
+  const completedSteps = (client: Client) => workflowOf(client).filter((step) => step.status === 'completed').length;
+  const currentStep = (client: Client) => workflowOf(client).find((step) => step.status === 'pending');
+
   const columns: Array<Column<Client>> = [
     {
       key: 'fullName',
-      header: 'پرونده',
+      header: 'متقاضی',
       sortable: true,
+      sticky: true,
+      widthClassName: 'w-[210px]',
       cell: (client) => (
-        <div className="flex items-center gap-2.5">
-          <Avatar name={client.fullName} size={32} />
-          <div className="min-w-0">
-            <p className="truncate text-[12.5px] font-medium text-fg">{client.fullName}</p>
-            <p className="num truncate text-[10.5px] text-fg-subtle">{formatCode(client.code)}</p>
-          </div>
+        <div className="flex min-w-0 items-center gap-2.5">
+          <Avatar name={client.fullName} size={26} />
+          <span className="truncate font-medium text-fg" title={client.fullName}>
+            {client.fullName}
+          </span>
         </div>
       ),
+    },
+    {
+      key: 'code',
+      header: 'شماره پرونده',
+      sortable: true,
+      widthClassName: 'w-[120px]',
+      cell: (client) => <span className="num text-fg-muted">{formatCode(client.code)}</span>,
     },
     {
       key: 'caseType',
       header: 'نوع درخواست',
+      widthClassName: 'w-[120px]',
+      responsiveClass: 'hidden lg:table-cell',
       cell: (client) => (
-        <div className="flex flex-col gap-0.5">
-          <span className="text-[12px] text-fg">{CLIENT_CASE_TYPE_LABELS[client.caseType ?? 'document_request']}</span>
-          <span className="text-[10.5px] text-fg-subtle">
-            {companies.find((company) => company.id === client.companyId)?.name ?? 'بدون مجموعه'}
-          </span>
-        </div>
+        <span className="text-fg-muted">{CLIENT_CASE_TYPE_LABELS[client.caseType ?? 'document_request']}</span>
       ),
-      responsiveClass: 'hidden md:table-cell',
+    },
+    {
+      key: 'company',
+      header: 'مجموعه',
+      responsiveClass: 'hidden xl:table-cell',
+      cell: (client) => {
+        const name = companyName(client.companyId);
+        return (
+          <span className="block max-w-[150px] truncate text-fg-muted" title={name || 'بدون مجموعه'}>
+            {name || <span className="text-fg-subtle">بدون مجموعه</span>}
+          </span>
+        );
+      },
     },
     {
       key: 'workflow',
-      header: 'مرحله رسیدگی',
-      cell: (client) => (
-        <div className="flex flex-col gap-0.5">
-          <span className="text-[12px] text-fg">{client.workflow?.find((step) => step.status === 'pending')?.title ?? 'تکمیل‌شده'}</span>
-          <span className="num text-[10.5px] text-fg-subtle">{displayDigits(client.workflow?.filter((step) => step.status === 'completed').length ?? 0)} مرحله تکمیل‌شده</span>
-        </div>
-      ),
-      responsiveClass: 'hidden lg:table-cell',
-    },
-    {
-      key: 'documents',
-      header: 'اسناد',
-      align: 'center',
-      cell: (client) => <span className="num text-[12px] text-fg-muted">{displayDigits(documentCount(client.id))}</span>,
-      responsiveClass: 'hidden lg:table-cell',
+      header: 'مرحله جاری',
+      responsiveClass: 'hidden md:table-cell',
+      widthClassName: 'w-[190px]',
+      cell: (client) => {
+        const steps = workflowOf(client);
+        const done = completedSteps(client);
+        const active = currentStep(client);
+        return (
+          <div
+            className="flex min-w-0 items-center gap-2"
+            title={active ? `مرحله جاری: ${active.title}` : 'همه مراحل تکمیل شده'}
+          >
+            <Progress value={done} max={steps.length || 1} className="w-12 shrink-0" label="پیشرفت مراحل" />
+            <span className="num shrink-0 text-[10.5px] text-fg-subtle">
+              {displayDigits(done)}/{displayDigits(steps.length)}
+            </span>
+            <span className="truncate text-fg-muted">{active?.title ?? 'تکمیل‌شده'}</span>
+          </div>
+        );
+      },
     },
     {
       key: 'status',
       header: 'وضعیت',
+      widthClassName: 'w-[110px]',
       cell: (client) => (
         <Badge tone={CLIENT_STATUS_TONE[client.status]} size="sm" dot>
           {CLIENT_STATUS_LABELS[client.status]}
@@ -163,13 +199,19 @@ export default function ClientsList() {
       key: 'updatedAt',
       header: 'آخرین تغییر',
       sortable: true,
-      cell: (client) => <span className="text-[11.5px] text-fg-muted">{formatDate(client.updatedAt)}</span>,
+      widthClassName: 'w-[110px]',
       responsiveClass: 'hidden xl:table-cell',
+      cell: (client) => (
+        <span className="num text-[11px] text-fg-subtle" title={formatDate(client.updatedAt, 'datetime')}>
+          {formatDate(client.updatedAt)}
+        </span>
+      ),
     },
     {
       key: 'actions',
       header: '',
       align: 'end',
+      widthClassName: 'w-12',
       cell: (client) => (
         <Dropdown
           label="عملیات پرونده"
@@ -206,18 +248,18 @@ export default function ClientsList() {
     },
   ];
 
+  const hasChips = query.hasActiveFilters;
+
   return (
     <div className="flex flex-col gap-4">
       <PageHeader
         title="پرونده‌ها"
-        subtitle="ثبت درخواست‌ها، پیگیری مراحل و جمع‌آوری اسناد پرونده"
-        icon="users"
-        breadcrumbs={[{ label: 'داشبورد', to: '/' }, { label: 'پرونده‌ها' }]}
+        subtitle="پیگیری درخواست‌ها، مراحل رسیدگی و اسناد هر پرونده"
         actions={
           <>
             {can('clients.export') ? (
               <Button variant="secondary" icon="download" onClick={handleExport} disabled={!query.rows.length}>
-                خروجی CSV
+                خروجی
               </Button>
             ) : null}
             {can('clients.create') ? (
@@ -229,14 +271,71 @@ export default function ClientsList() {
         }
       />
 
-      <FilterBar
-        actions={<ResultsSummary total={query.total} unit="پرونده" />}
+      <ListToolbar
+        advancedCount={advancedCount}
+        summary={<ResultsSummary total={query.total} unit="پرونده" />}
+        advanced={
+          <>
+            <FilterField label="نوع درخواست">
+              <FilterSelect
+                value={query.filters.caseType ?? 'all'}
+                onChange={(value) => query.setFilter('caseType', value)}
+                options={CLIENT_CASE_TYPE_OPTIONS}
+                placeholder="همه گروه‌ها"
+              />
+            </FilterField>
+            <FilterField label="مجموعه">
+              <FilterSelect
+                value={query.filters.companyId ?? 'all'}
+                onChange={(value) => query.setFilter('companyId', value)}
+                options={companies.map((company) => ({ value: company.id, label: company.name }))}
+                placeholder="همه مجموعه‌ها"
+              />
+            </FilterField>
+            {query.hasActiveFilters ? (
+              <Button variant="ghost" size="sm" icon="refresh" onClick={query.clearAll}>
+                پاک‌کردن فیلترها
+              </Button>
+            ) : null}
+          </>
+        }
+        activeFilters={
+          hasChips ? (
+            <>
+              {query.q ? <ActiveFilterChip label={`جستجو: ${query.q}`} onRemove={() => query.setQ('')} /> : null}
+              {query.filters.status && query.filters.status !== 'all' ? (
+                <ActiveFilterChip
+                  label={`وضعیت: ${CLIENT_STATUS_LABELS[query.filters.status as ClientStatus]}`}
+                  onRemove={() => query.setFilter('status', 'all')}
+                />
+              ) : null}
+              {query.filters.caseType && query.filters.caseType !== 'all' ? (
+                <ActiveFilterChip
+                  label={`نوع: ${CLIENT_CASE_TYPE_LABELS[query.filters.caseType as ClientCaseType]}`}
+                  onRemove={() => query.setFilter('caseType', 'all')}
+                />
+              ) : null}
+              {query.filters.companyId && query.filters.companyId !== 'all' ? (
+                <ActiveFilterChip
+                  label={`مجموعه: ${companyName(query.filters.companyId)}`}
+                  onRemove={() => query.setFilter('companyId', 'all')}
+                />
+              ) : null}
+              <button
+                type="button"
+                onClick={query.clearAll}
+                className="ms-1 text-[10.5px] text-fg-subtle hover:text-fg"
+              >
+                پاک‌کردن همه
+              </button>
+            </>
+          ) : null
+        }
       >
         <SearchInput
           value={query.q}
           onChange={query.setQ}
-          placeholder="نام کامل، کد ملی، شماره پرونده یا نام مجموعه…"
-          className="w-full sm:w-72"
+          placeholder="نام، کد ملی، شماره پرونده یا مجموعه…"
         />
         <FilterSelect
           value={query.filters.status ?? 'all'}
@@ -244,37 +343,9 @@ export default function ClientsList() {
           options={CLIENT_STATUS_OPTIONS}
           placeholder="همه وضعیت‌ها"
           icon="filter"
+          className="w-40"
         />
-        <FilterSelect
-          value={query.filters.caseType ?? 'all'}
-          onChange={(value) => query.setFilter('caseType', value)}
-          options={CLIENT_CASE_TYPE_OPTIONS}
-          placeholder="همه گروه‌های درخواست"
-        />
-        {query.hasActiveFilters ? (
-          <Button variant="ghost" size="sm" icon="refresh" onClick={query.clearAll}>
-            پاک‌کردن فیلترها
-          </Button>
-        ) : null}
-      </FilterBar>
-
-      {query.hasActiveFilters ? (
-        <div className="flex flex-wrap items-center gap-1.5">
-          {query.q ? <ActiveFilterChip label={`جستجو: ${query.q}`} onRemove={() => query.setQ('')} /> : null}
-          {query.filters.status && query.filters.status !== 'all' ? (
-            <ActiveFilterChip
-              label={`وضعیت: ${CLIENT_STATUS_LABELS[query.filters.status as Client['status']]}`}
-              onRemove={() => query.setFilter('status', 'all')}
-            />
-          ) : null}
-          {query.filters.caseType && query.filters.caseType !== 'all' ? (
-            <ActiveFilterChip
-              label={`نوع درخواست: ${CLIENT_CASE_TYPE_LABELS[query.filters.caseType as keyof typeof CLIENT_CASE_TYPE_LABELS]}`}
-              onRemove={() => query.setFilter('caseType', 'all')}
-            />
-          ) : null}
-        </div>
-      ) : null}
+      </ListToolbar>
 
       <div className="card overflow-hidden">
         <DataTable
@@ -326,8 +397,7 @@ export default function ClientsList() {
         open={Boolean(editing)}
         onClose={() => setEditing(null)}
         title={`ویرایش پرونده ${editing?.fullName ?? ''}`}
-        icon="users"
-        size="xl"
+        size="lg"
       >
         <ClientForm
           initial={editing ? clientToDraft(editing) : undefined}

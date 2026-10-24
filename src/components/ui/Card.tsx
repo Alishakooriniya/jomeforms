@@ -24,19 +24,15 @@ export interface CardHeaderProps {
 
 export function CardHeader({ title, subtitle, icon, action, className }: CardHeaderProps) {
   return (
-    <div className={cn('flex items-center justify-between gap-3 border-b border-line px-4 py-3', className)}>
-      <div className="flex items-center gap-2.5">
-        {icon ? (
-          <span className="flex h-8 w-8 items-center justify-center rounded-field bg-brand-50 text-brand-600 dark:bg-brand-500/12 dark:text-brand-300">
-            <Icon name={icon} size={16} />
-          </span>
-        ) : null}
-        <div>
-          <h3 className="text-[15px] font-semibold text-fg">{title}</h3>
-          {subtitle ? <p className="text-[13px] text-fg-muted">{subtitle}</p> : null}
+    <div className={cn('flex min-h-12 items-center justify-between gap-3 border-b border-line px-4 py-2.5', className)}>
+      <div className="flex min-w-0 items-center gap-2">
+        {icon ? <Icon name={icon} size={14} className="shrink-0 text-fg-subtle" /> : null}
+        <div className="min-w-0">
+          <h3 className="truncate text-[13px] font-semibold text-fg">{title}</h3>
+          {subtitle ? <p className="truncate text-[11.5px] text-fg-subtle">{subtitle}</p> : null}
         </div>
       </div>
-      {action}
+      {action ? <div className="shrink-0">{action}</div> : null}
     </div>
   );
 }
@@ -45,13 +41,13 @@ export function CardBody({ className, children }: { className?: string; children
   return <div className={cn('p-4', className)}>{children}</div>;
 }
 
-const TONE_CLASS: Record<Tone, string> = {
-  brand: 'bg-brand-50 text-brand-600 dark:bg-brand-500/15 dark:text-brand-300',
-  success: 'bg-success-soft text-success-fg',
-  warn: 'bg-warn-soft text-warn-fg',
-  danger: 'bg-danger-soft text-danger-fg',
-  info: 'bg-info-soft text-info-fg',
-  neutral: 'bg-card-2 text-fg-muted',
+const TONE_TEXT: Record<Tone, string> = {
+  brand: 'text-brand-600 dark:text-brand-300',
+  success: 'text-success',
+  warn: 'text-warn',
+  danger: 'text-danger',
+  info: 'text-fg-subtle',
+  neutral: 'text-fg-subtle',
 };
 
 export interface StatCardProps {
@@ -67,8 +63,8 @@ export function StatCard({ label, value, hint, icon, tone = 'brand', onClick }: 
   return (
     <div
       className={cn(
-        'card flex items-start justify-between gap-3 p-4',
-        onClick && 'cursor-pointer transition-colors hover:border-line-strong hover:bg-card-2',
+        'card flex min-w-0 flex-col gap-1 p-3.5',
+        onClick && 'cursor-pointer transition-colors hover:border-line-strong hover:bg-card-2/60',
       )}
       onClick={onClick}
       role={onClick ? 'button' : undefined}
@@ -84,14 +80,12 @@ export function StatCard({ label, value, hint, icon, tone = 'brand', onClick }: 
           : undefined
       }
     >
-      <div className="min-w-0">
-        <p className="text-[14px] text-fg-muted">{label}</p>
-        <p className="num mt-1.5 text-2xl font-semibold text-fg">{value}</p>
-        {hint ? <p className="mt-1 text-[13px] text-fg-muted">{hint}</p> : null}
-      </div>
-      <span className={cn('flex h-9 w-9 shrink-0 items-center justify-center rounded-field', TONE_CLASS[tone])}>
-        <Icon name={icon} size={18} />
-      </span>
+      <p className="flex items-center gap-1.5 text-[11.5px] text-fg-subtle">
+        <Icon name={icon} size={13} className={TONE_TEXT[tone]} />
+        <span className="truncate">{label}</span>
+      </p>
+      <p className="num text-[22px] font-semibold leading-8 tracking-tight text-fg">{value}</p>
+      {hint ? <p className="truncate text-[11px] text-fg-subtle">{hint}</p> : null}
     </div>
   );
 }
@@ -114,12 +108,14 @@ export function InfoList({ items, columns = 2, className }: { items: InfoItem[];
       )}
     >
       {items.map((item) => (
-        <div key={item.label} className="flex min-w-0 flex-col gap-0.5 border-b border-line/70 pb-2">
-          <dt className="flex items-center gap-1.5 text-[11px] text-fg-subtle">
-            {item.icon ? <Icon name={item.icon} size={13} /> : null}
+        <div key={item.label} className="flex min-w-0 flex-col gap-0.5">
+          <dt className="flex items-center gap-1.5 text-[10.5px] text-fg-subtle">
+            {item.icon ? <Icon name={item.icon} size={12} /> : null}
             {item.label}
           </dt>
-          <dd className="truncate text-[13px] text-fg">{item.value || '—'}</dd>
+          <dd className="truncate text-[12.5px] text-fg" title={typeof item.value === 'string' ? item.value : undefined}>
+            {item.value || '—'}
+          </dd>
         </div>
       ))}
     </dl>
@@ -129,12 +125,44 @@ export function InfoList({ items, columns = 2, className }: { items: InfoItem[];
 /** عنوان بخش داخل صفحه‌ها */
 export function SectionTitle({ title, subtitle, action }: { title: ReactNode; subtitle?: ReactNode; action?: ReactNode }) {
   return (
-    <div className="mb-3 flex items-end justify-between gap-3">
+    <div className="mb-2.5 flex items-end justify-between gap-3">
       <div>
-        <h2 className="text-sm font-semibold text-fg">{title}</h2>
+        <h2 className="text-[12.5px] font-semibold text-fg">{title}</h2>
         {subtitle ? <p className="mt-0.5 text-[11px] text-fg-subtle">{subtitle}</p> : null}
       </div>
       {action}
     </div>
+  );
+}
+
+export interface ProgressProps {
+  value: number;
+  max?: number;
+  tone?: Tone;
+  className?: string;
+  /** برچسب دسترس‌پذیری */
+  label?: string;
+}
+
+/** نوار پیشرفت باریک — پیشرفت مراحل پرونده و نرخ‌ها */
+export function Progress({ value, max = 100, tone = 'brand', className, label }: ProgressProps) {
+  const percent = max > 0 ? Math.min(100, Math.max(0, (value / max) * 100)) : 0;
+  return (
+    <span
+      className={cn('block h-1.5 w-full overflow-hidden rounded-full bg-card-2', className)}
+      role="progressbar"
+      aria-valuenow={value}
+      aria-valuemin={0}
+      aria-valuemax={max}
+      aria-label={label}
+    >
+      <span
+        className={cn(
+          'block h-full rounded-full transition-[width] duration-300',
+          tone === 'success' ? 'bg-success' : tone === 'warn' ? 'bg-warn' : tone === 'danger' ? 'bg-danger' : 'bg-brand-500',
+        )}
+        style={{ width: `${percent}%` }}
+      />
+    </span>
   );
 }

@@ -1,34 +1,38 @@
-/* مجموعه‌ها — شرکت‌ها و مالکان زمین + اتصال کاربران هر مجموعه
-   ساخت و حذف مجموعه برای سوپرادمین (یا دارنده دسترسی companies.*) و
-   اتصال کاربران برای دارنده companies.assign. */
+/* مجموعه‌ها — شرکت‌ها و مالکان زمین + اتصال کاربران هر مجموعه.
+   نمای اصلی فهرستی و فشرده است؛ آمار و راهنما در نوار خلاصه آمده‌اند. */
 
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import type { Company } from '../types';
 import { useAuth } from '../store/AuthProvider';
 import { useDb, useDbActions } from '../store/DataProvider';
 import type { CompanyDraft } from '../store/DataProvider';
 import { useToast } from '../store/ToastProvider';
 import { COMPANY_KIND_LABELS, COMPANY_KIND_OPTIONS } from '../data/labels';
-import { displayDigits, formatDate, formatNumber, formatRelative } from '../lib/format';
+import { displayDigits, formatDate, formatNumber } from '../lib/format';
 import { useListQuery } from '../lib/hooks';
 import { compareNumber, compareText } from '../lib/utils';
 import { Avatar, PageHeader } from '../components/ui/Avatar';
 import { Badge } from '../components/ui/Badge';
 import { Button } from '../components/ui/Button';
-import { StatCard } from '../components/ui/Card';
 import { Dropdown } from '../components/ui/Dropdown';
 import { EmptyState } from '../components/ui/EmptyState';
-import { Icon } from '../components/ui/Icon';
 import { ConfirmDialog, Modal } from '../components/ui/Modal';
 import { Pagination } from '../components/ui/Pagination';
 import { DataTable } from '../components/ui/Table';
 import type { Column } from '../components/ui/Table';
-import { FilterBar, FilterSelect, ResultsSummary, SearchInput } from '../components/ui/Toolbar';
+import {
+  ActiveFilterChip,
+  FilterField,
+  FilterSelect,
+  ListToolbar,
+  ResultsSummary,
+  SearchInput,
+} from '../components/ui/Toolbar';
 import { CompanyForm, companyToDraft, emptyCompanyDraft } from '../components/companies/CompanyForm';
 import { CompanyMembersDialog } from '../components/companies/CompanyMembersDialog';
 
 export default function CollectionsList() {
-  const { companies, users, audit, settings } = useDb();
+  const { companies, users, settings } = useDb();
   const { saveCompany, deleteCompany, setCompanyMembers } = useDbActions();
   const { can } = useAuth();
   const toast = useToast();
@@ -40,7 +44,6 @@ export default function CollectionsList() {
   const [saving, setSaving] = useState(false);
 
   const membersOf = (companyId: string) => users.filter((user) => user.companyId === companyId);
-  const usersWithoutCompany = useMemo(() => users.filter((user) => !user.companyId).length, [users]);
 
   const query = useListQuery<Company>(companies, {
     pageSize: settings.defaultPageSize,
@@ -89,68 +92,77 @@ export default function CollectionsList() {
       key: 'name',
       header: 'مجموعه',
       sortable: true,
+      sticky: true,
       cell: (company) => (
-        <div className="flex items-center gap-2.5">
-          <Avatar name={company.name} size={32} />
-          <div className="min-w-0">
-            <p className="truncate text-[12.5px] font-medium text-fg">{company.name}</p>
-            <p className="mt-0.5">
-              <Badge tone="neutral" size="sm" icon="building">
-                {COMPANY_KIND_LABELS[company.kind]}
-              </Badge>
-            </p>
-          </div>
+        <div className="flex min-w-0 items-center gap-2.5">
+          <Avatar name={company.name} size={26} />
+          <span className="truncate font-medium text-fg" title={company.name}>
+            {company.name}
+          </span>
         </div>
       ),
     },
     {
-      key: 'manager',
-      header: 'رابط مجموعه',
+      key: 'kind',
+      header: 'نوع',
+      widthClassName: 'w-[120px]',
       cell: (company) => (
-        <div className="min-w-0">
-          <p className="truncate text-[12px] text-fg">{company.managerName || '—'}</p>
-          <p className="num truncate text-[10.5px] text-fg-subtle" dir="ltr">
-            {company.mobile || company.phone || ''}
-          </p>
-        </div>
+        <Badge tone="neutral" size="sm">
+          {COMPANY_KIND_LABELS[company.kind]}
+        </Badge>
       ),
+    },
+    {
+      key: 'manager',
+      header: 'رابط',
+      widthClassName: 'w-[180px]',
       responsiveClass: 'hidden lg:table-cell',
+      cell: (company) => (
+        <span
+          className="block max-w-[170px] truncate text-fg-muted"
+          title={[company.managerName, company.mobile || company.phone].filter(Boolean).join(' — ')}
+        >
+          {company.managerName || <span className="text-fg-subtle">ثبت نشده</span>}
+          {company.mobile || company.phone ? (
+            <span className="num text-fg-subtle"> · {displayDigits(company.mobile || company.phone || '')}</span>
+          ) : null}
+        </span>
+      ),
     },
     {
       key: 'members',
       header: 'کاربران',
       sortable: true,
+      widthClassName: 'w-[90px]',
+      responsiveClass: 'hidden md:table-cell',
       cell: (company) => {
-        const members = membersOf(company.id);
+        const count = membersOf(company.id).length;
         return (
-          <div className="min-w-0">
-            <p className="num text-[12px] text-fg">{displayDigits(members.length)} کاربر</p>
-            <p className="truncate text-[10.5px] text-fg-subtle">
-              {members.length ? members.map((user) => user.fullName).slice(0, 2).join(' • ') : 'بدون کاربر'}
-            </p>
-          </div>
+          <span className="num" title={membersOf(company.id).map((user) => user.fullName).join('، ')}>
+            {displayDigits(count)}
+            <span className="text-[10.5px] text-fg-subtle"> کاربر</span>
+          </span>
         );
       },
     },
     {
       key: 'land',
       header: 'زمین',
+      widthClassName: 'w-[180px]',
+      responsiveClass: 'hidden xl:table-cell',
       cell: (company) => (
-        <div className="min-w-0">
-          <p className="num text-[12px] text-fg">
-            {company.plotCount ? `${formatNumber(company.plotCount)} قطعه` : '—'}
-          </p>
-          <p className="num truncate text-[10.5px] text-fg-subtle">
-            {company.totalArea ? `${formatNumber(company.totalArea)} متر` : ''}
-          </p>
-        </div>
+        <span className="num text-fg-muted">
+          {company.plotCount ? `${formatNumber(company.plotCount)} قطعه` : '—'}
+          {company.totalArea ? (
+            <span className="text-fg-subtle"> · {formatNumber(company.totalArea)} متر</span>
+          ) : null}
+        </span>
       ),
-      responsiveClass: 'hidden md:table-cell',
     },
     {
       key: 'active',
       header: 'وضعیت',
-      align: 'center',
+      widthClassName: 'w-[100px]',
       cell: (company) => (
         <Badge tone={company.active ? 'success' : 'neutral'} size="sm" dot>
           {company.active ? 'فعال' : 'غیرفعال'}
@@ -161,6 +173,7 @@ export default function CollectionsList() {
       key: 'actions',
       header: '',
       align: 'end',
+      widthClassName: 'w-12',
       cell: (company) => {
         const items = [
           ...(can('companies.assign')
@@ -196,22 +209,21 @@ export default function CollectionsList() {
               ]
             : []),
         ];
-        // اگر کاربر هیچ عملیاتی روی مجموعه نداشته باشد، منوی خالی نشان داده نمی‌شود
         return items.length ? <Dropdown label="عملیات مجموعه" items={items} /> : null;
       },
     },
   ];
 
-  const activeCount = companies.filter((company) => company.active).length;
-  const withMembers = companies.filter((company) => membersOf(company.id).length > 0).length;
+  const advancedCount = ['membership', 'state'].filter((key) => {
+    const value = query.filters[key];
+    return value && value !== 'all';
+  }).length;
 
   return (
     <div className="flex flex-col gap-4">
       <PageHeader
         title="مجموعه‌ها"
-        subtitle="شرکت‌ها و مالکان زمین؛ کاربران هر مجموعه را اینجا مدیریت کنید"
-        icon="building"
-        breadcrumbs={[{ label: 'داشبورد', to: '/' }, { label: 'مجموعه‌ها' }]}
+        subtitle="شرکت‌ها و مالکان زمین و کاربران متصل به هر مجموعه"
         actions={
           <>
             {can('users.view') ? (
@@ -221,84 +233,88 @@ export default function CollectionsList() {
             ) : null}
             {can('companies.create') ? (
               <Button variant="primary" icon="plus" onClick={() => setCreating(true)}>
-                افزودن مجموعه
+                مجموعه جدید
               </Button>
             ) : null}
           </>
         }
       />
 
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <StatCard
-          label="مجموعه‌های ثبت‌شده"
-          value={displayDigits(companies.length)}
-          hint={`${displayDigits(activeCount)} مجموعه فعال`}
-          icon="building"
-          tone="brand"
-        />
-        <StatCard
-          label="مجموعه‌های دارای کاربر"
-          value={displayDigits(withMembers)}
-          hint={`از ${displayDigits(companies.length)} مجموعه`}
-          icon="link"
-          tone="info"
-          onClick={() => query.setFilter('membership', 'with')}
-        />
-        <StatCard
-          label="کاربران متصل به مجموعه"
-          value={displayDigits(users.length - usersWithoutCompany)}
-          hint={`از مجموع ${displayDigits(users.length)} کاربر`}
-          icon="users"
-          tone="success"
-          onClick={() => query.setFilter('state', 'active')}
-        />
-        <StatCard
-          label="کاربران بدون مجموعه"
-          value={displayDigits(usersWithoutCompany)}
-          hint="بدون وابستگی به شرکت خاص"
-          icon="user"
-          tone="neutral"
-        />
-      </div>
-
-      <FilterBar actions={<ResultsSummary total={query.total} unit="مجموعه" />}>
-        <SearchInput
-          value={query.q}
-          onChange={query.setQ}
-          placeholder="جستجوی نام مجموعه، رابط، تلفن…"
-          className="w-full sm:w-64"
-        />
+      <ListToolbar
+        advancedCount={advancedCount}
+        summary={
+          <ResultsSummary
+            total={query.total}
+            unit={`از ${displayDigits(companies.length)} مجموعه`}
+          />
+        }
+        advanced={
+          <>
+            <FilterField label="وضعیت کاربران">
+              <FilterSelect
+                value={query.filters.membership ?? 'all'}
+                onChange={(value) => query.setFilter('membership', value)}
+                options={[
+                  { value: 'with', label: 'دارای کاربر' },
+                  { value: 'without', label: 'بدون کاربر' },
+                ]}
+                placeholder="همه"
+              />
+            </FilterField>
+            <FilterField label="وضعیت مجموعه">
+              <FilterSelect
+                value={query.filters.state ?? 'all'}
+                onChange={(value) => query.setFilter('state', value)}
+                options={[
+                  { value: 'active', label: 'فعال' },
+                  { value: 'inactive', label: 'غیرفعال' },
+                ]}
+                placeholder="همه"
+              />
+            </FilterField>
+            {query.hasActiveFilters ? (
+              <Button variant="ghost" size="sm" icon="refresh" onClick={query.clearAll}>
+                پاک‌کردن فیلترها
+              </Button>
+            ) : null}
+          </>
+        }
+        activeFilters={
+          query.hasActiveFilters ? (
+            <>
+              {query.q ? <ActiveFilterChip label={`جستجو: ${query.q}`} onRemove={() => query.setQ('')} /> : null}
+              {query.filters.kind && query.filters.kind !== 'all' ? (
+                <ActiveFilterChip
+                  label={`نوع: ${COMPANY_KIND_LABELS[query.filters.kind as Company['kind']]}`}
+                  onRemove={() => query.setFilter('kind', 'all')}
+                />
+              ) : null}
+              {query.filters.membership && query.filters.membership !== 'all' ? (
+                <ActiveFilterChip
+                  label={query.filters.membership === 'with' ? 'دارای کاربر' : 'بدون کاربر'}
+                  onRemove={() => query.setFilter('membership', 'all')}
+                />
+              ) : null}
+              {query.filters.state && query.filters.state !== 'all' ? (
+                <ActiveFilterChip
+                  label={query.filters.state === 'active' ? 'فعال' : 'غیرفعال'}
+                  onRemove={() => query.setFilter('state', 'all')}
+                />
+              ) : null}
+            </>
+          ) : null
+        }
+      >
+        <SearchInput value={query.q} onChange={query.setQ} placeholder="نام مجموعه، رابط یا تلفن…" />
         <FilterSelect
           value={query.filters.kind ?? 'all'}
           onChange={(value) => query.setFilter('kind', value)}
           options={COMPANY_KIND_OPTIONS}
           placeholder="همه نوع‌ها"
           icon="filter"
+          className="w-40"
         />
-        <FilterSelect
-          value={query.filters.membership ?? 'all'}
-          onChange={(value) => query.setFilter('membership', value)}
-          options={[
-            { value: 'with', label: 'دارای کاربر' },
-            { value: 'without', label: 'بدون کاربر' },
-          ]}
-          placeholder="وضعیت کاربران"
-        />
-        <FilterSelect
-          value={query.filters.state ?? 'all'}
-          onChange={(value) => query.setFilter('state', value)}
-          options={[
-            { value: 'active', label: 'فعال' },
-            { value: 'inactive', label: 'غیرفعال' },
-          ]}
-          placeholder="همه وضعیت‌ها"
-        />
-        {query.hasActiveFilters ? (
-          <Button variant="ghost" size="sm" icon="refresh" onClick={query.clearAll}>
-            پاک‌کردن فیلترها
-          </Button>
-        ) : null}
-      </FilterBar>
+      </ListToolbar>
 
       <div className="card overflow-hidden">
         <DataTable
@@ -315,7 +331,7 @@ export default function CollectionsList() {
               description={
                 query.hasActiveFilters
                   ? 'فیلترها را تغییر دهید.'
-                  : 'شرکت‌ها و مالکانی که قطعه‌زمین در اختیار دارند را اضافه کنید تا فرم‌هایشان سامان بگیرد.'
+                  : 'شرکت‌ها و مالکانی که قطعه‌زمین در اختیار دارند را اضافه کنید.'
               }
               action={
                 can('companies.create') ? (
@@ -341,22 +357,6 @@ export default function CollectionsList() {
         ) : null}
       </div>
 
-      <div className="card flex flex-wrap items-center gap-x-4 gap-y-2 p-3 text-[11.5px] text-fg-subtle">
-        <span className="flex items-center gap-1.5">
-          <Icon name="info" size={13} />
-          کاربر می‌تواند بدون مجموعه باشد؛ اتصال‌ها را از «اتصال کاربران» هر مجموعه تغییر دهید.
-        </span>
-        <span className="flex items-center gap-1.5">
-          <Icon name="clock" size={13} />
-          آخرین تغییر:{' '}
-          {audit.find((entry) => entry.entity === 'company')
-            ? `${audit.find((entry) => entry.entity === 'company')?.entityLabel ?? ''} — ${formatRelative(
-                audit.find((entry) => entry.entity === 'company')!.at,
-              )}`
-            : 'ثبت نشده'}
-        </span>
-      </div>
-
       <Modal
         open={creating || Boolean(editing)}
         onClose={() => {
@@ -364,7 +364,6 @@ export default function CollectionsList() {
           setEditing(null);
         }}
         size="lg"
-        icon="building"
         title={editing ? `ویرایش مجموعه: ${editing.name}` : 'افزودن مجموعه جدید'}
         description={
           editing

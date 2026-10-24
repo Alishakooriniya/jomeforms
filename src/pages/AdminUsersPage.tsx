@@ -11,6 +11,7 @@ import { Badge } from '../components/ui/Badge';
 import { Button } from '../components/ui/Button';
 import { Card, CardBody, CardHeader, StatCard } from '../components/ui/Card';
 import { Checkbox } from '../components/ui/Controls';
+import { Dropdown } from '../components/ui/Dropdown';
 import { EmptyState } from '../components/ui/EmptyState';
 import { TextInput } from '../components/ui/Field';
 import { DataTable } from '../components/ui/Table';
@@ -187,55 +188,73 @@ export default function AdminUsersPage() {
     {
       key: 'manager',
       header: 'مدیر',
+      sticky: true,
       cell: (admin) => (
-        <div className="flex items-center gap-2.5">
-          <Avatar name={admin.fullName} size={34} />
-          <div className="min-w-0">
-            <p className="truncate text-[13px] font-medium text-fg">{admin.fullName}</p>
-            <p dir="ltr" className="num truncate text-[11px] text-fg-subtle">{admin.username}</p>
-          </div>
+        <div className="flex min-w-0 items-center gap-2.5">
+          <Avatar name={admin.fullName} size={26} />
+          <span className="truncate font-medium text-fg" title={`${admin.fullName} — ${admin.username}`}>
+            {admin.fullName}
+          </span>
+          <span dir="ltr" className="num shrink-0 text-[10px] text-fg-subtle">
+            {admin.username}
+          </span>
         </div>
       ),
     },
     {
       key: 'status',
       header: 'وضعیت',
-      cell: (admin) => <Badge tone={admin.active ? 'success' : 'neutral'}>{admin.active ? 'فعال' : 'غیرفعال'}</Badge>,
+      cell: (admin) => (
+        <Badge tone={admin.active ? 'success' : 'neutral'} size="sm" dot>
+          {admin.active ? 'فعال' : 'غیرفعال'}
+        </Badge>
+      ),
     },
     {
       key: 'lastLoginAt',
       header: 'آخرین ورود',
-      cell: (admin) => admin.lastLoginAt ? formatDate(admin.lastLoginAt) : 'هنوز وارد نشده',
+      cell: (admin) => (
+        <span className="num text-[11px] text-fg-subtle">
+          {admin.lastLoginAt ? formatDate(admin.lastLoginAt) : 'هنوز وارد نشده'}
+        </span>
+      ),
     },
     {
       key: 'permissions',
       header: 'دسترسی',
-      cell: (admin) => <span className="num">{displayDigits(admin.permissions.length)}</span>,
+      cell: (admin) => (
+        <span className="num text-fg-muted">
+          {displayDigits(admin.permissions.filter((permission) => permission !== '*').length)}
+        </span>
+      ),
     },
     {
       key: 'actions',
-      header: 'عملیات',
+      header: '',
+      align: 'end',
+      widthClassName: 'w-12',
       cell: (admin) => (
-        <div className="flex flex-wrap items-center gap-1">
-          <Button size="sm" variant="ghost" icon="history" onClick={() => void loadActivity(admin)}>عملکرد</Button>
-          <Button size="sm" variant="secondary" icon="edit" onClick={() => openEdit(admin)}>ویرایش</Button>
-          <Button
-            size="sm"
-            variant="soft"
-            icon={admin.active ? 'lock' : 'check'}
-            onClick={() => setPendingAction({ user: admin, kind: admin.active ? 'deactivate' : 'activate' })}
-          >
-            {admin.active ? 'غیرفعال‌سازی' : 'فعال‌سازی'}
-          </Button>
-          <Button
-            size="sm"
-            variant="danger"
-            icon="trash"
-            onClick={() => setPendingAction({ user: admin, kind: 'delete' })}
-          >
-            حذف دائمی
-          </Button>
-        </div>
+        <Dropdown
+          label="عملیات مدیر"
+          items={[
+            { id: 'activity', label: 'مشاهده عملکرد', icon: 'history', onSelect: () => void loadActivity(admin) },
+            { id: 'edit', label: 'ویرایش و دسترسی‌ها', icon: 'edit', onSelect: () => openEdit(admin) },
+            {
+              id: 'toggle',
+              label: admin.active ? 'غیرفعال‌سازی حساب' : 'فعال‌سازی حساب',
+              icon: admin.active ? 'lock' : 'check',
+              onSelect: () => setPendingAction({ user: admin, kind: admin.active ? 'deactivate' : 'activate' }),
+            },
+            { id: 'sep', label: '', separator: true, onSelect: () => {} },
+            {
+              id: 'delete',
+              label: 'حذف دائمی',
+              icon: 'trash',
+              danger: true,
+              onSelect: () => setPendingAction({ user: admin, kind: 'delete' }),
+            },
+          ]}
+        />
       ),
     },
   ];
@@ -249,9 +268,7 @@ export default function AdminUsersPage() {
     <div className="flex flex-col gap-4">
       <PageHeader
         title="مدیریت مدیران"
-        subtitle="ساخت حساب مدیر، تنظیم دسترسی‌ها، مشاهده فعالیت و مدیریت وضعیت حساب"
-        icon="user-cog"
-        breadcrumbs={[{ label: 'داشبورد', to: '/' }, { label: 'مدیریت مدیران' }]}
+        subtitle="حساب مدیران، دسترسی‌ها و سابقه فعالیت"
         actions={<Button variant="primary" icon="plus" onClick={openCreate}>مدیر جدید</Button>}
       />
 

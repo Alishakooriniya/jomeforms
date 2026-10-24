@@ -59,37 +59,35 @@ export interface PageHeaderProps {
   className?: string;
 }
 
-export function PageHeader({ title, subtitle, icon, actions, breadcrumbs, className }: PageHeaderProps) {
+export function PageHeader({ title, subtitle, actions, breadcrumbs, className }: PageHeaderProps) {
+  /* مسیر (breadcrumb) فقط برای صفحه‌های عمیق‌تر از یک سطح نمایش داده می‌شود؛
+     صفحه‌های اصلی فهرست به مسیر اضافی نیاز ندارند. */
+  const crumbs = breadcrumbs && breadcrumbs.length > 2 ? breadcrumbs : null;
+
   return (
-    <header className={cn('flex flex-col gap-3', className)}>
-      {breadcrumbs?.length ? (
-        <nav aria-label="مسیر" className="flex flex-wrap items-center gap-1 text-[11.5px] text-fg-subtle">
-          {breadcrumbs.map((crumb, index) => (
+    <header className={cn('flex flex-col gap-2', className)}>
+      {crumbs ? (
+        <nav aria-label="مسیر" className="flex flex-wrap items-center gap-1 text-[11px] text-fg-subtle">
+          {crumbs.slice(0, -1).map((crumb, index) => (
             <span key={`${crumb.label}-${index}`} className="flex items-center gap-1">
               {crumb.to ? (
                 <Link to={crumb.to} className="transition-colors hover:text-fg">
                   {crumb.label}
                 </Link>
               ) : (
-                <span className="text-fg-muted">{crumb.label}</span>
+                <span>{crumb.label}</span>
               )}
-              {index < breadcrumbs.length - 1 ? <Icon name="chevron-left" size={12} /> : null}
+              <Icon name="chevron-left" size={11} />
             </span>
           ))}
+          <span className="text-fg-muted">{crumbs[crumbs.length - 1]?.label}</span>
         </nav>
       ) : null}
 
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="flex items-start gap-3">
-          {icon ? (
-            <span className="mt-0.5 flex h-10 w-10 items-center justify-center rounded-card bg-brand-50 text-brand-600 dark:bg-brand-500/12 dark:text-brand-300">
-              <Icon name={icon} size={20} />
-            </span>
-          ) : null}
-          <div>
-            <h1 className="text-lg font-semibold text-fg sm:text-xl">{title}</h1>
-            {subtitle ? <p className="mt-1 text-[14px] leading-6 text-fg-muted">{subtitle}</p> : null}
-          </div>
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div className="min-w-0">
+          <h1 className="truncate text-[21px] font-semibold leading-tight tracking-tight text-fg">{title}</h1>
+          {subtitle ? <div className="mt-1 text-[12.5px] leading-6 text-fg-muted">{subtitle}</div> : null}
         </div>
         {actions ? <div className="flex flex-wrap items-center gap-2">{actions}</div> : null}
       </div>
