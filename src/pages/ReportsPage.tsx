@@ -6,11 +6,9 @@ import { useAuth } from '../store/AuthProvider';
 import { useDb } from '../store/DataProvider';
 import { useToast } from '../store/ToastProvider';
 import {
-  CLIENT_STATUS_LABELS,
   CLIENT_STATUS_OPTIONS,
   CLIENT_STATUS_TONE,
   CLIENT_CASE_TYPE_LABELS,
-  CLIENT_CASE_TYPE_OPTIONS,
   DOC_STATUS_LABELS,
 } from '../data/labels';
 import { displayDigits, jalaliMonthKey, lastJalaliMonths } from '../lib/format';
@@ -163,6 +161,7 @@ export default function ReportsPage() {
       key: 'name',
       header: 'کارشناس',
       sortable: true,
+      sticky: true,
       cell: (row) => (
         <button type="button" className="text-[12.5px] text-fg hover:text-brand-700" onClick={() => query.setQ(row.name)}>
           {row.name}
@@ -196,9 +195,7 @@ export default function ReportsPage() {
     <div className="flex flex-col gap-4">
       <PageHeader
         title="گزارش‌ها"
-        subtitle="تصویر کلی از پرونده‌ها و اسناد ثبت‌شده"
-        icon="chart"
-        breadcrumbs={[{ label: 'داشبورد', to: '/' }, { label: 'گزارش‌ها' }]}
+        subtitle="تصویر کلی از پرونده‌ها، اسناد و عملکرد همکاران"
         actions={
           can('reports.export') ? (
             <Button variant="secondary" icon="download" onClick={handleExport}>
@@ -240,7 +237,7 @@ export default function ReportsPage() {
         />
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-[1.5fr_1fr]">
+      <div className="grid gap-4 lg:grid-cols-[1.5fr_1fr] [&>*]:min-w-0">
         <Card>
           <CardHeader
             title="روند شش‌ماهه"
@@ -264,7 +261,7 @@ export default function ReportsPage() {
         </Card>
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-2">
+      <div className="grid gap-4 lg:grid-cols-2 [&>*]:min-w-0">
         <Card>
           <CardHeader title="گروه درخواست‌ها" icon="users" />
           <CardBody>
@@ -305,6 +302,20 @@ export default function ReportsPage() {
         </Card>
       </div>
 
+      <Card>
+        <CardHeader title="وضعیت اسناد" subtitle="توزیع اسناد در مراحل چاپ، امضا و بایگانی" icon="clipboard" />
+        <div className="grid grid-cols-2 gap-px bg-line/60 sm:grid-cols-3 lg:grid-cols-5">
+          {(Object.keys(DOC_STATUS_LABELS) as Array<keyof typeof DOC_STATUS_LABELS>).map((status) => (
+            <div key={status} className="bg-card px-3 py-2.5">
+              <p className="text-[10.5px] text-fg-subtle">{DOC_STATUS_LABELS[status]}</p>
+              <p className="num mt-0.5 text-[16px] font-semibold text-fg">
+                {displayDigits(documents.filter((document) => document.status === status).length)}
+              </p>
+            </div>
+          ))}
+        </div>
+      </Card>
+
       <div className="card overflow-hidden">
         <CardHeader title="ثبت‌کنندگان پرونده و سند" subtitle="بر پایه پرونده‌ها و اسناد ثبت‌شده" icon="user-cog" />
         <DataTable
@@ -330,41 +341,6 @@ export default function ReportsPage() {
         ) : null}
       </div>
 
-      <Card>
-        <CardHeader title="خلاصه وضعیت اسناد" icon="clipboard" />
-        <CardBody className="grid gap-2 sm:grid-cols-3 lg:grid-cols-5">
-          {(Object.keys(DOC_STATUS_LABELS) as Array<keyof typeof DOC_STATUS_LABELS>).map((status) => (
-            <div key={status} className="rounded-field border border-line bg-card-2/50 p-3">
-              <p className="text-[11.5px] text-fg-muted">{DOC_STATUS_LABELS[status]}</p>
-              <p className="num mt-1 text-lg font-semibold text-fg">
-                {displayDigits(documents.filter((document) => document.status === status).length)}
-              </p>
-            </div>
-          ))}
-        </CardBody>
-      </Card>
-
-      <Card>
-        <CardHeader title="خلاصه گروه درخواست‌ها" icon="clipboard" />
-        <CardBody className="flex flex-wrap gap-2">
-          {CLIENT_CASE_TYPE_OPTIONS.map(({ value, label }) => (
-            <span key={value} className="chip">
-              {label}
-              <span className="num text-fg">
-                {displayDigits(clients.filter((client) => (client.caseType ?? 'document_request') === value).length)}
-              </span>
-            </span>
-          ))}
-          {Object.entries(CLIENT_STATUS_LABELS).map(([status, label]) => (
-            <span key={status} className="chip">
-              {label}
-              <span className="num text-fg">
-                {displayDigits(clients.filter((client) => client.status === status).length)}
-              </span>
-            </span>
-          ))}
-        </CardBody>
-      </Card>
     </div>
   );
 }

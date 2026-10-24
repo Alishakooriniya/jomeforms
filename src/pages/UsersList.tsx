@@ -6,9 +6,9 @@ import type { User } from '../types';
 import { useAuth } from '../store/AuthProvider';
 import { useDb, useDbActions } from '../store/DataProvider';
 import { useToast } from '../store/ToastProvider';
-import { ALL_PERMISSIONS, PERMISSION_GROUPS, summarizePermissions } from '../data/permissions';
-import { COMPANY_KIND_LABELS, ROLE_LABELS } from '../data/labels';
-import { displayDigits, formatRelative } from '../lib/format';
+import { PERMISSION_GROUPS, summarizePermissions } from '../data/permissions';
+import { ROLE_LABELS } from '../data/labels';
+import { formatDate, formatRelative } from '../lib/format';
 import { useListQuery } from '../lib/hooks';
 import { compareText } from '../lib/utils';
 import { Avatar, PageHeader } from '../components/ui/Avatar';
@@ -16,13 +16,19 @@ import { Badge } from '../components/ui/Badge';
 import { Button } from '../components/ui/Button';
 import { Dropdown } from '../components/ui/Dropdown';
 import { EmptyState } from '../components/ui/EmptyState';
-import { Icon } from '../components/ui/Icon';
 import { ConfirmDialog } from '../components/ui/Modal';
 import { Pagination } from '../components/ui/Pagination';
 import { Switch } from '../components/ui/Controls';
 import { DataTable } from '../components/ui/Table';
 import type { Column } from '../components/ui/Table';
-import { FilterBar, FilterSelect, ResultsSummary, SearchInput } from '../components/ui/Toolbar';
+import {
+  ActiveFilterChip,
+  FilterField,
+  FilterSelect,
+  ListToolbar,
+  ResultsSummary,
+  SearchInput,
+} from '../components/ui/Toolbar';
 
 export default function UsersList() {
   const { users, companies } = useDb();
@@ -61,23 +67,27 @@ export default function UsersList() {
     },
   });
 
+  const advancedCount = ['permissionGroup', 'company', 'state'].filter((key) => {
+    const value = query.filters[key];
+    return value && value !== 'all';
+  }).length;
+
   const columns: Array<Column<User>> = [
     {
       key: 'fullName',
       header: 'کاربر',
       sortable: true,
+      sticky: true,
       cell: (user) => (
-        <div className="flex items-center gap-2.5">
-          <Avatar name={user.fullName} size={34} />
-          <div className="min-w-0">
-            <p className="truncate text-[12.5px] font-medium text-fg">
-              {user.fullName}
-              {user.id === currentUser?.id ? <span className="ms-1 text-[10.5px] text-fg-subtle">(شما)</span> : null}
-            </p>
-            <p className="num truncate text-[10.5px] text-fg-subtle" dir="ltr">
-              {user.username}
-            </p>
-          </div>
+        <div className="flex min-w-0 items-center gap-2.5">
+          <Avatar name={user.fullName} size={26} />
+          <span className="truncate font-medium text-fg" title={`${user.fullName} — ${user.username}`}>
+            {user.fullName}
+          </span>
+          {user.id === currentUser?.id ? <span className="shrink-0 text-[10px] text-fg-subtle">(شما)</span> : null}
+          <span className="num shrink-0 text-[10px] text-fg-subtle" dir="ltr">
+            {user.username}
+          </span>
         </div>
       ),
     },
@@ -85,12 +95,13 @@ export default function UsersList() {
       key: 'role',
       header: 'نقش',
       cell: (user) => (
-        <div className="flex flex-col gap-1">
-          <Badge tone={user.role === 'superadmin' ? 'brand' : 'neutral'} size="sm" icon={user.role === 'superadmin' ? 'shield' : undefined}>
-            {ROLE_LABELS[user.role]}
-          </Badge>
-          {user.title ? <span className="text-[10.5px] text-fg-subtle">{user.title}</span> : null}
-        </div>
+        <Badge
+          tone={user.role === 'superadmin' ? 'brand' : 'neutral'}
+          size="sm"
+          icon={user.role === 'superadmin' ? 'shield' : undefined}
+        >
+          {ROLE_LABELS[user.role]}
+        </Badge>
       ),
     },
     {
@@ -98,12 +109,12 @@ export default function UsersList() {
       header: 'مجموعه',
       cell: (user) => {
         const company = companyOf(user.companyId);
-        if (!company) return <span className="text-[11.5px] text-fg-subtle">بدون مجموعه</span>;
-        return (
-          <div className="flex min-w-0 flex-col gap-0.5">
-            <span className="truncate text-[12px] text-fg">{company.name}</span>
-            <span className="truncate text-[10.5px] text-fg-subtle">{COMPANY_KIND_LABELS[company.kind]}</span>
-          </div>
+        return company ? (
+          <span className="block max-w-[140px] truncate text-fg-muted" title={company.name}>
+            {company.name}
+          </span>
+        ) : (
+          <span className="text-fg-subtle">بدون مجموعه</span>
         );
       },
       responsiveClass: 'hidden md:table-cell',
@@ -112,34 +123,14 @@ export default function UsersList() {
       key: 'permissions',
       header: 'دسترسی‌ها',
       sortable: true,
-      cell: (user) => (
-        <div className="flex flex-col gap-1">
-          <span className="text-[11.5px] text-fg-muted">
-            {summarizePermissions(user.permissions, user.role === 'superadmin')}
+      cell: (user) => {
+        const summary = summarizePermissions(user.permissions, user.role === 'superadmin');
+        return (
+          <span className="block max-w-[200px] truncate text-fg-muted" title={summary}>
+            {summary}
           </span>
-          {user.role !== 'superadmin' ? (
-            <span className="flex flex-wrap gap-1">
-              {PERMISSION_GROUPS.filter((group) => group.perms.some((permission) => user.permissions.includes(permission.key)))
-                .slice(0, 3)
-                .map((group) => (
-                  <span key={group.id} className="rounded-full bg-card-2 px-1.5 py-0.5 text-[9.5px] text-fg-subtle">
-                    {group.label}
-                  </span>
-                ))}
-              {PERMISSION_GROUPS.filter((group) => group.perms.some((permission) => user.permissions.includes(permission.key)))
-                .length > 3 ? (
-                <span className="rounded-full bg-card-2 px-1.5 py-0.5 text-[9.5px] text-fg-subtle">
-                  +{displayDigits(
-                    PERMISSION_GROUPS.filter((group) =>
-                      group.perms.some((permission) => user.permissions.includes(permission.key)),
-                    ).length - 3,
-                  )}
-                </span>
-              ) : null}
-            </span>
-          ) : null}
-        </div>
-      ),
+        );
+      },
       responsiveClass: 'hidden lg:table-cell',
     },
     {
@@ -147,7 +138,7 @@ export default function UsersList() {
       header: 'آخرین ورود',
       sortable: true,
       cell: (user) => (
-        <span className="text-[11.5px] text-fg-muted">
+        <span className="text-[11px] text-fg-subtle" title={user.lastLoginAt ? formatDate(user.lastLoginAt, 'datetime') : undefined}>
           {user.lastLoginAt ? formatRelative(user.lastLoginAt) : 'ورود نداشته'}
         </span>
       ),
@@ -168,7 +159,7 @@ export default function UsersList() {
             }}
             id={`active-${user.id}`}
           />
-          <span className="text-[11px] text-fg-muted">{user.active ? 'فعال' : 'غیرفعال'}</span>
+          <span className="text-[10.5px] text-fg-subtle">{user.active ? 'فعال' : 'غیرفعال'}</span>
         </div>
       ),
     },
@@ -227,10 +218,8 @@ export default function UsersList() {
   return (
     <div className="flex flex-col gap-4">
       <PageHeader
-        title="کاربران سامانه"
-        subtitle="افزودن مدیر، تعیین دسترسی دقیق و فعال/غیرفعال‌کردن حساب‌ها"
-        icon="user-cog"
-        breadcrumbs={[{ label: 'داشبورد', to: '/' }, { label: 'کاربران' }]}
+        title="کاربران"
+        subtitle="مدیران سامانه، دسترسی‌ها و وضعیت حساب‌ها"
         actions={
           <>
             {can('roles.view') ? (
@@ -247,13 +236,81 @@ export default function UsersList() {
         }
       />
 
-      <FilterBar actions={<ResultsSummary total={query.total} unit="کاربر" />}>
-        <SearchInput
-          value={query.q}
-          onChange={query.setQ}
-          placeholder="جستجوی نام، نام کاربری، سمت…"
-          className="w-full sm:w-64"
-        />
+      <ListToolbar
+        advancedCount={advancedCount}
+        summary={<ResultsSummary total={query.total} unit="کاربر" />}
+        advanced={
+          <>
+            <FilterField label="دسترسی به بخش">
+              <FilterSelect
+                value={query.filters.permissionGroup ?? 'all'}
+                onChange={(value) => query.setFilter('permissionGroup', value)}
+                options={PERMISSION_GROUPS.map((group) => ({ value: group.id, label: group.label }))}
+                placeholder="همه بخش‌ها"
+              />
+            </FilterField>
+            <FilterField label="مجموعه">
+              <FilterSelect
+                value={query.filters.company ?? 'all'}
+                onChange={(value) => query.setFilter('company', value)}
+                options={[
+                  { value: 'none', label: 'بدون مجموعه' },
+                  ...companies.map((company) => ({ value: company.id, label: company.name })),
+                ]}
+                placeholder="همه مجموعه‌ها"
+              />
+            </FilterField>
+            <FilterField label="وضعیت">
+              <FilterSelect
+                value={query.filters.state ?? 'all'}
+                onChange={(value) => query.setFilter('state', value)}
+                options={[
+                  { value: 'active', label: 'فعال' },
+                  { value: 'inactive', label: 'غیرفعال' },
+                ]}
+                placeholder="همه"
+              />
+            </FilterField>
+            {query.hasActiveFilters ? (
+              <Button variant="ghost" size="sm" icon="refresh" onClick={query.clearAll}>
+                پاک‌کردن فیلترها
+              </Button>
+            ) : null}
+          </>
+        }
+        activeFilters={
+          query.hasActiveFilters ? (
+            <>
+              {query.q ? <ActiveFilterChip label={`جستجو: ${query.q}`} onRemove={() => query.setQ('')} /> : null}
+              {query.filters.role && query.filters.role !== 'all' ? (
+                <ActiveFilterChip
+                  label={`نقش: ${ROLE_LABELS[query.filters.role as User['role']]}`}
+                  onRemove={() => query.setFilter('role', 'all')}
+                />
+              ) : null}
+              {query.filters.permissionGroup && query.filters.permissionGroup !== 'all' ? (
+                <ActiveFilterChip
+                  label={`دسترسی: ${PERMISSION_GROUPS.find((group) => group.id === query.filters.permissionGroup)?.label ?? ''}`}
+                  onRemove={() => query.setFilter('permissionGroup', 'all')}
+                />
+              ) : null}
+              {query.filters.company && query.filters.company !== 'all' ? (
+                <ActiveFilterChip
+                  label={`مجموعه: ${query.filters.company === 'none' ? 'بدون مجموعه' : companyOf(query.filters.company)?.name ?? ''}`}
+                  onRemove={() => query.setFilter('company', 'all')}
+                />
+              ) : null}
+              {query.filters.state && query.filters.state !== 'all' ? (
+                <ActiveFilterChip
+                  label={query.filters.state === 'active' ? 'فعال' : 'غیرفعال'}
+                  onRemove={() => query.setFilter('state', 'all')}
+                />
+              ) : null}
+            </>
+          ) : null
+        }
+      >
+        <SearchInput value={query.q} onChange={query.setQ} placeholder="نام، نام کاربری یا سمت…" />
         <FilterSelect
           value={query.filters.role ?? 'all'}
           onChange={(value) => query.setFilter('role', value)}
@@ -263,37 +320,9 @@ export default function UsersList() {
           ]}
           placeholder="همه نقش‌ها"
           icon="filter"
+          className="w-40"
         />
-        <FilterSelect
-          value={query.filters.permissionGroup ?? 'all'}
-          onChange={(value) => query.setFilter('permissionGroup', value)}
-          options={PERMISSION_GROUPS.map((group) => ({ value: group.id, label: `دسترسی ${group.label}` }))}
-          placeholder="دسترسی به بخش…"
-        />
-        <FilterSelect
-          value={query.filters.company ?? 'all'}
-          onChange={(value) => query.setFilter('company', value)}
-          options={[
-            { value: 'none', label: 'بدون مجموعه' },
-            ...companies.map((company) => ({ value: company.id, label: company.name })),
-          ]}
-          placeholder="همه مجموعه‌ها"
-        />
-        <FilterSelect
-          value={query.filters.state ?? 'all'}
-          onChange={(value) => query.setFilter('state', value)}
-          options={[
-            { value: 'active', label: 'فعال' },
-            { value: 'inactive', label: 'غیرفعال' },
-          ]}
-          placeholder="همه وضعیت‌ها"
-        />
-        {query.hasActiveFilters ? (
-          <Button variant="ghost" size="sm" icon="refresh" onClick={query.clearAll}>
-            پاک‌کردن فیلترها
-          </Button>
-        ) : null}
-      </FilterBar>
+      </ListToolbar>
 
       <div className="card overflow-hidden">
         <DataTable
@@ -334,18 +363,6 @@ export default function UsersList() {
             />
           </div>
         ) : null}
-      </div>
-
-      <div className="card flex flex-wrap items-center gap-3 p-3 text-[11.5px] text-fg-subtle">
-        <span className="flex items-center gap-1.5">
-          <Icon name="info" size={13} />
-          {displayDigits(ALL_PERMISSIONS.length)} دسترسی در {displayDigits(PERMISSION_GROUPS.length)} بخش قابل تنظیم است.
-        </span>
-        <span className="flex items-center gap-1.5">
-          <Icon name="shield" size={13} />
-          {displayDigits(users.filter((user) => user.role === 'superadmin').length)} مدیر ارشد •{' '}
-          {displayDigits(users.filter((user) => user.role === 'admin').length)} مدیر
-        </span>
       </div>
 
       <ConfirmDialog

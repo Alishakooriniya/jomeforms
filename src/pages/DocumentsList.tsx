@@ -1,4 +1,4 @@
-/* فهرست اسناد و فرم‌های تکمیل‌شده */
+/* فهرست اسناد و فرم‌های تکمیل‌شده — نمای فشرده با فیلترهای اصلی و پیشرفته */
 
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
@@ -21,12 +21,19 @@ import { ConfirmDialog } from '../components/ui/Modal';
 import { Pagination } from '../components/ui/Pagination';
 import { DataTable } from '../components/ui/Table';
 import type { Column } from '../components/ui/Table';
-import { ActiveFilterChip, FilterBar, FilterSelect, ResultsSummary, SearchInput } from '../components/ui/Toolbar';
+import {
+  ActiveFilterChip,
+  FilterField,
+  FilterSelect,
+  ListToolbar,
+  ResultsSummary,
+  SearchInput,
+} from '../components/ui/Toolbar';
 import { PageHeader } from '../components/ui/Avatar';
 import { JalaliDatePicker } from '../components/ui/JalaliDatePicker';
 
 export default function DocumentsList() {
-  const { documents, templates, settings } = useDb();
+  const { documents, templates, settings, clients } = useDb();
   const { deleteDocument, setDocumentStatus } = useDbActions();
   const { can } = useAuth();
   const toast = useToast();
@@ -49,6 +56,7 @@ export default function DocumentsList() {
     filters: {
       status: (document, value) => document.status === value,
       templateId: (document, value) => document.templateId === value,
+      clientId: (document, value) => document.clientId === value,
       createdBy: (document, value) => document.createdBy === value,
       from: (document, value) => {
         const date = jalaliToGregorianIso(value);
@@ -68,30 +76,30 @@ export default function DocumentsList() {
   });
 
   const { setFilter } = query;
-  // فیلترهای ورودی از طریق نشانی (داشبورد، پرونده، ...)
   const statusParam = searchParams.get('status');
   const clientParam = searchParams.get('client');
   const templateParam = searchParams.get('template');
+
   useEffect(() => {
-    if (statusParam) setFilter('status', statusParam);
+    if (statusParam && statusParam in DOC_STATUS_LABELS) setFilter('status', statusParam);
     if (templateParam) setFilter('templateId', templateParam);
-  }, [statusParam, templateParam, setFilter]);
-
-  const clientFiltered = useMemo(
-    () => (clientParam ? documents.filter((document) => document.clientId === clientParam) : null),
-    [documents, clientParam],
-  );
-
-  const rows = clientFiltered ?? query.rows;
-  const pagedRows = clientFiltered
-    ? clientFiltered.slice((query.page - 1) * query.pageSize, query.page * query.pageSize)
-    : query.pageRows;
-  const total = clientFiltered ? clientFiltered.length : query.total;
+    if (clientParam) setFilter('clientId', clientParam);
+  }, [statusParam, templateParam, clientParam, setFilter]);
 
   const templateOptions = useMemo(
     () => templates.map((template) => ({ value: template.id, label: template.title })),
     [templates],
   );
+
+  const clientName = useMemo(
+    () => clients.find((client) => client.id === query.filters.clientId)?.fullName ?? '',
+    [clients, query.filters.clientId],
+  );
+
+  const advancedCount = ['templateId', 'from', 'to'].filter((key) => {
+    const value = query.filters[key];
+    return value && value !== 'all';
+  }).length;
 
   const handlePrint = (document: DocRecord) => {
     const template = templates.find((item) => item.id === document.templateId);
@@ -107,7 +115,7 @@ export default function DocumentsList() {
     exportCsv(
       `documents-${jalaliDateFromDate(new Date()).replaceAll('/', '-')}.csv`,
       ['شماره سند', 'عنوان', 'پرونده', 'وضعیت', 'اسکن', 'سازنده', 'تاریخ ثبت'],
-      rows.map((document) => [
+      query.rows.map((document) => [
         document.number,
         document.title,
         document.clientName ?? '',
@@ -125,26 +133,27 @@ export default function DocumentsList() {
       key: 'title',
       header: 'سند',
       sortable: true,
+      sticky: true,
       cell: (document) => (
-        <div className="flex items-center gap-2.5">
-          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-field bg-brand-50 text-brand-600 dark:bg-brand-500/12 dark:text-brand-300">
-            <span className="text-[10.5px] font-medium">{displayDigits(document.number.split('-').pop() ?? '')}</span>
+        <div className="flex min-w-0 items-center gap-2">
+          <span className="truncate font-medium text-fg" title={document.title}>
+            {document.title}
           </span>
-          <div className="min-w-0">
-            <p className="truncate text-[12.5px] font-medium text-fg">{document.title}</p>
-            <p className="num truncate text-[10.5px] text-fg-subtle">{formatCode(document.number)}</p>
-          </div>
+          <span className="num shrink-0 text-[10.5px] text-fg-subtle">{formatCode(document.number)}</span>
         </div>
       ),
     },
     {
       key: 'client',
       header: 'پرونده',
+      widthClassName: 'w-[170px]',
+      responsiveClass: 'hidden md:table-cell',
       cell: (document) =>
         document.clientName ? (
           <button
             type="button"
-            className="link text-[12px]"
+            className="block max-w-[160px] truncate text-start text-brand-700 hover:underline dark:text-brand-300"
+            title={document.clientName}
             onClick={(event) => {
               event.stopPropagation();
               navigate(`/clients/${document.clientId}`);
@@ -153,14 +162,14 @@ export default function DocumentsList() {
             {document.clientName}
           </button>
         ) : (
-          <span className="text-[11.5px] text-fg-subtle">بدون پرونده</span>
+          <span className="text-fg-subtle">بدون پرونده</span>
         ),
-      responsiveClass: 'hidden md:table-cell',
     },
     {
       key: 'status',
       header: 'وضعیت',
       sortable: true,
+      widthClassName: 'w-[120px]',
       cell: (document) => (
         <Badge tone={DOC_STATUS_TONE[document.status]} size="sm" dot>
           {DOC_STATUS_LABELS[document.status]}
@@ -171,30 +180,42 @@ export default function DocumentsList() {
       key: 'scans',
       header: 'اسکن',
       align: 'center',
+      widthClassName: 'w-[70px]',
+      responsiveClass: 'hidden lg:table-cell',
       cell: (document) => (
-        <span className="num text-[12px] text-fg-muted">
+        <span className="num text-[11px] text-fg-muted">
           {document.scanIds.length ? displayDigits(document.scanIds.length) : '—'}
         </span>
       ),
-      responsiveClass: 'hidden lg:table-cell',
     },
     {
       key: 'createdAt',
       header: 'تاریخ ثبت',
       sortable: true,
-      cell: (document) => <span className="text-[11.5px] text-fg-muted">{formatDate(document.createdAt)}</span>,
+      widthClassName: 'w-[110px]',
       responsiveClass: 'hidden sm:table-cell',
+      cell: (document) => (
+        <span className="num text-[11px] text-fg-subtle" title={formatDate(document.createdAt, 'datetime')}>
+          {formatDate(document.createdAt)}
+        </span>
+      ),
     },
     {
       key: 'createdBy',
       header: 'ثبت‌کننده',
-      cell: (document) => <span className="text-[11.5px] text-fg-muted">{document.createdByName}</span>,
+      widthClassName: 'w-[120px]',
       responsiveClass: 'hidden xl:table-cell',
+      cell: (document) => (
+        <span className="block max-w-[110px] truncate text-[11px] text-fg-muted" title={document.createdByName}>
+          {document.createdByName}
+        </span>
+      ),
     },
     {
       key: 'actions',
       header: '',
       align: 'end',
+      widthClassName: 'w-12',
       cell: (document) => (
         <Dropdown
           label="عملیات سند"
@@ -235,18 +256,23 @@ export default function DocumentsList() {
     },
   ];
 
+  const clearClientParam = () => {
+    const next = new URLSearchParams(searchParams);
+    next.delete('client');
+    setSearchParams(next, { replace: true });
+    query.setFilter('clientId', 'all');
+  };
+
   return (
     <div className="flex flex-col gap-4">
       <PageHeader
         title="اسناد و فرم‌ها"
-        subtitle="سند ساخته‌شده از قالب‌ها، آماده چاپ، امضا و بایگانی اسکن"
-        icon="file-text"
-        breadcrumbs={[{ label: 'داشبورد', to: '/' }, { label: 'اسناد' }]}
+        subtitle="اسناد ساخته‌شده از قالب‌ها؛ آماده چاپ، امضا و بایگانی اسکن"
         actions={
           <>
             {can('documents.export') ? (
-              <Button variant="secondary" icon="download" onClick={handleExport} disabled={!rows.length}>
-                خروجی CSV
+              <Button variant="secondary" icon="download" onClick={handleExport} disabled={!query.rows.length}>
+                خروجی
               </Button>
             ) : null}
             {can('documents.create') ? (
@@ -258,28 +284,77 @@ export default function DocumentsList() {
         }
       />
 
-      {clientParam ? (
-        <div className="flex flex-wrap items-center gap-2 rounded-card border border-line bg-brand-50/60 px-3 py-2 text-[12px] text-brand-800 dark:bg-brand-500/10 dark:text-brand-200">
-          <span>فقط اسناد یک پرونده نمایش داده می‌شود.</span>
-          <button
-            type="button"
-            className="font-medium underline underline-offset-4"
-            onClick={() => {
-              searchParams.delete('client');
-              setSearchParams(searchParams, { replace: true });
-            }}
-          >
-            نمایش همه اسناد
-          </button>
-        </div>
-      ) : null}
-
-      <FilterBar actions={<ResultsSummary total={total} unit="سند" />}>
+      <ListToolbar
+        advancedCount={advancedCount}
+        summary={<ResultsSummary total={query.total} unit="سند" />}
+        advanced={
+          <>
+            <FilterField label="قالب">
+              <FilterSelect
+                value={query.filters.templateId ?? 'all'}
+                onChange={(value) => query.setFilter('templateId', value)}
+                options={templateOptions}
+                placeholder="همه قالب‌ها"
+              />
+            </FilterField>
+            <FilterField label="از تاریخ">
+              <JalaliDatePicker
+                ariaLabel="از تاریخ"
+                containerClassName="w-36"
+                className="h-9 py-0 text-[12px]"
+                value={query.filters.from && query.filters.from !== 'all' ? query.filters.from : ''}
+                onChange={(value) => query.setFilter('from', value)}
+              />
+            </FilterField>
+            <FilterField label="تا تاریخ">
+              <JalaliDatePicker
+                ariaLabel="تا تاریخ"
+                containerClassName="w-36"
+                className="h-9 py-0 text-[12px]"
+                value={query.filters.to && query.filters.to !== 'all' ? query.filters.to : ''}
+                onChange={(value) => query.setFilter('to', value)}
+              />
+            </FilterField>
+            {query.hasActiveFilters ? (
+              <Button variant="ghost" size="sm" icon="refresh" onClick={query.clearAll}>
+                پاک‌کردن فیلترها
+              </Button>
+            ) : null}
+          </>
+        }
+        activeFilters={
+          query.hasActiveFilters || clientName ? (
+            <>
+              {query.q ? <ActiveFilterChip label={`جستجو: ${query.q}`} onRemove={() => query.setQ('')} /> : null}
+              {query.filters.status && query.filters.status !== 'all' ? (
+                <ActiveFilterChip
+                  label={`وضعیت: ${DOC_STATUS_LABELS[query.filters.status as DocStatus]}`}
+                  onRemove={() => query.setFilter('status', 'all')}
+                />
+              ) : null}
+              {query.filters.templateId && query.filters.templateId !== 'all' ? (
+                <ActiveFilterChip
+                  label={`قالب: ${templates.find((item) => item.id === query.filters.templateId)?.title ?? ''}`}
+                  onRemove={() => query.setFilter('templateId', 'all')}
+                />
+              ) : null}
+              {query.filters.from && query.filters.from !== 'all' ? (
+                <ActiveFilterChip label={`از ${formatDate(query.filters.from)}`} onRemove={() => query.setFilter('from', 'all')} />
+              ) : null}
+              {query.filters.to && query.filters.to !== 'all' ? (
+                <ActiveFilterChip label={`تا ${formatDate(query.filters.to)}`} onRemove={() => query.setFilter('to', 'all')} />
+              ) : null}
+              {clientName ? (
+                <ActiveFilterChip label={`پرونده: ${clientName}`} onRemove={clearClientParam} />
+              ) : null}
+            </>
+          ) : null
+        }
+      >
         <SearchInput
           value={query.q}
           onChange={query.setQ}
-          placeholder="جستجوی عنوان، شماره سند، نام پرونده یا مقدار فیلدها…"
-          className="w-full sm:w-72"
+          placeholder="عنوان، شماره سند، پرونده یا مقدار فیلدها…"
         />
         <FilterSelect
           value={query.filters.status ?? 'all'}
@@ -287,67 +362,13 @@ export default function DocumentsList() {
           options={DOC_STATUS_OPTIONS}
           placeholder="همه وضعیت‌ها"
           icon="filter"
+          className="w-40"
         />
-        <FilterSelect
-          value={query.filters.templateId ?? 'all'}
-          onChange={(value) => query.setFilter('templateId', value)}
-          options={templateOptions}
-          placeholder="همه قالب‌ها"
-        />
-        <div className="flex items-center gap-1.5 text-[11.5px] text-fg-subtle">
-          <span>از تاریخ</span>
-          <JalaliDatePicker
-            ariaLabel="از تاریخ"
-            containerClassName="w-36"
-            className="h-9 py-0 text-[12px]"
-            value={query.filters.from && query.filters.from !== 'all' ? query.filters.from : ''}
-            onChange={(value) => query.setFilter('from', value)}
-          />
-        </div>
-        <div className="flex items-center gap-1.5 text-[11.5px] text-fg-subtle">
-          <span>تا تاریخ</span>
-          <JalaliDatePicker
-            ariaLabel="تا تاریخ"
-            containerClassName="w-36"
-            className="h-9 py-0 text-[12px]"
-            value={query.filters.to && query.filters.to !== 'all' ? query.filters.to : ''}
-            onChange={(value) => query.setFilter('to', value)}
-          />
-        </div>
-        {query.hasActiveFilters ? (
-          <Button variant="ghost" size="sm" icon="refresh" onClick={query.clearAll}>
-            پاک‌کردن فیلترها
-          </Button>
-        ) : null}
-      </FilterBar>
-
-      {query.hasActiveFilters ? (
-        <div className="flex flex-wrap items-center gap-1.5">
-          {query.q ? <ActiveFilterChip label={`جستجو: ${query.q}`} onRemove={() => query.setQ('')} /> : null}
-          {query.filters.status && query.filters.status !== 'all' ? (
-            <ActiveFilterChip
-              label={`وضعیت: ${DOC_STATUS_LABELS[query.filters.status as DocStatus]}`}
-              onRemove={() => query.setFilter('status', 'all')}
-            />
-          ) : null}
-          {query.filters.templateId && query.filters.templateId !== 'all' ? (
-            <ActiveFilterChip
-              label={`قالب: ${templates.find((item) => item.id === query.filters.templateId)?.title ?? ''}`}
-              onRemove={() => query.setFilter('templateId', 'all')}
-            />
-          ) : null}
-          {query.filters.from && query.filters.from !== 'all' ? (
-            <ActiveFilterChip label={`از ${formatDate(query.filters.from)}`} onRemove={() => query.setFilter('from', 'all')} />
-          ) : null}
-          {query.filters.to && query.filters.to !== 'all' ? (
-            <ActiveFilterChip label={`تا ${formatDate(query.filters.to)}`} onRemove={() => query.setFilter('to', 'all')} />
-          ) : null}
-        </div>
-      ) : null}
+      </ListToolbar>
 
       <div className="card overflow-hidden">
         <DataTable
-          rows={pagedRows}
+          rows={query.pageRows}
           columns={columns}
           rowKey={(document) => document.id}
           sortKey={query.sortKey}
@@ -361,7 +382,7 @@ export default function DocumentsList() {
               description={
                 query.hasActiveFilters
                   ? 'فیلترها یا بازه تاریخ را تغییر دهید.'
-                  : 'یک قالب فرم انتخاب کنید، پرونده را متصل کنید و اطلاعات به‌صورت خودکار جای‌گذاری می‌شود.'
+                  : 'یک قالب فرم انتخاب کنید، پرونده را متصل کنید و اطلاعات خودکار جای‌گذاری می‌شود.'
               }
               action={
                 query.hasActiveFilters ? (
@@ -377,12 +398,12 @@ export default function DocumentsList() {
             />
           }
         />
-        {total ? (
+        {query.total ? (
           <div className="border-t border-line">
             <Pagination
               page={query.page}
-              pageCount={clientFiltered ? Math.max(1, Math.ceil(total / query.pageSize)) : query.pageCount}
-              total={total}
+              pageCount={query.pageCount}
+              total={query.total}
               pageSize={query.pageSize}
               onPageChange={query.setPage}
               onPageSizeChange={query.setPageSize}

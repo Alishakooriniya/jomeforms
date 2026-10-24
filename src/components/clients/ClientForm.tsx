@@ -1,14 +1,16 @@
-/* فرم پرونده با تمرکز بر اطلاعات هویتی متقاضی */
+/* فرم پرونده — اطلاعات اصلی همیشه دیده می‌شود و اطلاعات تکمیلی
+   به‌صورت تاشو باز می‌شود تا فرم کوتاه و کم‌ترسناک بماند. */
 
 import { useState } from 'react';
 import type { Client } from '../../types';
 import { isAlphabeticName, isValidMobile, isValidNationalId } from '../../lib/crypto';
-import { onlyDigits, toLatinDigits } from '../../lib/utils';
+import { cn, onlyDigits, toLatinDigits } from '../../lib/utils';
 import { isValidJalaliDate, normalizeJalaliDate } from '../../lib/jalali';
 import { Button } from '../ui/Button';
 import { FormActions, FormGrid } from '../ui/Controls';
 import { TextInput, Textarea } from '../ui/Field';
 import { JalaliDatePicker } from '../ui/JalaliDatePicker';
+import { Icon } from '../ui/Icon';
 import type { ClientDraft } from '../../store/DataProvider';
 
 export function emptyClientDraft(): ClientDraft {
@@ -37,18 +39,6 @@ export interface ClientFormProps {
   submitLabel?: string;
 }
 
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
-  return (
-    <section className="rounded-card border border-line bg-card-2/40 p-3.5">
-      <h3 className="mb-3 flex items-center gap-2 text-[12.5px] font-semibold text-fg">
-        <span className="h-3.5 w-1 rounded-full bg-brand-500" />
-        {title}
-      </h3>
-      {children}
-    </section>
-  );
-}
-
 export function ClientForm({
   initial,
   onSubmit,
@@ -58,6 +48,16 @@ export function ClientForm({
 }: ClientFormProps) {
   const [form, setForm] = useState<ClientDraft>(initial ?? emptyClientDraft());
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [showExtra, setShowExtra] = useState(() => {
+    const source = initial ?? emptyClientDraft();
+    return Boolean(
+      source.birthCertificateNumber ||
+        source.fatherName ||
+        source.issuePlace ||
+        source.birthDate ||
+        source.residenceAddress,
+    );
+  });
 
   const set = <K extends keyof ClientDraft>(key: K, value: ClientDraft[K]) =>
     setForm((prev) => ({ ...prev, [key]: value }));
@@ -87,7 +87,12 @@ export function ClientForm({
       nextErrors.birthDate = 'تاریخ تولد باید شمسی و به‌شکل ۱۴۰۵/۰۷/۳۰ باشد.';
     }
     setErrors(nextErrors);
-    if (Object.keys(nextErrors).length) return;
+    if (Object.keys(nextErrors).length) {
+      if (Object.keys(nextErrors).some((key) => ['birthCertificateNumber', 'fatherName', 'issuePlace', 'birthDate'].includes(key))) {
+        setShowExtra(true);
+      }
+      return;
+    }
 
     onSubmit({
       ...form,
@@ -104,65 +109,82 @@ export function ClientForm({
 
   return (
     <form className="flex flex-col gap-4" onSubmit={submit}>
-      <Section title="اطلاعات هویتی">
-        <FormGrid columns={2}>
-          <TextInput
-            label="نام و نام خانوادگی"
-            required
-            value={form.fullName}
-            error={errors.fullName}
-            onChange={(event) => set('fullName', event.target.value)}
-          />
-          <TextInput
-            label="کد ملی"
-            value={form.nationalId}
-            inputMode="numeric"
-            maxLength={10}
-            error={errors.nationalId}
-            onChange={(event) => set('nationalId', onlyDigits(event.target.value))}
-          />
-          <TextInput
-            label="موبایل"
-            value={form.mobile}
-            inputMode="tel"
-            error={errors.mobile}
-            onChange={(event) => set('mobile', onlyDigits(event.target.value))}
-          />
-          <TextInput
-            label="شماره شناسنامه"
-            value={form.birthCertificateNumber ?? ''}
-            inputMode="numeric"
-            maxLength={10}
-            error={errors.birthCertificateNumber}
-            onChange={(event) => set('birthCertificateNumber', onlyDigits(event.target.value))}
-          />
-          <TextInput
-            label="نام پدر"
-            value={form.fatherName ?? ''}
-            error={errors.fatherName}
-            onChange={(event) => set('fatherName', event.target.value)}
-          />
-          <TextInput
-            label="شهر صادره شناسنامه"
-            value={form.issuePlace ?? ''}
-            error={errors.issuePlace}
-            onChange={(event) => set('issuePlace', event.target.value)}
-          />
-          <JalaliDatePicker
-            label="تاریخ تولد"
-            value={form.birthDate ?? ''}
-            error={errors.birthDate}
-            onChange={(value) => set('birthDate', value)}
-          />
-          <Textarea
-            label="نشانی محل سکونت"
-            className="min-h-20"
-            containerClassName="md:col-span-2"
-            value={form.residenceAddress ?? ''}
-            onChange={(event) => set('residenceAddress', event.target.value)}
-          />
-        </FormGrid>
-      </Section>
+      <FormGrid columns={2}>
+        <TextInput
+          label="نام و نام خانوادگی"
+          required
+          value={form.fullName}
+          error={errors.fullName}
+          onChange={(event) => set('fullName', event.target.value)}
+        />
+        <TextInput
+          label="کد ملی"
+          value={form.nationalId}
+          inputMode="numeric"
+          maxLength={10}
+          error={errors.nationalId}
+          onChange={(event) => set('nationalId', onlyDigits(event.target.value))}
+        />
+        <TextInput
+          label="موبایل"
+          value={form.mobile}
+          inputMode="tel"
+          error={errors.mobile}
+          onChange={(event) => set('mobile', onlyDigits(event.target.value))}
+        />
+      </FormGrid>
+
+      <div className="border-t border-line pt-3">
+        <button
+          type="button"
+          onClick={() => setShowExtra((prev) => !prev)}
+          aria-expanded={showExtra}
+          className="flex w-full items-center gap-1.5 text-[12px] font-medium text-fg-muted transition-colors hover:text-fg"
+        >
+          <Icon name="chevron-down" size={12} className={cn('transition-transform', !showExtra && 'rotate-90')} />
+          اطلاعات تکمیلی
+          <span className="font-normal text-fg-subtle">(اختیاری — شناسنامه، تولد و نشانی)</span>
+          {!showExtra ? <span className="ms-auto text-[10.5px] font-normal text-fg-subtle">باز کردن</span> : null}
+        </button>
+
+        {showExtra ? (
+          <FormGrid columns={2} className="mt-3">
+            <TextInput
+              label="شماره شناسنامه"
+              value={form.birthCertificateNumber ?? ''}
+              inputMode="numeric"
+              maxLength={10}
+              error={errors.birthCertificateNumber}
+              onChange={(event) => set('birthCertificateNumber', onlyDigits(event.target.value))}
+            />
+            <TextInput
+              label="نام پدر"
+              value={form.fatherName ?? ''}
+              error={errors.fatherName}
+              onChange={(event) => set('fatherName', event.target.value)}
+            />
+            <TextInput
+              label="شهر صادره شناسنامه"
+              value={form.issuePlace ?? ''}
+              error={errors.issuePlace}
+              onChange={(event) => set('issuePlace', event.target.value)}
+            />
+            <JalaliDatePicker
+              label="تاریخ تولد"
+              value={form.birthDate ?? ''}
+              error={errors.birthDate}
+              onChange={(value) => set('birthDate', value)}
+            />
+            <Textarea
+              label="نشانی محل سکونت"
+              className="min-h-20"
+              containerClassName="md:col-span-2"
+              value={form.residenceAddress ?? ''}
+              onChange={(event) => set('residenceAddress', event.target.value)}
+            />
+          </FormGrid>
+        ) : null}
+      </div>
 
       <FormActions>
         <Button variant="ghost" onClick={onCancel} disabled={submitting}>

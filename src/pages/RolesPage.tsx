@@ -10,8 +10,7 @@ import { ALL_PERMISSIONS, PERMISSION_GROUPS, summarizePermissions } from '../dat
 import { displayDigits, formatDate } from '../lib/format';
 import { Badge } from '../components/ui/Badge';
 import { Button } from '../components/ui/Button';
-import { Card, CardBody, CardHeader } from '../components/ui/Card';
-import { Icon } from '../components/ui/Icon';
+import { Card } from '../components/ui/Card';
 import { ConfirmDialog, Modal } from '../components/ui/Modal';
 import { EmptyState } from '../components/ui/EmptyState';
 import { PageHeader } from '../components/ui/Avatar';
@@ -82,10 +81,8 @@ export default function RolesPage() {
   return (
     <div className="flex flex-col gap-4">
       <PageHeader
-        title="نقش‌ها و بسته‌های دسترسی"
-        subtitle="یک بار دسترسی‌ها را در قالب نقش تعریف کنید و روی هر مدیر اعمال کنید."
-        icon="shield"
-        breadcrumbs={[{ label: 'داشبورد', to: '/' }, { label: 'نقش‌ها' }]}
+        title="نقش‌ها و دسترسی‌ها"
+        subtitle="بسته‌های دسترسی آماده برای اعمال سریع روی مدیران"
         actions={
           <>
             <Button variant="secondary" icon="user-cog" onClick={() => navigate('/users')}>
@@ -110,12 +107,12 @@ export default function RolesPage() {
           })).filter((group) => group.granted > 0);
 
           return (
-            <article key={role.id} className="card flex h-full flex-col gap-3 p-4">
+            <article key={role.id} className="card flex h-full flex-col gap-3 p-4 transition-colors hover:border-line-strong">
               <div className="flex items-start justify-between gap-2">
-                <span className="flex h-9 w-9 items-center justify-center rounded-field bg-brand-50 text-brand-600 dark:bg-brand-500/12 dark:text-brand-300">
-                  <Icon name="shield" size={17} />
-                </span>
-                <div className="flex items-center gap-1.5">
+                <p className="min-w-0 truncate text-[13px] font-semibold text-fg" title={role.name}>
+                  {role.name}
+                </p>
+                <div className="flex shrink-0 items-center gap-1.5">
                   {role.system ? (
                     <Badge tone="neutral" size="sm">
                       آماده سامانه
@@ -127,10 +124,9 @@ export default function RolesPage() {
                 </div>
               </div>
 
-              <div>
-                <p className="text-[13px] font-semibold text-fg">{role.name}</p>
-                <p className="mt-0.5 text-[11.5px] leading-5 text-fg-subtle">{role.description}</p>
-              </div>
+              <p className="line-clamp-2 min-h-9 text-[11px] leading-5 text-fg-subtle">
+                {role.description || 'بدون توضیح'}
+              </p>
 
               <div className="flex flex-wrap gap-1">
                 {groupSummary.map((group) => (
@@ -192,33 +188,6 @@ export default function RolesPage() {
           />
         </Card>
       ) : null}
-
-      <Card>
-        <CardHeader title="راهنمای دسترسی‌ها" subtitle="فهرست همه مجوزهای قابل تخصیص" icon="info" />
-        <CardBody className="flex flex-col gap-3">
-          {PERMISSION_GROUPS.map((group) => (
-            <div key={group.id} className="rounded-field border border-line p-3">
-              <p className="mb-1.5 flex items-center gap-2 text-[12px] font-medium text-fg">
-                <Icon name={group.icon as 'shield'} size={14} />
-                {group.label}
-                <span className="num text-[10.5px] font-normal text-fg-subtle">
-                  {displayDigits(group.perms.length)} مورد
-                </span>
-              </p>
-              <ul className="flex flex-wrap gap-x-4 gap-y-1">
-                {group.perms.map((permission) => (
-                  <li key={permission.key} className="text-[11px] text-fg-muted">
-                    {permission.label}
-                    <span className="num ms-1 text-[10px] text-fg-subtle" dir="ltr">
-                      {permission.key}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          ))}
-        </CardBody>
-      </Card>
 
       {/* ساخت/ویرایش نقش */}
       <Modal

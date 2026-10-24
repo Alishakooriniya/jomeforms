@@ -37,15 +37,15 @@
   --brand-900: #103a28;
   --brand-950: #082117;
 
-  --bg: #f5f5f5;
-  --bg-soft: #ebebeb;
+  --bg: #f6f6f7;
+  --bg-soft: #ececed;
   --card: #ffffff;
-  --card-2: #f7f7f7;
-  --border: #e5e5e5;
-  --border-strong: #d1d1d1;
+  --card-2: #f7f7f8;
+  --border: #e7e7e9;
+  --border-strong: #d4d4d8;
   --fg: #171717;
-  --fg-muted: #565656;
-  --fg-subtle: #666666;
+  --fg-muted: #57575c;
+  --fg-subtle: #707077;
 
   --c-success: #1f9d6b;
   --c-success-soft: #e5f7ef;
@@ -60,8 +60,8 @@
   --c-info-soft: #ededef;
   --c-info-fg: #3f3f46;
 
-  --ui-radius: 0.75rem;
-  --shadow-soft: 0 1px 2px rgb(0 0 0 / 0.04), 0 8px 24px -12px rgb(0 0 0 / 0.14);
+  --ui-radius: 0.625rem;
+  --shadow-soft: 0 1px 2px rgb(0 0 0 / 0.035), 0 10px 24px -18px rgb(0 0 0 / 0.18);
 }
 
 /* سبز روشن و پررنگ */
@@ -226,8 +226,8 @@ html[data-radius='lg'] {
   }
   body {
     @apply bg-bg text-fg font-sans antialiased;
-    font-size: 16px;
-    line-height: 1.65;
+    font-size: 15px;
+    line-height: 1.6;
   }
   /* اعداد فارسی گاهی در فرم‌ها/جداول باید لاتین بمانند */
   .num {
@@ -278,16 +278,16 @@ html[data-radius='lg'] {
     @apply pointer-events-none opacity-50;
   }
   .btn-sm {
-    @apply h-10 px-3.5 text-[13px];
+    @apply h-8 px-3 text-[12.5px];
   }
   .btn-md {
-    @apply h-11 px-4 text-[15px];
+    @apply h-10 px-3.5 text-[13.5px];
   }
   .btn-lg {
-    @apply h-12 px-5 text-base;
+    @apply h-11 px-4 text-[14px];
   }
   .btn-icon {
-    @apply h-11 w-11 px-0;
+    @apply h-9 w-9 px-0;
   }
   .btn-primary {
     @apply bg-brand-600 text-white hover:bg-brand-700 active:bg-brand-800;
@@ -307,15 +307,19 @@ html[data-radius='lg'] {
 
   /* --- کارت --- */
   .card {
-    @apply bg-card border border-line shadow-soft;
+    @apply bg-card border border-line;
     border-radius: var(--radius-card);
+    box-shadow: var(--shadow-soft);
   }
 
   /* --- فرم --- */
   .field {
     @apply w-full border border-line bg-card text-fg placeholder:text-fg-subtle;
     border-radius: var(--radius-field);
-    @apply min-h-11 px-3 py-2 text-base transition-colors;
+    @apply h-10 px-3 py-2 text-[13.5px] transition-colors;
+  }
+  textarea.field {
+    @apply h-auto min-h-20;
   }
   .field:hover:not(:disabled) {
     @apply border-line-strong;
@@ -329,14 +333,14 @@ html[data-radius='lg'] {
 
   /* --- جدول --- */
   .th {
-    @apply whitespace-nowrap px-3 py-3 text-start text-[13px] font-semibold text-fg-muted;
+    @apply h-9 whitespace-nowrap px-3 text-start text-[11.5px] font-medium text-fg-subtle;
   }
   .td {
-    @apply px-3 py-3 align-middle text-[14px] text-fg;
+    @apply h-10 whitespace-nowrap px-3 align-middle text-[12.5px] text-fg;
   }
 
   .chip {
-    @apply inline-flex items-center gap-1 rounded-full border border-line bg-card-2 px-2.5 py-1 text-xs text-fg-muted;
+    @apply inline-flex items-center gap-1 rounded-full border border-line bg-card-2 px-2 py-0.5 text-[11px] text-fg-muted;
   }
 
   .skeleton {

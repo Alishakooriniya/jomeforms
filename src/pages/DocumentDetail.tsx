@@ -1,4 +1,5 @@
-/* جزئیات سند: پیش‌نمایش، گردش کار، بارگذاری اسکن و عملیات چاپ/خروجی */
+/* جزئیات سند: پیش‌نمایش در مرکز، گردش کار و اسکن‌ها در کنار.
+   مقادیر ثبت‌شده در همان صفحه و به‌صورت تاشو دیده می‌شوند (بدون تب). */
 
 import { useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
@@ -23,7 +24,6 @@ import { EmptyState } from '../components/ui/EmptyState';
 import { Icon } from '../components/ui/Icon';
 import { ConfirmDialog, Modal } from '../components/ui/Modal';
 import { PageHeader } from '../components/ui/Avatar';
-import { Tabs } from '../components/ui/Tabs';
 import { Textarea } from '../components/ui/Field';
 import { DynamicFields, formatValuePreview } from '../components/form/DynamicFields';
 import { DocumentPreview } from '../components/documents/DocumentPreview';
@@ -37,8 +37,8 @@ export default function DocumentDetail() {
   const toast = useToast();
   const navigate = useNavigate();
 
-  const [tab, setTab] = useState('preview');
   const [editing, setEditing] = useState(false);
+  const [showValues, setShowValues] = useState(false);
   const [draftValues, setDraftValues] = useState<Record<string, string>>({});
   const [draftErrors, setDraftErrors] = useState<Record<string, string>>({});
   const [pendingDelete, setPendingDelete] = useState(false);
@@ -124,18 +124,32 @@ export default function DocumentDetail() {
     <div className="flex flex-col gap-4">
       <PageHeader
         title={
-          <span className="flex flex-wrap items-center gap-2">
-            {document.title}
+          <span className="flex min-w-0 flex-wrap items-center gap-2">
+            <span className="truncate">{document.title}</span>
             <Badge tone={DOC_STATUS_TONE[document.status]} dot>
               {DOC_STATUS_LABELS[document.status]}
             </Badge>
           </span>
         }
         subtitle={
-          <span className="num">
-            شماره سند {formatCode(document.number)}
-            {document.clientName ? ` • پرونده ${document.clientName}` : ' • بدون پرونده'}
-            {` • ثبت ${formatDate(document.createdAt, 'long')}`}
+          <span className="num flex flex-wrap items-center gap-x-2 gap-y-0.5">
+            <span>سند {formatCode(document.number)}</span>
+            <span className="text-line-strong">•</span>
+            {document.clientName && document.clientId ? (
+              <button
+                type="button"
+                className="text-brand-700 hover:underline dark:text-brand-300"
+                onClick={() => navigate(`/clients/${document.clientId}`)}
+              >
+                {document.clientName}
+              </button>
+            ) : (
+              <span>بدون پرونده</span>
+            )}
+            <span className="text-line-strong">•</span>
+            <span>{template?.title ?? 'قالب در دسترس نیست'}</span>
+            <span className="text-line-strong">•</span>
+            <span>ثبت {formatDate(document.createdAt, 'long')}</span>
           </span>
         }
         breadcrumbs={[
@@ -155,7 +169,7 @@ export default function DocumentDetail() {
                   setEditing(true);
                 }}
               >
-                ویرایش مقادیر
+                ویرایش
               </Button>
             ) : null}
             {can('documents.print') ? (
@@ -243,29 +257,25 @@ export default function DocumentDetail() {
         }
       />
 
-      <div className="grid gap-4 xl:grid-cols-[1.7fr_1fr]">
+      <div className="grid gap-4 xl:grid-cols-[minmax(0,1.7fr)_minmax(0,1fr)]">
         {/* ستون سند */}
-        <div className="flex min-w-0 flex-col gap-3">
-          <Tabs
-            value={tab}
-            onChange={setTab}
-            items={[
-              { id: 'preview', label: 'پیش‌نمایش سند', icon: 'eye' },
-              { id: 'values', label: 'مقادیر ثبت‌شده', icon: 'list' },
-            ]}
-          />
+        <div className="flex min-w-0 flex-col gap-4">
+          <DocumentPreview template={template} values={document.values} document={document} settings={settings} />
 
-          {tab === 'preview' ? (
-            <DocumentPreview template={template} values={document.values} document={document} settings={settings} />
-          ) : null}
-
-          {tab === 'values' ? (
-            <Card>
-              <CardHeader
-                title="مقادیر سند"
-                subtitle={template ? `بر پایه قالب «${template.title}» نسخه ${displayDigits(template.version)}` : undefined}
-                icon="clipboard"
-              />
+          <Card>
+            <CardHeader
+              title="مقادیر ثبت‌شده"
+              subtitle={template ? `بر پایه «${template.title}» نسخه ${displayDigits(template.version)}` : undefined}
+              icon="clipboard"
+              action={
+                template ? (
+                  <Button size="sm" variant="ghost" onClick={() => setShowValues((prev) => !prev)}>
+                    {showValues ? 'بستن' : 'نمایش مقادیر'}
+                  </Button>
+                ) : null
+              }
+            />
+            {showValues ? (
               <CardBody>
                 {template ? (
                   <InfoList
@@ -279,43 +289,54 @@ export default function DocumentDetail() {
                   <EmptyState compact icon="alert" title="قالب این سند در دسترس نیست" />
                 )}
               </CardBody>
-            </Card>
-          ) : null}
+            ) : null}
+          </Card>
         </div>
 
-        {/* ستون کنار */}
+        {/* ستون کناری */}
         <div className="flex min-w-0 flex-col gap-4">
           <Card>
-            <CardHeader title="گردش کار سند" subtitle="مسیر سند تا بایگانی نهایی" icon="history" />
-            <CardBody className="p-0">
+            <CardHeader title="مسیر سند" subtitle="از ساخت تا بایگانی نهایی" icon="history" />
+            <div className="p-4">
               <ol className="flex flex-col">
                 {workflow.map((item, index) => (
-                  <li key={item.id} className="flex gap-3 px-4 py-2.5">
+                  <li key={item.id} className="flex gap-2.5">
                     <div className="flex flex-col items-center">
                       <span
                         className={
                           item.done
-                            ? 'flex h-7 w-7 items-center justify-center rounded-full bg-brand-600 text-white'
-                            : 'flex h-7 w-7 items-center justify-center rounded-full bg-card-2 text-fg-subtle'
+                            ? 'flex h-6 w-6 items-center justify-center rounded-full bg-brand-600 text-white'
+                            : 'flex h-6 w-6 items-center justify-center rounded-full bg-card-2 text-fg-subtle'
                         }
                       >
-                        <Icon name={item.icon} size={13} bold={item.done} />
+                        <Icon name={item.icon} size={11} bold={item.done} />
                       </span>
                       {index < workflow.length - 1 ? (
-                        <span className={item.done ? 'h-8 w-px bg-brand-300' : 'h-8 w-px bg-line'} />
+                        <span className={item.done ? 'h-6 w-px bg-brand-300' : 'h-6 w-px bg-line'} />
                       ) : null}
                     </div>
                     <div className="min-w-0 flex-1 pb-1">
-                      <p className="text-[12.5px] text-fg">{item.title}</p>
-                      <p className="num text-[10.5px] text-fg-subtle">
-                        {item.at ? `${formatDate(item.at, 'datetime')} • ${formatRelative(item.at)}` : 'انجام نشده'}
+                      <p className="text-[11.5px] text-fg">{item.title}</p>
+                      <p className="num truncate text-[10px] text-fg-subtle" title={item.at ? formatDate(item.at, 'datetime') : undefined}>
+                        {item.at ? formatRelative(item.at) : 'انجام نشده'}
                         {item.done && item.by !== '—' ? ` • ${item.by}` : ''}
                       </p>
                     </div>
                   </li>
                 ))}
               </ol>
-            </CardBody>
+              <div className="mt-3 border-t border-line pt-3">
+                <InfoList
+                  columns={2}
+                  items={[
+                    { label: 'دسته', value: template ? TEMPLATE_CATEGORY_LABELS[template.category] : '—' },
+                    { label: 'ثبت‌کننده', value: document.createdByName },
+                    { label: 'آخرین ویرایش', value: formatDate(document.updatedAt, 'datetime') },
+                    { label: 'پرونده', value: document.clientCode ? formatCode(document.clientCode) : '—' },
+                  ]}
+                />
+              </div>
+            </div>
           </Card>
 
           <Card>
@@ -325,17 +346,13 @@ export default function DocumentDetail() {
               icon="scan"
             />
             <CardBody>
-              <ScanGallery
-                document={document}
-                canUpload={can('documents.upload')}
-                canDelete={can('documents.upload')}
-              />
+              <ScanGallery document={document} canUpload={can('documents.upload')} canDelete={can('documents.upload')} />
             </CardBody>
           </Card>
 
           <Card>
             <CardHeader
-              title="یادداشت سند"
+              title="یادداشت"
               icon="edit"
               action={
                 can('documents.edit') ? (
@@ -356,39 +373,23 @@ export default function DocumentDetail() {
                 ) : null
               }
             />
-            <CardBody className="flex flex-col gap-3">
+            <CardBody className="flex flex-col gap-2.5">
               {document.notes ? (
-                <p className="whitespace-pre-wrap rounded-field bg-card-2 p-3 text-[12px] leading-6 text-fg-muted">
+                <p className="whitespace-pre-wrap rounded-field bg-card-2 p-2.5 text-[11.5px] leading-6 text-fg-muted">
                   {document.notes}
                 </p>
               ) : (
-                <p className="text-[11.5px] text-fg-subtle">یادداشتی ثبت نشده است.</p>
+                <p className="text-[11px] text-fg-subtle">یادداشتی ثبت نشده است.</p>
               )}
               {can('documents.edit') ? (
                 <Textarea
                   label="یادداشت جدید"
+                  className="min-h-16"
                   value={noteDraft}
                   placeholder="مثال: نسخه اصل تحویل مشتری شد."
                   onChange={(event) => setNoteDraft(event.target.value)}
                 />
               ) : null}
-            </CardBody>
-          </Card>
-
-          <Card>
-            <CardHeader title="اطلاعات پایه" icon="info" />
-            <CardBody>
-              <InfoList
-                items={[
-                  { label: 'قالب', value: template?.title ?? '—', icon: 'template' },
-                  { label: 'دسته', value: template ? TEMPLATE_CATEGORY_LABELS[template.category] : '—' },
-                  { label: 'نسخه قالب', value: displayDigits(document.templateVersion) },
-                  { label: 'پرونده', value: document.clientCode ? formatCode(document.clientCode) : '—', icon: 'users' },
-                  { label: 'ثبت‌کننده', value: document.createdByName, icon: 'user' },
-                  { label: 'آخرین ویرایش', value: formatDate(document.updatedAt, 'datetime'), icon: 'clock' },
-                ]}
-                columns={1}
-              />
             </CardBody>
           </Card>
         </div>
@@ -400,8 +401,7 @@ export default function DocumentDetail() {
         onClose={() => setEditing(false)}
         title="ویرایش مقادیر سند"
         description="تغییرات فقط روی این سند اعمال می‌شود و روی پرونده اثری ندارد."
-        icon="edit"
-        size="xl"
+        size="lg"
         footer={
           <>
             <Button variant="ghost" onClick={() => setEditing(false)}>

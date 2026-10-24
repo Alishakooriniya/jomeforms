@@ -23,15 +23,14 @@ export default function ClientCreate() {
   };
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className="mx-auto flex w-full max-w-3xl flex-col gap-4">
       <PageHeader
         title="ثبت پرونده جدید"
-        subtitle="اطلاعات هویتی متقاضی را ثبت کنید."
-        icon="users"
+        subtitle="نام، کد ملی و موبایل را وارد کنید؛ بقیه اطلاعات اختیاری است."
         breadcrumbs={[{ label: 'داشبورد', to: '/' }, { label: 'پرونده‌ها', to: '/clients' }, { label: 'پرونده جدید' }]}
         actions={<Button variant="ghost" icon="arrowRight" to="/clients">بازگشت به پرونده‌ها</Button>}
       />
-      <div className="card p-4 sm:p-6">
+      <div className="card p-4 sm:p-5">
         <ClientForm
           initial={emptyClientDraft()}
           submitting={submitting}
