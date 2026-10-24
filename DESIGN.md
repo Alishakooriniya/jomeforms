@@ -138,19 +138,30 @@ The app uses a consistent product-style system:
 Case registration is a dedicated page rather than a creation modal. The primary global search is deliberately limited to full name, national ID, case number, and related company name. Creating a new form/document remains available as a secondary operation from the relevant case.
 
 Case registration captures only the applicant's identity and contact details:
-full name, national ID, mobile and landline, father's name, birth date, and
-residential address. Counterparty and property/financial data are not part of a
-case record. The API and database follow the same shape; a database migration
-drops the obsolete columns, while case number, request type, company link,
-status, workflow, audit metadata, and document relations remain operational
+full name, national ID, mobile, birth certificate number, father's name, issue
+city, birth date, and residential address. Names accept letters and Persian
+joiners rather than digits; mobile numbers must be 11 digits starting with 09,
+and birth certificate numbers are limited to 10 digits. Counterparty and
+property/financial data are not part of a case record. The API and database
+follow the same shape; case number, request type, company link, status,
+workflow, audit metadata, and document relations remain operational
 case-management fields.
 
 User-entered date-only values use the Jalali calendar throughout the UI and API,
 are stored as `YYYY/MM/DD`, and reject Gregorian-formatted inputs. Audit and
 other operational timestamps remain ISO instants in storage and are displayed
 using the Jalali calendar; they must not be converted into calendar strings.
+The Jalali date picker is RTL-aligned and allows direct month and year selection
+as well as choosing a day from the calendar grid.
 
 When introducing new UI, prefer existing patterns and token names over hard-coded values.
+
+Template authoring follows a short guided flow: name and categorize the form,
+add questions using Persian labels, then write and preview the printable text.
+Internal field keys are generated automatically and remain out of the way;
+less-common field and template settings stay available under expandable
+"more settings" sections. In the text editor, fields are inserted by their
+human-readable labels rather than exposing template syntax as the primary UX.
 
 Official forms with a fixed paper frame are rendered from frontend HTML/SVG,
 not by placing a PDF or image behind the form. Keep the A4 frame and its

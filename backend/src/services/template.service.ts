@@ -58,6 +58,7 @@ export class TemplateService {
     const updated = await this.templates.update(id, {
       ...input,
       title: input.title?.trim(),
+      version: existing.version + 1,
     });
     if (!updated) throw new NotFoundError('Template');
 

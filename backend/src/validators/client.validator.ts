@@ -1,5 +1,10 @@
 import { z } from 'zod';
-import { isValidMobile, isValidNationalId } from '../utils/validation.js';
+import {
+  isAlphabeticName,
+  isValidBirthCertificateNumber,
+  isValidMobile,
+  isValidNationalId,
+} from '../utils/validation.js';
 import { dateSchema, listQuerySchema, uuidSchema } from './common.validator.js';
 
 const optionalMobile = z
@@ -15,6 +20,14 @@ const optionalNationalId = z
   .max(20)
   .refine((value) => !value || isValidNationalId(value), 'National ID is invalid.')
   .optional();
+
+const optionalAlphabeticName = (label: string, maxLength: number) =>
+  z
+    .string()
+    .trim()
+    .max(maxLength)
+    .refine((value) => !value || isAlphabeticName(value), `${label} must contain letters only.`)
+    .nullish();
 
 const clientStatusSchema = z.enum(['new', 'in_progress', 'awaiting_docs', 'done', 'archived']);
 const caseTypeSchema = z.enum(['document_request', 'rent_renewal']);
@@ -39,14 +52,27 @@ export const clientListQuerySchema = listQuerySchema.extend({
 
 const clientFields = {
   code: z.string().trim().max(60).optional(),
-  fullName: z.string().trim().min(2, 'Full name is required.').max(160),
+  fullName: z
+    .string()
+    .trim()
+    .min(2, 'Full name is required.')
+    .max(160)
+    .refine(isAlphabeticName, 'Full name must contain letters only.'),
   nationalId: optionalNationalId,
   mobile: optionalMobile,
   caseType: caseTypeSchema.default('document_request'),
   companyId: z.union([uuidSchema, z.literal(''), z.null()]).optional(),
   workflow: z.array(workflowStepSchema).max(20).optional(),
-  phone: z.string().trim().max(30).nullish(),
-  fatherName: z.string().trim().max(120).nullish(),
+  birthCertificateNumber: z
+    .string()
+    .trim()
+    .refine(
+      (value) => !value || isValidBirthCertificateNumber(value),
+      'Birth certificate number must contain up to 10 digits.',
+    )
+    .nullish(),
+  fatherName: optionalAlphabeticName('Father name', 120),
+  issuePlace: optionalAlphabeticName('Issue place', 120),
   birthDate: z
     .union([dateSchema, z.literal('')])
     .nullish()

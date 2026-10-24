@@ -30,7 +30,7 @@ export const templateFieldSchema = z
     label: z.string().trim().min(1).max(160),
     type: fieldTypeSchema,
     required: z.boolean(),
-    options: z.array(z.string().trim().max(120)).max(100).optional(),
+    options: z.array(z.string().trim().min(1).max(120)).max(100).optional(),
     source: z.string().trim().max(60).optional(),
     placeholder: z.string().trim().max(200).optional(),
     help: z.string().trim().max(400).optional(),
@@ -39,6 +39,13 @@ export const templateFieldSchema = z
     defaultValue: z.string().max(500).optional(),
   })
   .superRefine((field, ctx) => {
+    if (field.type === 'select' && !field.options?.length) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['options'],
+        message: 'Select fields must include at least one option.',
+      });
+    }
     if (field.type === 'date' && field.defaultValue?.trim() && !normalizeJalaliDate(field.defaultValue)) {
       ctx.addIssue({
         code: 'custom',

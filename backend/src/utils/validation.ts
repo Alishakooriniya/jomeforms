@@ -21,7 +21,16 @@ export function isValidNationalId(value: string): boolean {
 
 /** Iranian mobile number check — 11 digits starting with 09. */
 export function isValidMobile(value: string): boolean {
-  return /^09\d{9}$/.test(toLatinDigits(value).replace(/\D/g, ''));
+  return /^09\d{9}$/.test(toLatinDigits(value));
+}
+
+export function isAlphabeticName(value: string): boolean {
+  return /^[\p{L}\p{M}\s\u200c]+$/u.test(value.trim());
+}
+
+export function isValidBirthCertificateNumber(value: string): boolean {
+  const number = toLatinDigits(value.trim());
+  return /^\d{1,10}$/.test(number);
 }
 
 export function onlyDigits(value: string | undefined | null): string {

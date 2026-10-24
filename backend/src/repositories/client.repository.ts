@@ -25,8 +25,9 @@ export interface ClientInput {
   caseType: ClientCaseType;
   companyId?: string | null;
   workflow: ClientWorkflowStep[];
-  phone?: string | null;
+  birthCertificateNumber?: string | null;
   fatherName?: string | null;
+  issuePlace?: string | null;
   birthDate?: string | null;
   status: ClientStatus;
   residenceAddress?: string | null;
@@ -41,8 +42,9 @@ interface ClientRow extends QueryResultRow {
   case_type: ClientCaseType;
   company_id: string | null;
   workflow: ClientWorkflowStep[];
-  phone: string | null;
+  birth_certificate_number: string | null;
   father_name: string | null;
+  issue_place: string | null;
   birth_date: string | null;
   status: ClientStatus;
   residence_address: string | null;
@@ -83,8 +85,9 @@ function mapClient(row: ClientRow): Client {
     caseType: row.case_type,
     companyId: row.company_id ?? undefined,
     workflow: row.workflow ?? [],
-    phone: row.phone ?? undefined,
+    birthCertificateNumber: row.birth_certificate_number ?? undefined,
     fatherName: row.father_name ?? undefined,
+    issuePlace: row.issue_place ?? undefined,
     birthDate: row.birth_date ?? undefined,
     status: row.status,
     residenceAddress: row.residence_address ?? undefined,
@@ -116,8 +119,9 @@ const COLUMNS: Record<keyof ClientInput, string> = {
   caseType: 'case_type',
   companyId: 'company_id',
   workflow: 'workflow',
-  phone: 'phone',
+  birthCertificateNumber: 'birth_certificate_number',
   fatherName: 'father_name',
+  issuePlace: 'issue_place',
   birthDate: 'birth_date',
   status: 'status',
   residenceAddress: 'residence_address',
@@ -201,9 +205,10 @@ export class ClientRepository {
   async create(input: ClientInput, createdBy: string): Promise<Client> {
     const result = await query<ClientRow>(
       `insert into clients
-        (code, full_name, national_id, mobile, case_type, company_id, workflow, phone, father_name,
+        (code, full_name, national_id, mobile, case_type, company_id, workflow,
+         birth_certificate_number, father_name, issue_place,
          birth_date, status, residence_address, created_by)
-       values ($1, $2, $3, $4, $5, $6, $7::jsonb, $8, $9, $10, $11, $12, $13)
+       values ($1, $2, $3, $4, $5, $6, $7::jsonb, $8, $9, $10, $11, $12, $13, $14)
        returning *`,
       [
         input.code ?? '',
@@ -213,8 +218,9 @@ export class ClientRepository {
         input.caseType,
         input.companyId ?? null,
         JSON.stringify(input.workflow),
-        input.phone ?? null,
+        input.birthCertificateNumber ?? null,
         input.fatherName ?? null,
+        input.issuePlace ?? null,
         input.birthDate ?? null,
         input.status,
         input.residenceAddress ?? null,

@@ -577,7 +577,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
             ...(existing as FormTemplate),
             ...input,
             id,
-            version: existing?.version ?? input.version ?? 1,
+            version: (existing?.version ?? 0) + 1,
             updatedAt: now,
           };
           commit((draft) => {

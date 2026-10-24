@@ -10,8 +10,8 @@ import {
   jalaliToLocalDate,
 } from '../../lib/jalali';
 import { useClickOutside } from '../../lib/hooks';
-import { cn } from '../../lib/utils';
-import { Field } from './Field';
+import { cn, onlyDigits } from '../../lib/utils';
+import { Field, Select, TextInput } from './Field';
 import { Icon } from './Icon';
 
 const MONTHS = [
@@ -64,6 +64,9 @@ export function JalaliDatePicker({
     const initial = selected ?? jalaliPartsFromDate(new Date());
     return { year: initial.year, month: initial.month };
   });
+  const [yearInput, setYearInput] = useState(() =>
+    String((selected ?? jalaliPartsFromDate(new Date())).year),
+  );
   const close = useCallback(() => setOpen(false), []);
   useClickOutside(rootRef, close, open);
 
@@ -82,10 +85,12 @@ export function JalaliDatePicker({
 
   const changeMonth = (offset: number) => {
     const absoluteMonth = visibleMonth.year * 12 + visibleMonth.month - 1 + offset;
-    setVisibleMonth({
+    const nextMonth = {
       year: Math.floor(absoluteMonth / 12),
       month: ((absoluteMonth % 12) + 12) % 12 + 1,
-    });
+    };
+    setVisibleMonth(nextMonth);
+    setYearInput(String(nextMonth.year));
   };
 
   const selectDay = (day: number) => {
@@ -113,18 +118,19 @@ export function JalaliDatePicker({
             type="text"
             inputMode="numeric"
             autoComplete="off"
-            dir="ltr"
+            dir="rtl"
             aria-label={ariaLabel}
             aria-invalid={Boolean(inputError)}
             required={required}
             disabled={disabled}
             placeholder="۱۴۰۵/۰۱/۰۱"
-            className={cn('field pe-10 text-left', inputError && 'field-invalid', className)}
+            className={cn('field pe-10 text-right', inputError && 'field-invalid', className)}
             value={value}
             onChange={(event) => onChange(event.target.value)}
             onFocus={() => {
               const current = parseJalaliDate(value) ?? jalaliPartsFromDate(new Date());
               setVisibleMonth({ year: current.year, month: current.month });
+              setYearInput(String(current.year));
             }}
           />
           <button
@@ -137,6 +143,7 @@ export function JalaliDatePicker({
               if (!open) {
                 const current = parseJalaliDate(value) ?? jalaliPartsFromDate(new Date());
                 setVisibleMonth({ year: current.year, month: current.month });
+                setYearInput(String(current.year));
               }
               setOpen((current) => !current);
             }}
@@ -149,7 +156,8 @@ export function JalaliDatePicker({
           <div
             role="dialog"
             aria-label="تقویم شمسی"
-            className="absolute z-40 mt-1 w-64 rounded-card border border-line bg-card p-3 shadow-lg"
+            dir="rtl"
+            className="absolute end-0 z-40 mt-1 w-64 rounded-card border border-line bg-card p-3 shadow-lg"
           >
             <div className="mb-2 flex items-center justify-between gap-2">
               <button
@@ -160,9 +168,43 @@ export function JalaliDatePicker({
               >
                 <Icon name="chevron-right" size={15} />
               </button>
-              <p className="text-[12px] font-semibold text-fg">
-                {MONTHS[visibleMonth.month - 1]} {displayDigits(visibleMonth.year)}
-              </p>
+              <div className="flex min-w-0 flex-1 items-center justify-center gap-1.5">
+                <Select
+                  aria-label="انتخاب ماه"
+                  className="h-8 min-h-0 w-[108px] py-1 text-center text-[11px]"
+                  options={MONTHS.map((month, index) => ({
+                    value: String(index + 1),
+                    label: month,
+                  }))}
+                  value={String(visibleMonth.month)}
+                  onChange={(event) =>
+                    setVisibleMonth((current) => ({ ...current, month: Number(event.target.value) }))
+                  }
+                />
+                <TextInput
+                  aria-label="انتخاب سال"
+                  type="text"
+                  inputMode="numeric"
+                  dir="ltr"
+                  maxLength={4}
+                  className="h-8 min-h-0 w-[76px] px-2 py-1 text-center text-[11px]"
+                  value={displayDigits(yearInput)}
+                  onChange={(event) => {
+                    const nextValue = onlyDigits(event.target.value);
+                    setYearInput(nextValue);
+                    const year = Number(nextValue);
+                    if (Number.isInteger(year) && year >= 1000 && year <= 3000) {
+                      setVisibleMonth((current) => ({ ...current, year }));
+                    }
+                  }}
+                  onBlur={() => {
+                    const year = Number(yearInput);
+                    if (!Number.isInteger(year) || year < 1000 || year > 3000) {
+                      setYearInput(String(visibleMonth.year));
+                    }
+                  }}
+                />
+              </div>
               <button
                 type="button"
                 aria-label="ماه بعد"
@@ -173,7 +215,7 @@ export function JalaliDatePicker({
               </button>
             </div>
 
-            <div className="grid grid-cols-7 gap-1 text-center">
+            <div dir="rtl" className="grid grid-cols-7 gap-1 text-center">
               {WEEKDAYS.map((weekday) => (
                 <span key={weekday} className="py-1 text-[10px] font-medium text-fg-subtle">
                   {weekday}

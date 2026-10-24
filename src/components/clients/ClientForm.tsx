@@ -2,8 +2,8 @@
 
 import { useState } from 'react';
 import type { Client } from '../../types';
-import { isValidMobile, isValidNationalId } from '../../lib/crypto';
-import { onlyDigits } from '../../lib/utils';
+import { isAlphabeticName, isValidMobile, isValidNationalId } from '../../lib/crypto';
+import { onlyDigits, toLatinDigits } from '../../lib/utils';
 import { isValidJalaliDate, normalizeJalaliDate } from '../../lib/jalali';
 import { Button } from '../ui/Button';
 import { FormActions, FormGrid } from '../ui/Controls';
@@ -16,8 +16,9 @@ export function emptyClientDraft(): ClientDraft {
     fullName: '',
     nationalId: '',
     mobile: '',
-    phone: '',
+    birthCertificateNumber: '',
     fatherName: '',
+    issuePlace: '',
     birthDate: '',
     residenceAddress: '',
   };
@@ -65,9 +66,22 @@ export function ClientForm({
     event.preventDefault();
     const nextErrors: Record<string, string> = {};
     if (!form.fullName.trim()) nextErrors.fullName = 'نام و نام خانوادگی الزامی است.';
+    else if (!isAlphabeticName(form.fullName)) nextErrors.fullName = 'نام و نام خانوادگی باید فقط شامل حروف باشد.';
     if (form.mobile && !isValidMobile(form.mobile)) nextErrors.mobile = 'شماره موبایل باید ۱۱ رقم و با ۰۹ شروع شود.';
     if (form.nationalId && !isValidNationalId(form.nationalId)) {
       nextErrors.nationalId = 'کد ملی معتبر نیست (الگوریتم کنترل).';
+    }
+    if (
+      form.birthCertificateNumber?.trim() &&
+      !/^\d{1,10}$/.test(toLatinDigits(form.birthCertificateNumber.trim()))
+    ) {
+      nextErrors.birthCertificateNumber = 'شماره شناسنامه باید حداکثر ۱۰ رقم باشد.';
+    }
+    if (form.fatherName?.trim() && !isAlphabeticName(form.fatherName)) {
+      nextErrors.fatherName = 'نام پدر باید فقط شامل حروف باشد.';
+    }
+    if (form.issuePlace?.trim() && !isAlphabeticName(form.issuePlace)) {
+      nextErrors.issuePlace = 'شهر صادره باید فقط شامل حروف باشد.';
     }
     if (form.birthDate && !isValidJalaliDate(form.birthDate)) {
       nextErrors.birthDate = 'تاریخ تولد باید شمسی و به‌شکل ۱۴۰۵/۰۷/۳۰ باشد.';
@@ -80,6 +94,9 @@ export function ClientForm({
       fullName: form.fullName.trim(),
       nationalId: onlyDigits(form.nationalId),
       mobile: onlyDigits(form.mobile),
+      birthCertificateNumber: onlyDigits(form.birthCertificateNumber ?? ''),
+      fatherName: form.fatherName?.trim() ?? '',
+      issuePlace: form.issuePlace?.trim() ?? '',
       birthDate: form.birthDate ? normalizeJalaliDate(form.birthDate) ?? '' : '',
       residenceAddress: form.residenceAddress?.trim() ?? '',
     });
@@ -112,14 +129,24 @@ export function ClientForm({
             onChange={(event) => set('mobile', onlyDigits(event.target.value))}
           />
           <TextInput
-            label="تلفن ثابت"
-            value={form.phone ?? ''}
-            onChange={(event) => set('phone', event.target.value)}
+            label="شماره شناسنامه"
+            value={form.birthCertificateNumber ?? ''}
+            inputMode="numeric"
+            maxLength={10}
+            error={errors.birthCertificateNumber}
+            onChange={(event) => set('birthCertificateNumber', onlyDigits(event.target.value))}
           />
           <TextInput
             label="نام پدر"
             value={form.fatherName ?? ''}
+            error={errors.fatherName}
             onChange={(event) => set('fatherName', event.target.value)}
+          />
+          <TextInput
+            label="شهر صادره شناسنامه"
+            value={form.issuePlace ?? ''}
+            error={errors.issuePlace}
+            onChange={(event) => set('issuePlace', event.target.value)}
           />
           <JalaliDatePicker
             label="تاریخ تولد"
