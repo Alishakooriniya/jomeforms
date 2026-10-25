@@ -96,13 +96,14 @@ export const AUDIT_ENTITY_LABELS: Record<AuditEntity, string> = {
   auth: 'ورود و خروج',
   client: 'پرونده',
   document: 'سند',
-  template: 'قالب فرم',
+  template: 'فرم',
   user: 'کاربر',
   role: 'نقش',
   company: 'مجموعه',
   settings: 'تنظیمات',
   scan: 'اسکن',
   workflow: 'مرحله پرونده',
+  reminder: 'یادآور',
 };
 
 /** گزینه‌های پرکاربرد برای فیلترها */

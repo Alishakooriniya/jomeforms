@@ -42,7 +42,7 @@ export class TemplateService {
 
     await this.templates.saveVersion(created, context.actor.id);
     await this.audit.record(context, {
-      action: 'افزودن قالب فرم',
+      action: 'افزودن فرم',
       entity: 'template',
       entityId: created.id,
       entityLabel: created.title,
@@ -64,7 +64,7 @@ export class TemplateService {
 
     await this.templates.saveVersion(updated, context.actor.id);
     await this.audit.record(context, {
-      action: 'ویرایش قالب فرم',
+      action: 'ویرایش فرم',
       entity: 'template',
       entityId: id,
       entityLabel: updated.title,
@@ -96,7 +96,7 @@ export class TemplateService {
 
     await this.templates.saveVersion(copy, context.actor.id);
     await this.audit.record(context, {
-      action: 'کپی قالب فرم',
+      action: 'کپی فرم',
       entity: 'template',
       entityId: copy.id,
       entityLabel: copy.title,
@@ -111,12 +111,12 @@ export class TemplateService {
 
     await this.templates.delete(id);
     await this.audit.record(context, {
-      action: 'حذف قالب فرم',
+      action: 'حذف فرم',
       entity: 'template',
       entityId: id,
       entityLabel: template.title,
       detail: template.documentCount
-        ? `${template.documentCount} سند ساخته‌شده از این قالب باقی می‌ماند`
+        ? `${template.documentCount} سند ساخته‌شده از این فرم باقی می‌ماند`
         : undefined,
     });
 

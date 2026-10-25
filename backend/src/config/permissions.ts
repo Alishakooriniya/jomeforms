@@ -50,12 +50,12 @@ const GROUPS: PermissionGroupDefinition[] = [
   },
   {
     id: 'templates',
-    label: 'قالب فرم‌ها',
+    label: 'فرم‌ها',
     permissions: [
-      { key: 'templates.view', label: 'مشاهده قالب‌ها' },
-      { key: 'templates.create', label: 'افزودن قالب فرم' },
-      { key: 'templates.edit', label: 'ویرایش قالب' },
-      { key: 'templates.delete', label: 'حذف قالب' },
+      { key: 'templates.view', label: 'استفاده از فرم‌ها در اسناد' },
+      { key: 'templates.create', label: 'افزودن فرم' },
+      { key: 'templates.edit', label: 'ویرایش فرم' },
+      { key: 'templates.delete', label: 'حذف فرم' },
     ],
   },
   {
@@ -205,7 +205,7 @@ export const PRESET_ROLES: PresetRoleDefinition[] = [
   {
     code: 'preset-manager',
     name: 'مدیر شعبه',
-    description: 'دسترسی کامل به پرونده‌ها، اسناد، گزارش‌ها و قالب‌ها',
+    description: 'دسترسی کامل به پرونده‌ها، اسناد، گزارش‌ها و فرم‌ها',
     permissions: MANAGER,
   },
 ];

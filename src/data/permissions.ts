@@ -59,14 +59,14 @@ export const PERMISSION_GROUPS: PermissionGroup[] = [
   },
   {
     id: 'templates',
-    label: 'قالب فرم‌ها',
-    description: 'ساخت و ویرایش فرم‌های قابل استفاده',
+    label: 'فرم‌ها',
+    description: 'استفاده از فرم‌ها در اسناد و مدیریت آن‌ها',
     icon: 'template',
     perms: [
-      { key: 'templates.view', label: 'مشاهده قالب‌ها' },
-      { key: 'templates.create', label: 'افزودن قالب فرم' },
-      { key: 'templates.edit', label: 'ویرایش قالب' },
-      { key: 'templates.delete', label: 'حذف قالب' },
+      { key: 'templates.view', label: 'استفاده از فرم‌ها در اسناد' },
+      { key: 'templates.create', label: 'افزودن فرم' },
+      { key: 'templates.edit', label: 'ویرایش فرم' },
+      { key: 'templates.delete', label: 'حذف فرم' },
     ],
   },
   {
@@ -120,6 +120,13 @@ export const PERMISSION_GROUPS: PermissionGroup[] = [
     description: 'ردیابی عملیات کاربران',
     icon: 'history',
     perms: [{ key: 'audit.view', label: 'مشاهده گزارش فعالیت' }],
+  },
+  {
+    id: 'reminders',
+    label: 'یادآورها',
+    description: 'تعریف یادآور زمان‌دار برای کاربران سامانه',
+    icon: 'bell',
+    perms: [{ key: 'reminders.manage', label: 'مدیریت یادآورها' }],
   },
   {
     id: 'settings',
@@ -219,7 +226,7 @@ export const PRESET_ROLES: PermissionRole[] = [
   {
     id: 'preset-manager',
     name: 'مدیر شعبه',
-    description: 'دسترسی کامل به پرونده‌ها، اسناد، گزارش‌ها و قالب‌ها',
+    description: 'دسترسی کامل به پرونده‌ها، اسناد، گزارش‌ها و فرم‌ها',
     permissions: ALL_PERMISSIONS.filter(
       (key) => !key.startsWith('users.') && !key.startsWith('roles.') && key !== 'settings.edit',
     ),

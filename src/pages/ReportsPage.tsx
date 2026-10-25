@@ -146,7 +146,7 @@ export default function ReportsPage() {
         ['خلاصه', 'نرخ امضا (٪)', signedRatio],
         ...documentsPerMonth.map((item) => ['ماهانه', item.label, item.value] as Array<string | number>),
         ...templateRows.map(
-          (row) => ['قالب', row.title, `${row.documents} سند / ${row.scanned} اسکن‌شده`] as Array<string | number>,
+          (row) => ['فرم', row.title, `${row.documents} سند / ${row.scanned} اسکن‌شده`] as Array<string | number>,
         ),
         ...agentRows.map(
           (row) => ['ثبت‌کننده', row.name, `${row.clients} پرونده / ${row.documents} سند`] as Array<string | number>,
@@ -274,7 +274,7 @@ export default function ReportsPage() {
         </Card>
 
         <Card>
-          <CardHeader title="استفاده از قالب‌ها" subtitle="میزان تولید سند با هر قالب" icon="template" />
+          <CardHeader title="استفاده از فرم‌ها" subtitle="میزان تولید سند با هر فرم" icon="template" />
           <CardBody className="p-0">
             {templateRows.length ? (
               <ul className="divide-y divide-line">
@@ -296,7 +296,7 @@ export default function ReportsPage() {
                 ))}
               </ul>
             ) : (
-              <EmptyState compact icon="template" title="قالبی وجود ندارد" />
+              <EmptyState compact icon="template" title="فرمی وجود ندارد" />
             )}
           </CardBody>
         </Card>

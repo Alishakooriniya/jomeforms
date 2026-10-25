@@ -45,7 +45,7 @@ This keeps access control centralized and predictable.
 
 ### Central store
 
-`src/store/DataProvider.tsx` is the system-of-record for database states and business operations. All CRUD logic for clients, documents, templates, users, roles, companies, settings, and audit entries should live here.
+`src/store/DataProvider.tsx` is the system-of-record for database states and business operations. All CRUD logic for clients, documents, templates, users, roles, companies, reminders, settings, and audit entries should live here.
 
 Design rules:
 
@@ -116,12 +116,11 @@ The layout is intentionally stable so pages primarily define content rather than
 
 ### Theme system
 
-`src/store/ThemeProvider.tsx` handles theme preferences and writes values to `document.documentElement`:
+`src/store/ThemeProvider.tsx` handles theme preference and applies it to `document.documentElement`:
 
-- `dark` class toggled on root
-- `data-accent` attribute
-- `data-radius` attribute
-- persisted prefs via storage helpers
+- `dark` class toggled on root — the product intentionally ships only light/dark; there is no system mode, accent picker, or radius picker (product decision, 2026-10: keep one brand palette and one radius)
+- persisted mode via storage helpers
+- the header button toggles dark/light directly; Settings → پوسته offers the same two choices
 
 Use the theme configuration from `src/config/theme.ts` and the design tokens already defined rather than creating unscoped custom colors or arbitrary spacing rules.
 
@@ -156,6 +155,17 @@ as well as choosing a day from the calendar grid.
 
 When introducing new UI, prefer existing patterns and token names over hard-coded values.
 
+The form library lives in the management nav group as «فرم‌ها» (`/templates`).
+It is a manager-only area: the list and editor routes require
+`templates.edit` (and `templates.create` for the new-form route), so staff
+accounts never see the template library itself. Regular users only *use* the
+forms a manager has registered — `templates.view` means "use forms in
+documents" and gates `DocumentCreate`, while `templates.create`,
+`templates.edit`, and `templates.delete` are the management permissions. The
+backend mirrors this split: `GET /form-templates` requires `templates.view`
+(reading a form to use it) and the mutation routes require the management
+permissions.
+
 Template authoring follows a short guided flow: name and categorize the form,
 add questions using Persian labels, then write and preview the printable text.
 Internal field keys are generated automatically and remain out of the way;
@@ -170,6 +180,16 @@ and field definitions in the template data so they continue to persist and be
 versioned with the backend template. Preview and print must use the same
 code-rendered layout, preserve the source form's page dimensions, and leave the
 surrounding app layout and shared document patterns unchanged.
+
+Form documents use B Nazanin as their typeface in both preview and print. The
+family stack lives once in `src/index.css` (`.form-font` for screen) and once in
+`src/lib/print.ts` (`FORM_FONT_FAMILY`/`FORM_FONT_FACE` for standalone print
+documents); the font resolves from the OS installation first and optionally
+from bundled files in `public/fonts/`. Every form page also draws a page border
+(about 8 mm inside the paper edge): the fixed A4 layout shares its frame
+geometry via `DOCUMENT_REQUEST_FRAME` in `src/lib/documentRequestPrint.ts`, and
+the generic document sheet paints the same frame with a fixed-position element
+in print and an absolutely-positioned inset div in `DocumentPreview`.
 
 ## 5. Component conventions
 
@@ -270,7 +290,7 @@ The frontend was tightened around scan-ability and lower cognitive load. The bac
 
 ### Case detail (no tabs)
 
-The case page is a single coherent screen instead of four tabs. The primary column holds the workflow (current step, evidence upload, completion, and manager override behind a disclosure) and the case documents. The secondary column holds applicant identity and activity history. A compact four-cell summary strip replaces the three large stat cards. All previous actions and audit data remain available; only their presentation changed.
+The case page is a single coherent screen instead of four tabs, kept deliberately minimal: a compact four-cell summary strip, then one merged card holding the workflow above the case documents table, separated by a slim in-card subheader. The workflow renders as a horizontal stepper (scrollable on narrow screens); clicking a node selects it and the selected step's status, evidence files, upload, completion, and manager-override disclosure render in a detail row beneath the stepper — defaulting to the active step. There is no side column — applicant details and the activity history open as dialogs from ghost icon buttons in the page header (eye = مشخصات متقاضی، history = تاریخچه فعالیت، edit = ویرایش پرونده, the last gated by `clients.edit`). All previous actions and audit data remain available; only their presentation changed.
 
 ### Document detail (no tabs)
 
@@ -280,9 +300,13 @@ The document preview is the primary surface. Recorded values are an expandable s
 
 The dashboard is action-first: open work (overdue evidence, documents awaiting signature), then active case metrics, then recent cases and the activity feed. Every metric has a working link with the correct filter; numbers are only shown when they lead somewhere.
 
+### Reminders
+
+Managers define time-bound reminders at `/reminders` (permission `reminders.manage`, under the management nav group): reminder text, a Jalali date that defaults to today, an optional `HH:MM` time, and a target user. A reminder without a time is due at the start of its day. Due reminders surface in the recipient's topbar bell — the same dropdown that lists documents awaiting signature, now shown to every signed-in user — and selecting one marks it done. The dashboard header keeps a secondary shortcut button to the page. Reminders live in the local DB (`crm.reminders.v1`), are audit-logged like other entities (`reminder`), and have no backend contract yet.
+
 ### Navigation and forms
 
-The sidebar brand reads from `settings.orgName`; the management group is collapsed unless one of its routes is active. The client form shows name, national ID, and mobile immediately and places certificate, birth, father, and address fields under `اطلاعات تکمیلی` (auto-open when editing a record that already has them). Redundant dashboard-style stat cards and duplicated summary cards were removed from collections, audit, reports, and role pages; the information they repeated is still available in the main list or detail view.
+The sidebar brand reads from `settings.orgName`; the management group is collapsed unless one of its routes is active. On the dedicated registration page (`/clients/new`) the case form renders as one unified grid — all fields visible, only full name required, every field validated (name/letters, national-ID checksum, mobile format, certificate digits, Jalali date, length caps matching the API schema). The edit dialogs instead keep the supplementary fields under a collapsible `اطلاعات تکمیلی` disclosure that auto-opens when the record already has such data (`ClientForm`'s `alwaysShowExtra` prop). Redundant dashboard-style stat cards and duplicated summary cards were removed from collections, audit, reports, and role pages; the information they repeated is still available in the main list or detail view.
 
 All of these are frontend-only changes. Do not move filtering, numbering, permissions, or workflow rules out of the store/API while refining presentation.
 

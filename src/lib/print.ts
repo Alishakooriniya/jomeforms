@@ -23,6 +23,27 @@ export interface DocumentPrintOptions {
   blankLine?: boolean;
 }
 
+/** فونت رسمی فرم‌ها — در نمایش و چاپ یکسان است (index.css: .form-font). */
+export const FORM_FONT_FAMILY = `'B Nazanin', BNazanin, 'B-Nazanin', Vazirmatn, Tahoma, Arial, sans-serif`;
+
+/** تعریف B Nazanin در سند چاپی: ابتدا فونت نصب‌شده سیستم، بعد فایل اختیاری در /fonts */
+export const FORM_FONT_FACE = `
+  @font-face {
+    font-family: 'B Nazanin';
+    src: local('B Nazanin'), local('BNazanin'), local('B-Nazanin'),
+      url('/fonts/BNazanin.woff2') format('woff2'),
+      url('/fonts/BNazanin.ttf') format('truetype');
+    font-weight: 400; font-display: swap;
+  }
+  @font-face {
+    font-family: 'B Nazanin';
+    src: local('B Nazanin Bold'), local('BNazanin Bold'), local('BNazanin-Bold'),
+      url('/fonts/BNazaninBold.woff2') format('woff2'),
+      url('/fonts/BNazaninBold.ttf') format('truetype');
+    font-weight: 700; font-display: swap;
+  }
+`;
+
 function escapeHtml(value: string): string {
   return value
     .replace(/&/g, '&amp;')
@@ -32,28 +53,32 @@ function escapeHtml(value: string): string {
 }
 
 const PRINT_STYLES = `
+  ${FORM_FONT_FACE}
   @page { size: A4; margin: 14mm 12mm; }
   * { box-sizing: border-box; }
   body {
-    font-family: Vazirmatn, IRANSansX, 'Segoe UI', Tahoma, Arial, sans-serif;
+    font-family: ${FORM_FONT_FAMILY};
     direction: rtl; text-align: right; color: #171717; margin: 0;
-    font-size: 11.5pt; line-height: 1.9;
+    font-size: 13pt; line-height: 1.9;
+  }
+  .frame {
+    position: fixed; inset: 8mm; border: 0.9pt solid #171717; pointer-events: none;
   }
   .sheet { max-width: 186mm; margin: 0 auto; }
   .org { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px;
          border-bottom: 2px solid #24815d; padding-bottom: 6px; margin-bottom: 14px; }
-  .org h1 { font-size: 15pt; margin: 0 0 4px; color: #1f674c; }
-  .org .meta { font-size: 8.6pt; color: #565656; line-height: 1.6; }
-  .doc-head { display: flex; justify-content: space-between; font-size: 9.5pt; color: #565656; margin-bottom: 10px; }
-  h2.title { text-align: center; font-size: 14pt; margin: 6px 0 14px; }
-  .note { border: 1px solid #d1d1d1; border-radius: 6px; padding: 8px 10px; font-size: 10pt;
+  .org h1 { font-size: 16pt; margin: 0 0 4px; color: #1f674c; }
+  .org .meta { font-size: 9.5pt; color: #565656; line-height: 1.6; }
+  .doc-head { display: flex; justify-content: space-between; font-size: 10.5pt; color: #565656; margin-bottom: 10px; }
+  h2.title { text-align: center; font-size: 15.5pt; margin: 6px 0 14px; }
+  .note { border: 1px solid #d1d1d1; border-radius: 6px; padding: 8px 10px; font-size: 11pt;
           background: #f5f5f5; margin-bottom: 12px; }
   .body { white-space: pre-wrap; text-align: justify; }
-  .footer { margin-top: 16px; padding-top: 8px; border-top: 1px dashed #d1d1d1; font-size: 9.5pt; color: #565656; }
+  .footer { margin-top: 16px; padding-top: 8px; border-top: 1px dashed #d1d1d1; font-size: 10pt; color: #565656; }
   .signs { display: flex; gap: 16px; margin-top: 34px; }
   .sign { flex: 1; border: 1px solid #d1d1d1; border-radius: 6px; min-height: 28mm; padding: 8px; }
-  .sign b { display: block; font-size: 10pt; margin-bottom: 26px; }
-  .sign span { font-size: 9pt; color: #565656; }
+  .sign b { display: block; font-size: 11pt; margin-bottom: 26px; }
+  .sign span { font-size: 9.5pt; color: #565656; }
   @media print { .sheet { max-width: none; } }
 `;
 
@@ -80,6 +105,7 @@ export function buildDocumentHtml(options: DocumentPrintOptions): string {
 <style>${PRINT_STYLES}</style>
 </head>
 <body>
+<div class="frame" aria-hidden="true"></div>
 <div class="sheet">
   <div class="org">
     <div>

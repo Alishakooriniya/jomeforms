@@ -24,6 +24,7 @@ export function emptyDb(): DbShape {
     roles: [],
     scans: [],
     workflowEvidence: [],
+    reminders: [],
     audit: [],
     settings: DEFAULT_SETTINGS,
   };
@@ -95,6 +96,7 @@ export function saveDb(db: DbShape, persistTemplates = true) {
   writeJSON(KEYS.roles, db.roles);
   writeJSON(KEYS.scans, db.scans);
   writeJSON(KEYS.workflowEvidence, db.workflowEvidence);
+  writeJSON(KEYS.reminders, db.reminders);
   writeJSON(KEYS.audit, db.audit);
   writeJSON(KEYS.settings, db.settings);
 }
@@ -113,10 +115,12 @@ function upgradePresetUsers(users: User[]): { users: User[]; changed: boolean } 
   const next = users.map((user) => {
     if (user.role === 'superadmin' || user.permissions.includes('*')) return user;
     const preset = PRESET_ROLES.find((role) => {
-      const versions = [
-        role.permissions.filter((key) => !key.startsWith('clients.workflow.')),
-        role.permissions.filter((key) => !key.startsWith('companies.') && !key.startsWith('clients.workflow.')),
-      ];
+      // نسخه‌های قدیمی‌تر هر نقش آماده: پیشوندهای دسترسی که در نسخه‌های بعدی
+      // سامانه اضافه شده‌اند، به ترتیبِ جدید‌به‌قدیم حذف می‌شوند.
+      const addedLater = ['reminders.', 'clients.workflow.', 'companies.'];
+      const versions = addedLater.map((_, index) =>
+        role.permissions.filter((key) => !addedLater.slice(0, index + 1).some((prefix) => key.startsWith(prefix))),
+      );
       return versions.some((permissions) => permissions.length !== role.permissions.length && sameSet(user.permissions, permissions));
     });
     if (!preset) return user;
@@ -305,6 +309,7 @@ export function loadDb(): DbShape {
     roles: readJSON<DbShape['roles']>(KEYS.roles, []),
     scans: readJSON<DbShape['scans']>(KEYS.scans, []),
     workflowEvidence,
+    reminders: readJSON<DbShape['reminders']>(KEYS.reminders, []),
     audit: readJSON<DbShape['audit']>(KEYS.audit, []),
     settings: { ...DEFAULT_SETTINGS, ...readJSON<Partial<DbShape['settings']>>(KEYS.settings, {}) },
   };
@@ -321,6 +326,7 @@ export function resetDb(): DbShape {
     KEYS.roles,
     KEYS.scans,
     KEYS.workflowEvidence,
+    KEYS.reminders,
     KEYS.audit,
     KEYS.settings,
     KEYS.meta,

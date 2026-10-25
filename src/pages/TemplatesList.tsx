@@ -1,4 +1,4 @@
-/* فهرست قالب فرم‌ها — مدیریت فرم‌هایی که سوپرادمین اضافه می‌کند */
+/* فهرست فرم‌ها — مدیریت فرم‌هایی که مدیر می‌سازد و کاربران در اسناد استفاده می‌کنند */
 
 import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -56,13 +56,13 @@ export default function TemplatesList() {
   return (
     <div className="flex flex-col gap-4">
       <PageHeader
-        title="قالب فرم‌ها"
-        subtitle="کتابخانه فرم‌های چاپی؛ برای ساخت سند، یک قالب انتخاب می‌شود"
+        title="فرم‌ها"
+        subtitle="کتابخانه فرم‌های چاپی؛ برای ساخت سند، یک فرم انتخاب می‌شود"
         actions={
           <>
             {can('templates.create') ? (
               <Button variant="primary" icon="plus" to="/templates/new">
-                افزودن قالب فرم
+                افزودن فرم
               </Button>
             ) : null}
           </>
@@ -71,10 +71,10 @@ export default function TemplatesList() {
 
       <ListToolbar
         advancedCount={query.filters.state && query.filters.state !== 'all' ? 1 : 0}
-        summary={<ResultsSummary total={query.total} unit="قالب" />}
+        summary={<ResultsSummary total={query.total} unit="فرم" />}
         advanced={
           <>
-            <FilterField label="وضعیت قالب">
+            <FilterField label="وضعیت فرم">
               <FilterSelect
                 value={query.filters.state ?? 'all'}
                 onChange={(value) => query.setFilter('state', value)}
@@ -179,13 +179,13 @@ export default function TemplatesList() {
 
               <div className="flex items-center justify-end gap-2">
                 <Dropdown
-                  label="عملیات قالب"
+                  label="عملیات فرم"
                   items={[
                     ...(can('templates.edit')
                       ? [
                           {
                             id: 'edit',
-                            label: 'ویرایش قالب',
+                            label: 'ویرایش فرم',
                             icon: 'edit' as const,
                             onSelect: () => navigate(`/templates/${template.id}`),
                           },
@@ -195,7 +195,7 @@ export default function TemplatesList() {
                       ? [
                           {
                             id: 'use',
-                            label: 'ساخت سند از این قالب',
+                            label: 'ساخت سند از این فرم',
                             icon: 'file-text' as const,
                             onSelect: () => navigate(`/documents/new?template=${template.id}`),
                           },
@@ -205,7 +205,7 @@ export default function TemplatesList() {
                       ? [
                           {
                             id: 'duplicate',
-                            label: 'کپی قالب',
+                            label: 'کپی فرم',
                             icon: 'copy' as const,
                             onSelect: () => {
                               const created = duplicateTemplate(template.id);
@@ -219,7 +219,7 @@ export default function TemplatesList() {
                           { id: 'sep', label: '', separator: true, onSelect: () => {} },
                           {
                             id: 'delete',
-                            label: 'حذف قالب',
+                            label: 'حذف فرم',
                             icon: 'trash' as const,
                             danger: true,
                             onSelect: () => setPendingDelete(template),
@@ -236,7 +236,7 @@ export default function TemplatesList() {
         <div className="card">
           <EmptyState
             icon="template"
-            title={query.hasActiveFilters ? 'قالبی با این فیلترها پیدا نشد' : 'هنوز قالبی اضافه نشده است'}
+            title={query.hasActiveFilters ? 'فرمی با این فیلترها پیدا نشد' : 'هنوز فرمی اضافه نشده است'}
             description={
               query.hasActiveFilters
                 ? 'عبارت جستجو را تغییر دهید.'
@@ -245,7 +245,7 @@ export default function TemplatesList() {
             action={
               can('templates.create') ? (
                 <Button variant="primary" icon="plus" to="/templates/new">
-                  افزودن قالب فرم
+                  افزودن فرم
                 </Button>
               ) : null
             }
@@ -259,14 +259,14 @@ export default function TemplatesList() {
         onConfirm={() => {
           if (pendingDelete) {
             deleteTemplate(pendingDelete.id);
-            toast.success('قالب حذف شد', pendingDelete.title);
+            toast.success('فرم حذف شد', pendingDelete.title);
           }
           setPendingDelete(null);
         }}
-        title="حذف قالب فرم"
+        title="حذف فرم"
         description={
           <>
-            قالب <b className="text-fg">{pendingDelete?.title}</b> حذف می‌شود. اسناد ساخته‌شده از این قالب باقی می‌مانند.
+            فرم <b className="text-fg">{pendingDelete?.title}</b> حذف می‌شود. اسناد ساخته‌شده از این فرم باقی می‌مانند.
           </>
         }
         confirmLabel="حذف کن"

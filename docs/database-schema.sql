@@ -12,6 +12,7 @@
 --    ScanFile      → document_scans
 --    AuditEntry    → audit_logs
 --    AppSettings   → app_settings
+--    Reminder      → reminders
 -- ============================================================================
 
 create extension if not exists "pgcrypto";
@@ -26,7 +27,7 @@ create type client_case_type   as enum ('document_request', 'rent_renewal');
 create type template_category  as enum ('sale', 'rent', 'mortgage', 'presale', 'commission', 'visit', 'other');
 create type document_status    as enum ('draft', 'awaiting_signature', 'signed', 'scanned', 'archived');
 create type company_kind       as enum ('owner', 'developer', 'cooperative', 'investor', 'org', 'other');
-create type audit_entity       as enum ('auth', 'client', 'document', 'template', 'user', 'role', 'company', 'settings', 'scan', 'workflow');
+create type audit_entity       as enum ('auth', 'client', 'document', 'template', 'user', 'role', 'company', 'settings', 'scan', 'workflow', 'reminder');
 
 -- ----------------------------------------------------------------------------
 -- ۲) کاربران و دسترسی‌ها
@@ -383,11 +384,32 @@ insert into permissions (key, group_id, label, sort_order) values
   ('reports.view',        'reports',   'مشاهده گزارش‌ها', 1),
   ('reports.export',      'reports',   'خروجی CSV گزارش', 2),
   ('audit.view',          'audit',     'مشاهده گزارش فعالیت', 1),
+  ('reminders.manage',    'reminders', 'مدیریت یادآورها', 1),
   ('settings.view',       'settings',  'مشاهده تنظیمات', 1),
   ('settings.edit',       'settings',  'تغییر تنظیمات', 2);
 
 -- ----------------------------------------------------------------------------
--- ۱۲) نماهای گزارش‌گیری (هم‌خوان با صفحه «گزارش‌ها»)
+-- ۱۲) یادآورها — یادآور زمان‌دار که مدیر برای یک کاربر تعریف می‌کند و در زمان
+--     مقرر در اعلان‌های او می‌نشیند. تاریخ شمسی YYYY/MM/DD است؛ ساعت اختیاری
+--     است و بدون ساعت یعنی ابتدای همان روز.
+-- ----------------------------------------------------------------------------
+create table reminders (
+  id            uuid primary key default gen_random_uuid(),
+  title         text not null,
+  note          text,
+  due_date      text not null,               -- تاریخ شمسی YYYY/MM/DD
+  due_time      text,                        -- ساعت HH:MM (اختیاری)
+  user_id       uuid not null references users(id) on delete cascade,
+  done_at       timestamptz,                 -- null یعنی هنوز انجام نشده
+  created_by    uuid references users(id) on delete set null,
+  created_at    timestamptz not null default now()
+);
+
+create index reminders_user_idx on reminders (user_id, done_at);
+create index reminders_due_idx  on reminders (due_date);
+
+-- ----------------------------------------------------------------------------
+-- ۱۳) نماهای گزارش‌گیری (هم‌خوان با صفحه «گزارش‌ها»)
 -- ----------------------------------------------------------------------------
 create or replace view v_document_status_summary as
 select status, count(*) as total
@@ -426,7 +448,7 @@ group by t.id, t.title
 order by documents desc;
 
 -- ----------------------------------------------------------------------------
--- ۱۳) نکات امنیتی (RLS)
+-- ۱۴) نکات امنیتی (RLS)
 --    سمت سرور باید همه پرس‌وجوها را با شناسه کاربر جاری محدود کند:
 --      • superadmin: دسترسی کامل
 --      • admin: تنها بخش‌هایی که در user_permissions دارد

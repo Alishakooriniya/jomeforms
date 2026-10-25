@@ -12,6 +12,7 @@ import type {
   DocStatus,
   FormTemplate,
   PermissionRole,
+  Reminder,
   ScanFile,
   User,
 } from '../types';
@@ -495,6 +496,35 @@ export const SEED_COMPANIES: Company[] = [
   },
 ];
 
+/* ------------------------------- یادآورها ------------------------------ */
+
+const SEED_REMINDERS: Reminder[] = [
+  {
+    id: 'rem-1',
+    title: 'پیگیری امضای اجاره‌نامه پرونده نمونه آزمایشی دو',
+    date: jalaliDaysAgo(0),
+    time: '10:00',
+    userId: 'u-admin',
+    userName: 'علی محمدی',
+    done: false,
+    createdAt: daysAgo(1),
+    createdBy: 'u-super',
+    createdByName: 'سارا رضایی',
+  },
+  {
+    id: 'rem-2',
+    title: 'تحویل مدارک مجموعه سبزینه به دفتر مرکزی',
+    note: 'اصل سند + دو برگ پیوست',
+    date: jalaliDaysAgo(-2),
+    userId: 'u-contracts',
+    userName: 'مرضیه صادقی',
+    done: false,
+    createdAt: daysAgo(1),
+    createdBy: 'u-super',
+    createdByName: 'سارا رضایی',
+  },
+];
+
 /* ------------------------------ گزارش کار ------------------------------ */
 
 const AUDIT_SEED: Array<Omit<AuditEntry, 'id' | 'at'> & { ago: number }> = [
@@ -505,7 +535,7 @@ const AUDIT_SEED: Array<Omit<AuditEntry, 'id' | 'at'> & { ago: number }> = [
   { ago: 3, userId: 'u-admin', userName: 'علی محمدی', action: 'چاپ سند', entity: 'document', entityId: 'doc-4', entityLabel: 'اجاره‌نامه ملک مسکونی' },
   { ago: 5, userId: 'u-super', userName: 'سارا رضایی', action: 'ویرایش دسترسی کاربر', entity: 'user', entityId: 'u-viewer', entityLabel: 'رضا کریمی', detail: 'افزودن دسترسی مشاهده گزارش‌ها' },
   { ago: 6, userId: 'u-contracts', userName: 'مرضیه صادقی', action: 'ایجاد سند', entity: 'document', entityId: 'doc-7', entityLabel: 'قرارداد پیش‌فروش واحد ساختمانی' },
-  { ago: 8, userId: 'u-super', userName: 'سارا رضایی', action: 'افزودن قالب فرم', entity: 'template', entityId: 'tpl-handover', entityLabel: 'صورتجلسه تحویل و تخلیه ملک' },
+  { ago: 8, userId: 'u-super', userName: 'سارا رضایی', action: 'افزودن فرم', entity: 'template', entityId: 'tpl-handover', entityLabel: 'صورتجلسه تحویل و تخلیه ملک' },
   { ago: 9, userId: 'u-admin', userName: 'علی محمدی', action: 'ویرایش پرونده', entity: 'client', entityId: 'cl-1', entityLabel: 'نمونه آزمایشی یک' },
   { ago: 12, userId: 'u-super', userName: 'سارا رضایی', action: 'ایجاد کاربر', entity: 'user', entityId: 'u-archive', entityLabel: 'نرگس بیات' },
   { ago: 13, userId: 'u-super', userName: 'سارا رضایی', action: 'ویرایش مجموعه', entity: 'company', entityId: 'co-3', entityLabel: 'شرکت عمران دشت‌پردیس', detail: 'به‌روزرسانی رابط و متراژ کل' },
@@ -541,6 +571,7 @@ export function buildSeedDb(): DbShape {
     roles: [...PRESET_ROLES, ...CUSTOM_ROLES],
     scans,
     workflowEvidence: [],
+    reminders: SEED_REMINDERS,
     audit: AUDIT_SEED.map((entry, index) => ({
       id: `log-${index + 1}`,
       at: daysAgo(entry.ago, index % 7),

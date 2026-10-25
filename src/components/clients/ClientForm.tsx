@@ -1,5 +1,6 @@
-/* فرم پرونده — اطلاعات اصلی همیشه دیده می‌شود و اطلاعات تکمیلی
-   به‌صورت تاشو باز می‌شود تا فرم کوتاه و کم‌ترسناک بماند. */
+/* فرم پرونده — فقط نام و نام خانوادگی اجباری است. اطلاعات تکمیلی در
+   صفحه ثبت (alwaysShowExtra) به‌صورت ثابت دیده می‌شود و در پنجره‌های
+   ویرایش زیر یک تاشو قرار می‌گیرد تا آن فرم‌ها فشرده بمانند. */
 
 import { useState } from 'react';
 import type { Client } from '../../types';
@@ -37,6 +38,8 @@ export interface ClientFormProps {
   onCancel: () => void;
   submitting?: boolean;
   submitLabel?: string;
+  /** وقتی فعال باشد، اطلاعات تکمیلی بدون تاشو همیشه دیده می‌شود */
+  alwaysShowExtra?: boolean;
 }
 
 export function ClientForm({
@@ -45,6 +48,7 @@ export function ClientForm({
   onCancel,
   submitting,
   submitLabel = 'ذخیره پرونده',
+  alwaysShowExtra = false,
 }: ClientFormProps) {
   const [form, setForm] = useState<ClientDraft>(initial ?? emptyClientDraft());
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -66,6 +70,7 @@ export function ClientForm({
     event.preventDefault();
     const nextErrors: Record<string, string> = {};
     if (!form.fullName.trim()) nextErrors.fullName = 'نام و نام خانوادگی الزامی است.';
+    else if (form.fullName.trim().length < 2) nextErrors.fullName = 'نام و نام خانوادگی حداقل ۲ حرف است.';
     else if (!isAlphabeticName(form.fullName)) nextErrors.fullName = 'نام و نام خانوادگی باید فقط شامل حروف باشد.';
     if (form.mobile && !isValidMobile(form.mobile)) nextErrors.mobile = 'شماره موبایل باید ۱۱ رقم و با ۰۹ شروع شود.';
     if (form.nationalId && !isValidNationalId(form.nationalId)) {
@@ -85,6 +90,9 @@ export function ClientForm({
     }
     if (form.birthDate && !isValidJalaliDate(form.birthDate)) {
       nextErrors.birthDate = 'تاریخ تولد باید شمسی و به‌شکل ۱۴۰۵/۰۷/۳۰ باشد.';
+    }
+    if ((form.residenceAddress?.trim().length ?? 0) > 500) {
+      nextErrors.residenceAddress = 'نشانی حداکثر ۵۰۰ کاراکتر است.';
     }
     setErrors(nextErrors);
     if (Object.keys(nextErrors).length) {
@@ -107,6 +115,48 @@ export function ClientForm({
     });
   };
 
+  const extraFields = (
+    <>
+      <TextInput
+        label="شماره شناسنامه"
+        value={form.birthCertificateNumber ?? ''}
+        inputMode="numeric"
+        maxLength={10}
+        error={errors.birthCertificateNumber}
+        onChange={(event) => set('birthCertificateNumber', onlyDigits(event.target.value))}
+      />
+      <TextInput
+        label="نام پدر"
+        value={form.fatherName ?? ''}
+        maxLength={120}
+        error={errors.fatherName}
+        onChange={(event) => set('fatherName', event.target.value)}
+      />
+      <TextInput
+        label="شهر صادره شناسنامه"
+        value={form.issuePlace ?? ''}
+        maxLength={120}
+        error={errors.issuePlace}
+        onChange={(event) => set('issuePlace', event.target.value)}
+      />
+      <JalaliDatePicker
+        label="تاریخ تولد"
+        value={form.birthDate ?? ''}
+        error={errors.birthDate}
+        onChange={(value) => set('birthDate', value)}
+      />
+      <Textarea
+        label="نشانی محل سکونت"
+        className="min-h-20"
+        containerClassName="md:col-span-2"
+        maxLength={500}
+        error={errors.residenceAddress}
+        value={form.residenceAddress ?? ''}
+        onChange={(event) => set('residenceAddress', event.target.value)}
+      />
+    </>
+  );
+
   return (
     <form className="flex flex-col gap-4" onSubmit={submit}>
       <FormGrid columns={2}>
@@ -114,6 +164,7 @@ export function ClientForm({
           label="نام و نام خانوادگی"
           required
           value={form.fullName}
+          maxLength={160}
           error={errors.fullName}
           onChange={(event) => set('fullName', event.target.value)}
         />
@@ -129,62 +180,34 @@ export function ClientForm({
           label="موبایل"
           value={form.mobile}
           inputMode="tel"
+          maxLength={11}
           error={errors.mobile}
           onChange={(event) => set('mobile', onlyDigits(event.target.value))}
         />
+        {alwaysShowExtra ? extraFields : null}
       </FormGrid>
 
-      <div className="border-t border-line pt-3">
-        <button
-          type="button"
-          onClick={() => setShowExtra((prev) => !prev)}
-          aria-expanded={showExtra}
-          className="flex w-full items-center gap-1.5 text-[12px] font-medium text-fg-muted transition-colors hover:text-fg"
-        >
-          <Icon name="chevron-down" size={12} className={cn('transition-transform', !showExtra && 'rotate-90')} />
-          اطلاعات تکمیلی
-          <span className="font-normal text-fg-subtle">(اختیاری — شناسنامه، تولد و نشانی)</span>
-          {!showExtra ? <span className="ms-auto text-[10.5px] font-normal text-fg-subtle">باز کردن</span> : null}
-        </button>
+      {!alwaysShowExtra ? (
+        <div className="border-t border-line pt-3">
+          <button
+            type="button"
+            onClick={() => setShowExtra((prev) => !prev)}
+            aria-expanded={showExtra}
+            className="flex w-full items-center gap-1.5 text-[12px] font-medium text-fg-muted transition-colors hover:text-fg"
+          >
+            <Icon name="chevron-down" size={12} className={cn('transition-transform', !showExtra && 'rotate-90')} />
+            اطلاعات تکمیلی
+            <span className="font-normal text-fg-subtle">(اختیاری — شناسنامه، تولد و نشانی)</span>
+            {!showExtra ? <span className="ms-auto text-[10.5px] font-normal text-fg-subtle">باز کردن</span> : null}
+          </button>
 
-        {showExtra ? (
-          <FormGrid columns={2} className="mt-3">
-            <TextInput
-              label="شماره شناسنامه"
-              value={form.birthCertificateNumber ?? ''}
-              inputMode="numeric"
-              maxLength={10}
-              error={errors.birthCertificateNumber}
-              onChange={(event) => set('birthCertificateNumber', onlyDigits(event.target.value))}
-            />
-            <TextInput
-              label="نام پدر"
-              value={form.fatherName ?? ''}
-              error={errors.fatherName}
-              onChange={(event) => set('fatherName', event.target.value)}
-            />
-            <TextInput
-              label="شهر صادره شناسنامه"
-              value={form.issuePlace ?? ''}
-              error={errors.issuePlace}
-              onChange={(event) => set('issuePlace', event.target.value)}
-            />
-            <JalaliDatePicker
-              label="تاریخ تولد"
-              value={form.birthDate ?? ''}
-              error={errors.birthDate}
-              onChange={(value) => set('birthDate', value)}
-            />
-            <Textarea
-              label="نشانی محل سکونت"
-              className="min-h-20"
-              containerClassName="md:col-span-2"
-              value={form.residenceAddress ?? ''}
-              onChange={(event) => set('residenceAddress', event.target.value)}
-            />
-          </FormGrid>
-        ) : null}
-      </div>
+          {showExtra ? (
+            <FormGrid columns={2} className="mt-3">
+              {extraFields}
+            </FormGrid>
+          ) : null}
+        </div>
+      ) : null}
 
       <FormActions>
         <Button variant="ghost" onClick={onCancel} disabled={submitting}>

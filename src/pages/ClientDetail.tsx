@@ -1,6 +1,6 @@
-/* پرونده: یک نمای واحد و منسجم.
-   اطلاعات هویتی، مراحل رسیدگی، اسناد و تاریخچه در یک صفحه دیده می‌شوند؛
-   تب‌ها حذف شده‌اند و اطلاعات کم‌کاربردتر در حاشیه یا بخش‌های تاشو قرار دارد. */
+/* پرونده: یک نمای واحد و مینیمال.
+   در صفحه فقط نوار خلاصه و کارت ادغام‌شده‌ی «مراحل رسیدگی و اسناد» دیده می‌شود؛
+   مشخصات متقاضی و تاریخچه فعالیت پشت دکمه‌های آیکونی سربرگ قرار دارند. */
 
 import { useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
@@ -20,7 +20,7 @@ import { cn } from '../lib/utils';
 import { displayDigits, formatCode, formatDate, formatRelative } from '../lib/format';
 import { Avatar, PageHeader } from '../components/ui/Avatar';
 import { Badge } from '../components/ui/Badge';
-import { Button } from '../components/ui/Button';
+import { Button, IconButton } from '../components/ui/Button';
 import { Card, CardHeader, InfoList, Progress } from '../components/ui/Card';
 import { EmptyState } from '../components/ui/EmptyState';
 import { Icon } from '../components/ui/Icon';
@@ -43,7 +43,9 @@ export default function ClientDetail() {
   const [submitting, setSubmitting] = useState(false);
   const [overrideStepId, setOverrideStepId] = useState('');
   const [overrideReason, setOverrideReason] = useState('');
-  const [showAllHistory, setShowAllHistory] = useState(false);
+  const [showDetails, setShowDetails] = useState(false);
+  const [showHistory, setShowHistory] = useState(false);
+  const [selectedStepId, setSelectedStepId] = useState('');
 
   const client = clients.find((item) => item.id === id);
   const clientDocuments = useMemo(
@@ -91,7 +93,14 @@ export default function ClientDetail() {
   const canAdvanceWorkflow = can('clients.workflow.advance');
   const canOverrideWorkflow = can('clients.workflow.override');
   const totalScans = clientDocuments.reduce((sum, document) => sum + document.scanIds.length, 0);
-  const visibleAudit = showAllHistory ? clientAudit : clientAudit.slice(0, 5);
+  const selectedStep =
+    workflow.find((step) => step.id === selectedStepId) ?? activeStep ?? workflow[workflow.length - 1];
+  const selectedDone = selectedStep?.status === 'completed';
+  const selectedCurrent = activeStep?.id === selectedStep?.id;
+  const selectedStepFiles = selectedStep
+    ? workflowEvidence.filter((item) => item.clientId === client.id && item.stepId === selectedStep.id)
+    : [];
+  const selectedMissingEvidence = !!(selectedStep?.requiresEvidence && !selectedStepFiles.length);
 
   const uploadEvidence = async (stepId: string, file?: File) => {
     if (!file) return;
@@ -194,10 +203,10 @@ export default function ClientDetail() {
         ]}
         actions={
           <>
+            <IconButton icon="history" label="تاریخچه فعالیت" onClick={() => setShowHistory(true)} />
+            <IconButton icon="eye" label="مشخصات متقاضی" onClick={() => setShowDetails(true)} />
             {can('clients.edit') ? (
-              <Button variant="secondary" icon="edit" onClick={() => setEditing(true)}>
-                ویرایش
-              </Button>
+              <IconButton icon="edit" label="ویرایش پرونده" onClick={() => setEditing(true)} />
             ) : null}
             {can('documents.create') ? (
               <Button variant="primary" icon="file-text" onClick={() => navigate(`/documents/new?client=${client.id}`)}>
@@ -240,299 +249,326 @@ export default function ClientDetail() {
         </div>
       </div>
 
-      <div className="grid gap-4 xl:grid-cols-[minmax(0,1.65fr)_minmax(0,1fr)]">
-        {/* ستون اصلی: کار جاری و اسناد */}
-        <div className="flex min-w-0 flex-col gap-4">
-          <Card className="overflow-hidden">
-            <CardHeader
-              title="مراحل رسیدگی"
-              subtitle={`${displayDigits(completedSteps)} از ${displayDigits(workflow.length)} مرحله تکمیل شده`}
-              icon="check"
-            />
-            <ol className="divide-y divide-line">
-              {workflow.map((step, index) => {
-                const done = step.status === 'completed';
-                const current = activeStep?.id === step.id;
-                const stepFiles = workflowEvidence.filter(
-                  (item) => item.clientId === client.id && item.stepId === step.id,
-                );
-                const missingEvidence = step.requiresEvidence && !stepFiles.length;
-                return (
-                  <li key={step.id} className={cn('px-4 py-3', current && 'bg-brand-50/40 dark:bg-brand-500/5')}>
-                    <div className="flex items-start gap-3">
-                      <span
-                        className={cn(
-                          'mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[10.5px] font-medium',
-                          done
-                            ? 'bg-brand-600 text-white'
-                            : current
-                              ? 'border border-brand-500 bg-card text-brand-700 dark:text-brand-300'
-                              : 'border border-line bg-card-2 text-fg-subtle',
-                        )}
-                      >
-                        {done ? <Icon name="check" size={11} bold /> : displayDigits(index + 1)}
-                      </span>
+      {/* مراحل رسیدگی و اسناد — یک کارت واحد */}
+      <Card className="overflow-hidden">
+        <CardHeader
+          title="مراحل رسیدگی و اسناد"
+          subtitle={`${displayDigits(completedSteps)} از ${displayDigits(workflow.length)} مرحله تکمیل شده`}
+          icon="check"
+          action={
+            can('documents.create') ? (
+              <Button
+                size="sm"
+                variant="soft"
+                icon="plus"
+                onClick={() => navigate(`/documents/new?client=${client.id}`)}
+              >
+                سند
+              </Button>
+            ) : null
+          }
+        />
+        {/* تایم‌لاین افقی مراحل — انتخاب هر گره، جزئیات همان مرحله را پایین نشان می‌دهد */}
+        <div className="overflow-x-auto">
+          <ol className="flex min-w-full px-4 pb-3 pt-4">
+            {workflow.map((step, index) => {
+              const done = step.status === 'completed';
+              const current = activeStep?.id === step.id;
+              const selected = selectedStep?.id === step.id;
+              const reached = workflow[index - 1]?.status === 'completed';
+              return (
+                <li key={step.id} className="relative flex min-w-[104px] flex-1 flex-col items-center">
+                  {index > 0 ? (
+                    <span
+                      aria-hidden="true"
+                      className={cn('absolute end-1/2 top-[11px] h-0.5 w-full', reached ? 'bg-brand-500/50' : 'bg-line')}
+                    />
+                  ) : null}
+                  <button
+                    type="button"
+                    onClick={() => setSelectedStepId(step.id)}
+                    aria-current={current ? 'step' : undefined}
+                    className="group relative z-10 flex w-full flex-col items-center gap-1.5"
+                  >
+                    <span
+                      className={cn(
+                        'flex h-6 w-6 items-center justify-center rounded-full text-[10.5px] font-medium transition-shadow',
+                        done
+                          ? 'bg-brand-600 text-white'
+                          : current
+                            ? 'border border-brand-500 bg-card text-brand-700 dark:text-brand-300'
+                            : 'border border-line bg-card-2 text-fg-subtle',
+                        selected ? 'ring-2 ring-brand-500/40' : 'group-hover:ring-2 group-hover:ring-line-strong',
+                      )}
+                    >
+                      {done ? <Icon name="check" size={11} bold /> : displayDigits(index + 1)}
+                    </span>
+                    <span
+                      className={cn(
+                        'w-full truncate px-1 text-center text-[10.5px]',
+                        selected || done || current ? 'font-medium text-fg' : 'text-fg-muted',
+                      )}
+                      title={step.title}
+                    >
+                      {step.title}
+                    </span>
+                  </button>
+                </li>
+              );
+            })}
+          </ol>
+        </div>
 
-                      <div className="min-w-0 flex-1">
-                        <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
-                          <p
-                            className={cn(
-                              'text-[12.5px]',
-                              done || current ? 'font-medium text-fg' : 'text-fg-muted',
-                            )}
-                          >
-                            {step.title}
-                          </p>
-                          {current ? (
-                            <Badge tone="brand" size="sm">
-                              در حال انجام
-                            </Badge>
-                          ) : null}
-                          {step.requiresEvidence && !done ? (
-                            <span className="text-[10px] text-fg-subtle">
-                              {missingEvidence ? 'نیازمند مدرک' : 'مدرک بارگذاری شده'}
-                            </span>
-                          ) : null}
-                          {done ? (
-                            <span
-                              className="num ms-auto text-[10px] text-fg-subtle"
-                              title={step.completedBy ?? 'کاربر'}
-                            >
-                              {formatDate(step.completedAt, 'datetime')}
-                            </span>
-                          ) : null}
-                        </div>
+        {/* جزئیات مرحله انتخاب‌شده */}
+        {selectedStep ? (
+          <div className="border-t border-line px-4 py-3">
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+              <p className="text-[12.5px] font-medium text-fg">{selectedStep.title}</p>
+              {selectedDone ? (
+                <Badge tone="success" size="sm" dot>
+                  تکمیل شده
+                </Badge>
+              ) : selectedCurrent ? (
+                <Badge tone="brand" size="sm">
+                  در حال انجام
+                </Badge>
+              ) : (
+                <Badge tone="neutral" size="sm">
+                  در انتظار نوبت
+                </Badge>
+              )}
+              {selectedStep.requiresEvidence && !selectedDone ? (
+                <span className="text-[10px] text-fg-subtle">
+                  {selectedMissingEvidence ? 'نیازمند مدرک' : 'مدرک بارگذاری شده'}
+                </span>
+              ) : null}
+              {selectedDone ? (
+                <span className="num ms-auto text-[10px] text-fg-subtle" title={selectedStep.completedBy ?? 'کاربر'}>
+                  {formatDate(selectedStep.completedAt, 'datetime')}
+                </span>
+              ) : null}
+            </div>
 
-                        <p className="truncate text-[10.5px] text-fg-subtle">
-                          {done
-                            ? `تکمیل‌شده توسط ${step.completedBy ?? 'کاربر'}`
-                            : current
-                              ? step.kind === 'payment'
-                                ? 'برای عبور، رسید پرداخت را بارگذاری کنید.'
-                                : step.kind === 'external'
-                                  ? 'برای عبور، پاسخ ارگان را بارگذاری کنید.'
-                                  : step.kind === 'completion'
-                                    ? 'با تکمیل این مرحله، پرونده بسته می‌شود.'
-                                    : 'اطلاعات این مرحله را تکمیل کنید.'
-                              : 'در انتظار رسیدن نوبت'}
-                        </p>
+            {selectedDone ? (
+              <p className="mt-1 text-[10.5px] text-fg-subtle">
+                تکمیل‌شده توسط {selectedStep.completedBy ?? 'کاربر'}
+              </p>
+            ) : selectedCurrent ? (
+              <p className="mt-1 text-[10.5px] text-fg-subtle">
+                {selectedStep.kind === 'payment'
+                  ? 'برای عبور، رسید پرداخت را بارگذاری کنید.'
+                  : selectedStep.kind === 'external'
+                    ? 'برای عبور، پاسخ ارگان را بارگذاری کنید.'
+                    : selectedStep.kind === 'completion'
+                      ? 'با تکمیل این مرحله، پرونده بسته می‌شود.'
+                      : 'اطلاعات این مرحله را تکمیل کنید.'}
+              </p>
+            ) : null}
 
-                        {step.overrideReason ? (
-                          <p className="mt-1.5 rounded-field bg-warn-soft px-2 py-1 text-[10.5px] text-warn-fg">
-                            عبور مدیریتی: {step.overrideReason}
-                          </p>
-                        ) : null}
+            {selectedStep.overrideReason ? (
+              <p className="mt-1.5 rounded-field bg-warn-soft px-2 py-1 text-[10.5px] text-warn-fg">
+                عبور مدیریتی: {selectedStep.overrideReason}
+              </p>
+            ) : null}
 
-                        {stepFiles.length ? (
-                          <div className="mt-1.5 flex flex-wrap gap-1">
-                            {stepFiles.map((item) => (
-                              <button
-                                key={item.id}
-                                type="button"
-                                onClick={() => void downloadEvidence(item)}
-                                title={`${item.name} — بارگذاری ${formatDate(item.uploadedAt, 'datetime')} توسط ${item.uploadedBy}`}
-                                className="inline-flex max-w-52 items-center gap-1 rounded-full border border-line bg-card px-2 py-0.5 text-[10px] text-fg-muted hover:border-line-strong hover:text-fg"
-                              >
-                                <Icon name="file" size={10} />
-                                <span className="truncate">{item.name}</span>
-                              </button>
-                            ))}
-                          </div>
-                        ) : null}
+            {selectedStepFiles.length ? (
+              <div className="mt-1.5 flex flex-wrap gap-1">
+                {selectedStepFiles.map((item) => (
+                  <button
+                    key={item.id}
+                    type="button"
+                    onClick={() => void downloadEvidence(item)}
+                    title={`${item.name} — بارگذاری ${formatDate(item.uploadedAt, 'datetime')} توسط ${item.uploadedBy}`}
+                    className="inline-flex max-w-52 items-center gap-1 rounded-full border border-line bg-card px-2 py-0.5 text-[10px] text-fg-muted hover:border-line-strong hover:text-fg"
+                  >
+                    <Icon name="file" size={10} />
+                    <span className="truncate">{item.name}</span>
+                  </button>
+                ))}
+              </div>
+            ) : null}
 
-                        {current && canAdvanceWorkflow ? (
-                          <div className="mt-2 flex flex-wrap items-center gap-2">
-                            {step.requiresEvidence ? (
-                              <label className="btn btn-secondary btn-sm cursor-pointer">
-                                <Icon name="upload" size={13} />
-                                {stepFiles.length ? 'افزودن مدرک' : 'بارگذاری مدرک'}
-                                <input
-                                  type="file"
-                                  accept="image/*,application/pdf"
-                                  className="hidden"
-                                  onChange={(event) => {
-                                    void uploadEvidence(step.id, event.currentTarget.files?.[0]);
-                                    event.currentTarget.value = '';
-                                  }}
-                                />
-                              </label>
-                            ) : null}
-                            <Button
-                              variant="primary"
-                              size="sm"
-                              icon="check"
-                              disabled={missingEvidence}
-                              onClick={() => {
-                                const result = completeWorkflowStep(client.id, step.id);
-                                if (result.ok) toast.success('مرحله پرونده تکمیل شد', step.title);
-                                else toast.error(result.error ?? 'تکمیل مرحله انجام نشد');
-                              }}
-                            >
-                              تکمیل مرحله
-                            </Button>
-                          </div>
-                        ) : null}
+            {selectedCurrent && canAdvanceWorkflow ? (
+              <div className="mt-2 flex flex-wrap items-center gap-2">
+                {selectedStep.requiresEvidence ? (
+                  <label className="btn btn-secondary btn-sm cursor-pointer">
+                    <Icon name="upload" size={13} />
+                    {selectedStepFiles.length ? 'افزودن مدرک' : 'بارگذاری مدرک'}
+                    <input
+                      type="file"
+                      accept="image/*,application/pdf"
+                      className="hidden"
+                      onChange={(event) => {
+                        void uploadEvidence(selectedStep.id, event.currentTarget.files?.[0]);
+                        event.currentTarget.value = '';
+                      }}
+                    />
+                  </label>
+                ) : null}
+                <Button
+                  variant="primary"
+                  size="sm"
+                  icon="check"
+                  disabled={selectedMissingEvidence}
+                  onClick={() => {
+                    const result = completeWorkflowStep(client.id, selectedStep.id);
+                    if (result.ok) {
+                      toast.success('مرحله پرونده تکمیل شد', selectedStep.title);
+                      setSelectedStepId('');
+                    } else toast.error(result.error ?? 'تکمیل مرحله انجام نشد');
+                  }}
+                >
+                  تکمیل مرحله
+                </Button>
+              </div>
+            ) : null}
 
-                        {current && canOverrideWorkflow ? (
-                          <details className="group mt-2">
-                            <summary className="inline-flex cursor-pointer list-none items-center gap-1 text-[10.5px] text-fg-subtle hover:text-fg">
-                              <Icon name="shield" size={11} />
-                              عبور مدیریتی از شرط مرحله
-                              <Icon name="chevron-down" size={10} className="transition-transform group-open:rotate-180" />
-                            </summary>
-                            <div className="mt-2 flex flex-wrap items-end gap-2 rounded-field border border-line bg-card p-2.5">
-                              <TextInput
-                                label="دلیل عبور (ثبت در گزارش فعالیت)"
-                                containerClassName="min-w-48 flex-1"
-                                value={overrideStepId === step.id ? overrideReason : ''}
-                                onChange={(event) => {
-                                  setOverrideStepId(step.id);
-                                  setOverrideReason(event.target.value);
-                                }}
-                              />
-                              <Button
-                                variant="secondary"
-                                size="sm"
-                                icon="shield"
-                                disabled={!overrideReason.trim() || overrideStepId !== step.id}
-                                onClick={() => {
-                                  const result = overrideWorkflowStep(client.id, step.id, overrideReason);
-                                  if (result.ok) {
-                                    toast.success('عبور مدیریتی ثبت شد');
-                                    setOverrideStepId('');
-                                    setOverrideReason('');
-                                  } else toast.error(result.error ?? 'عبور مدیریتی انجام نشد');
-                                }}
-                              >
-                                ثبت عبور
-                              </Button>
-                            </div>
-                          </details>
-                        ) : null}
-                      </div>
-                    </div>
-                  </li>
-                );
-              })}
-            </ol>
-          </Card>
+            {selectedCurrent && canOverrideWorkflow ? (
+              <details className="group mt-2">
+                <summary className="inline-flex cursor-pointer list-none items-center gap-1 text-[10.5px] text-fg-subtle hover:text-fg">
+                  <Icon name="shield" size={11} />
+                  عبور مدیریتی از شرط مرحله
+                  <Icon name="chevron-down" size={10} className="transition-transform group-open:rotate-180" />
+                </summary>
+                <div className="mt-2 flex flex-wrap items-end gap-2 rounded-field border border-line bg-card p-2.5">
+                  <TextInput
+                    label="دلیل عبور (ثبت در گزارش فعالیت)"
+                    containerClassName="min-w-48 flex-1"
+                    value={overrideStepId === selectedStep.id ? overrideReason : ''}
+                    onChange={(event) => {
+                      setOverrideStepId(selectedStep.id);
+                      setOverrideReason(event.target.value);
+                    }}
+                  />
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    icon="shield"
+                    disabled={!overrideReason.trim() || overrideStepId !== selectedStep.id}
+                    onClick={() => {
+                      const result = overrideWorkflowStep(client.id, selectedStep.id, overrideReason);
+                      if (result.ok) {
+                        toast.success('عبور مدیریتی ثبت شد');
+                        setOverrideStepId('');
+                        setOverrideReason('');
+                        setSelectedStepId('');
+                      } else toast.error(result.error ?? 'عبور مدیریتی انجام نشد');
+                    }}
+                  >
+                    ثبت عبور
+                  </Button>
+                </div>
+              </details>
+            ) : null}
+          </div>
+        ) : null}
 
-          <Card className="overflow-hidden">
-            <CardHeader
-              title="اسناد پرونده"
-              subtitle={`${displayDigits(clientDocuments.length)} سند • ${displayDigits(totalScans)} اسکن`}
+        <div className="flex items-center justify-between gap-2 border-t border-line bg-card-2/60 px-4 py-2">
+          <p className="flex items-center gap-1.5 text-[11.5px] font-medium text-fg">
+            <Icon name="file-text" size={13} className="text-fg-subtle" />
+            اسناد پرونده
+          </p>
+          <span className="num text-[10.5px] text-fg-subtle">
+            {displayDigits(clientDocuments.length)} سند • {displayDigits(totalScans)} اسکن
+          </span>
+        </div>
+        <DataTable
+          rows={clientDocuments}
+          columns={documentColumns}
+          rowKey={(document) => document.id}
+          onRowClick={(document) => navigate(`/documents/${document.id}`)}
+          empty={
+            <EmptyState
+              compact
               icon="file-text"
+              title="سندی ساخته نشده است"
+              description="با انتخاب یک فرم، اطلاعات این پرونده خودکار در سند جای‌گذاری می‌شود."
               action={
                 can('documents.create') ? (
                   <Button
-                    size="sm"
                     variant="soft"
+                    size="sm"
                     icon="plus"
                     onClick={() => navigate(`/documents/new?client=${client.id}`)}
                   >
-                    سند
+                    ساخت سند
                   </Button>
                 ) : null
               }
             />
-            <DataTable
-              rows={clientDocuments}
-              columns={documentColumns}
-              rowKey={(document) => document.id}
-              onRowClick={(document) => navigate(`/documents/${document.id}`)}
-              empty={
-                <EmptyState
-                  compact
-                  icon="file-text"
-                  title="سندی ساخته نشده است"
-                  description="با انتخاب یک قالب، اطلاعات این پرونده خودکار در سند جای‌گذاری می‌شود."
-                  action={
-                    can('documents.create') ? (
-                      <Button
-                        variant="soft"
-                        size="sm"
-                        icon="plus"
-                        onClick={() => navigate(`/documents/new?client=${client.id}`)}
-                      >
-                        ساخت سند
-                      </Button>
-                    ) : null
-                  }
-                />
-              }
-            />
-          </Card>
-        </div>
+          }
+        />
+      </Card>
 
-        {/* ستون کناری: هویت، تاریخچه */}
-        <div className="flex min-w-0 flex-col gap-4">
-          <Card>
-            <CardHeader
-              title="اطلاعات متقاضی"
-              icon="user"
-              action={
-                can('clients.edit') ? (
-                  <Button size="sm" variant="ghost" icon="edit" onClick={() => setEditing(true)}>
-                    ویرایش
-                  </Button>
-                ) : null
-              }
-            />
-            <div className="px-4 py-3">
-              <InfoList
-                columns={2}
-                items={[
-                  { label: 'نام و نام خانوادگی', value: client.fullName },
-                  { label: 'کد ملی', value: displayDigits(client.nationalId) },
-                  { label: 'موبایل', value: displayDigits(client.mobile) },
-                  { label: 'شماره شناسنامه', value: client.birthCertificateNumber || '—' },
-                  { label: 'نام پدر', value: client.fatherName || '—' },
-                  { label: 'شهر صادره', value: client.issuePlace || '—' },
-                  { label: 'تاریخ تولد', value: client.birthDate ? formatDate(client.birthDate, 'long') : '—' },
-                  { label: 'آخرین به‌روزرسانی', value: formatDate(client.updatedAt, 'datetime') },
-                  { label: 'نشانی محل سکونت', value: client.residenceAddress || '—' },
-                ]}
-              />
-            </div>
-          </Card>
+      {/* مشخصات متقاضی — پشت دکمه آیکونی سربرگ */}
+      <Modal
+        open={showDetails}
+        onClose={() => setShowDetails(false)}
+        title="مشخصات متقاضی"
+        icon="user"
+        size="lg"
+        footer={
+          can('clients.edit') ? (
+            <Button
+              variant="secondary"
+              icon="edit"
+              onClick={() => {
+                setShowDetails(false);
+                setEditing(true);
+              }}
+            >
+              ویرایش مشخصات
+            </Button>
+          ) : undefined
+        }
+      >
+        <InfoList
+          columns={2}
+          items={[
+            { label: 'نام و نام خانوادگی', value: client.fullName },
+            { label: 'کد ملی', value: displayDigits(client.nationalId) },
+            { label: 'موبایل', value: displayDigits(client.mobile) },
+            { label: 'شماره شناسنامه', value: client.birthCertificateNumber || '—' },
+            { label: 'نام پدر', value: client.fatherName || '—' },
+            { label: 'شهر صادره', value: client.issuePlace || '—' },
+            { label: 'تاریخ تولد', value: client.birthDate ? formatDate(client.birthDate, 'long') : '—' },
+            { label: 'آخرین به‌روزرسانی', value: formatDate(client.updatedAt, 'datetime') },
+            { label: 'نشانی محل سکونت', value: client.residenceAddress || '—' },
+          ]}
+        />
+      </Modal>
 
-          <Card className="overflow-hidden">
-            <CardHeader
-              title="تاریخچه فعالیت"
-              subtitle={`${displayDigits(clientAudit.length)} رویداد ثبت‌شده`}
-              icon="history"
-              action={
-                clientAudit.length > 5 ? (
-                  <Button size="sm" variant="ghost" onClick={() => setShowAllHistory((prev) => !prev)}>
-                    {showAllHistory ? 'کمتر' : 'همه'}
-                  </Button>
-                ) : null
-              }
-            />
-            {clientAudit.length ? (
-              <ul className={cn('divide-y divide-line', showAllHistory && 'max-h-80 overflow-y-auto')}>
-                {visibleAudit.map((entry) => (
-                  <li key={entry.id} className="flex items-center gap-2 px-4 py-2">
-                    <Avatar name={entry.userName} size={22} />
-                    <span
-                      className="min-w-0 flex-1 truncate text-[11.5px] text-fg-muted"
-                      title={`${entry.action}${entry.detail ? ` — ${entry.detail}` : ''}`}
-                    >
-                      <span className="font-medium text-fg">{entry.userName}</span> — {entry.action}
-                      {entry.entityLabel ? <span className="text-fg-subtle"> ({entry.entityLabel})</span> : null}
-                    </span>
-                    <span className="shrink-0 text-[10px] text-fg-subtle" title={formatDate(entry.at, 'datetime')}>
-                      {formatRelative(entry.at)}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <EmptyState compact icon="history" title="فعالیتی ثبت نشده است" />
-            )}
-          </Card>
-        </div>
-      </div>
+      {/* تاریخچه فعالیت — پشت دکمه آیکونی سربرگ */}
+      <Modal
+        open={showHistory}
+        onClose={() => setShowHistory(false)}
+        title="تاریخچه فعالیت"
+        description={`${displayDigits(clientAudit.length)} رویداد ثبت‌شده`}
+        icon="history"
+        size="lg"
+      >
+        {clientAudit.length ? (
+          <ul className="max-h-[55vh] divide-y divide-line overflow-y-auto">
+            {clientAudit.map((entry) => (
+              <li key={entry.id} className="flex items-center gap-2 py-2">
+                <Avatar name={entry.userName} size={22} />
+                <span
+                  className="min-w-0 flex-1 truncate text-[11.5px] text-fg-muted"
+                  title={`${entry.action}${entry.detail ? ` — ${entry.detail}` : ''}`}
+                >
+                  <span className="font-medium text-fg">{entry.userName}</span> — {entry.action}
+                  {entry.entityLabel ? <span className="text-fg-subtle"> ({entry.entityLabel})</span> : null}
+                </span>
+                <span className="shrink-0 text-[10px] text-fg-subtle" title={formatDate(entry.at, 'datetime')}>
+                  {formatRelative(entry.at)}
+                </span>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <EmptyState compact icon="history" title="فعالیتی ثبت نشده است" />
+        )}
+      </Modal>
 
       <Modal open={editing} onClose={() => setEditing(false)} title={`ویرایش پرونده ${client.fullName}`} size="lg">
         <ClientForm

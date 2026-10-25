@@ -1,0 +1,5 @@
+{
+  // Tailwind v4 directives (@theme, @custom-variant, @apply, ...) are valid —
+  // silence the built-in CSS linter that doesn't know them.
+  "css.lint.unknownAtRules": "ignore"
+}

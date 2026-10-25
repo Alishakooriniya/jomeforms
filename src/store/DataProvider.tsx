@@ -15,6 +15,7 @@ import type {
   DocStatus,
   FormTemplate,
   PermissionRole,
+  Reminder,
   ScanFile,
   User,
   WorkflowEvidence,
@@ -27,6 +28,7 @@ import { deleteBlob, putBlob } from '../lib/idb';
 import { compressImage, uid } from '../lib/utils';
 import { createClientWorkflow } from '../lib/caseWorkflow';
 import { normalizeJalaliDate, normalizeLegacyJalaliDate } from '../lib/jalali';
+import { normalizeReminderTime } from '../lib/reminders';
 
 /* ------------------------------ ورودی‌ها ------------------------------ */
 
@@ -55,6 +57,8 @@ export type UserDraft = Omit<User, 'id' | 'createdAt' | 'updatedAt' | 'lastLogin
 export type RoleDraft = Omit<PermissionRole, 'id' | 'createdAt' | 'createdBy'>;
 
 export type CompanyDraft = Omit<Company, 'id' | 'createdAt' | 'updatedAt' | 'createdBy'>;
+
+export type ReminderDraft = Pick<Reminder, 'title' | 'date' | 'time' | 'userId'> & { note?: string };
 
 export interface ActionResult {
   ok: boolean;
@@ -85,6 +89,9 @@ export interface DataActions {
   deleteCompany: (id: string) => ActionResult & { detached: number };
   /** همگام‌سازی اعضای یک مجموعه: کاربران انتخابی به آن وصل و بقیه‌ی اعضای قبلی آزاد می‌شوند */
   setCompanyMembers: (companyId: string, userIds: string[]) => ActionResult & { added: number; removed: number };
+  createReminder: (input: ReminderDraft) => ActionResult & { reminder?: Reminder };
+  markReminderDone: (id: string) => void;
+  deleteReminder: (id: string) => void;
   updateSettings: (patch: Partial<AppSettings>) => void;
   touchLogin: (userId: string) => void;
   log: (entry: { action: string; entity: AuditEntity; entityId?: string; entityLabel?: string; detail?: string }) => void;
@@ -186,6 +193,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
         roles: [...prev.roles],
         scans: [...prev.scans],
         workflowEvidence: [...prev.workflowEvidence],
+        reminders: [...prev.reminders],
         audit: [...prev.audit],
         settings: prev.settings,
       };
@@ -417,7 +425,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
         const created: DocRecord = {
           id: uid('doc-'),
           number,
-          title: template?.title ?? 'سند بدون قالب',
+          title: template?.title ?? 'سند بدون فرم',
           templateId: input.templateId,
           templateTitle: template?.title ?? '—',
           templateVersion: template?.version ?? 1,
@@ -584,7 +592,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
             const index = draft.templates.findIndex((item) => item.id === id);
             if (index > -1) draft.templates[index] = updated;
             pushAudit(draft, {
-              action: 'ویرایش قالب فرم',
+              action: 'ویرایش فرم',
               entity: 'template',
               entityId: id,
               entityLabel: updated.title,
@@ -603,7 +611,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
         commit((draft) => {
           draft.templates = [created, ...draft.templates];
           pushAudit(draft, {
-            action: 'افزودن قالب فرم',
+            action: 'افزودن فرم',
             entity: 'template',
             entityId: created.id,
             entityLabel: created.title,
@@ -629,7 +637,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
         commit((draft) => {
           draft.templates = [created, ...draft.templates];
           pushAudit(draft, {
-            action: 'کپی قالب فرم',
+            action: 'کپی فرم',
             entity: 'template',
             entityId: created.id,
             entityLabel: created.title,
@@ -644,11 +652,11 @@ export function DataProvider({ children }: { children: ReactNode }) {
         commit((draft) => {
           draft.templates = draft.templates.filter((item) => item.id !== id);
           pushAudit(draft, {
-            action: 'حذف قالب فرم',
+            action: 'حذف فرم',
             entity: 'template',
             entityId: id,
             entityLabel: target?.title,
-            detail: used ? `${used} سند ساخته‌شده از این قالب باقی می‌ماند` : undefined,
+            detail: used ? `${used} سند ساخته‌شده از این فرم باقی می‌ماند` : undefined,
           });
         });
       },
@@ -879,6 +887,73 @@ export function DataProvider({ children }: { children: ReactNode }) {
         return { ok: true, added: joining.length, removed: leaving.length };
       },
 
+      /* ------------------------------- یادآورها ------------------------------ */
+      createReminder(input) {
+        const title = input.title.trim();
+        if (!title) return { ok: false, error: 'متن یادآور را بنویسید.' };
+        const date = normalizeJalaliDate(input.date);
+        if (!date) return { ok: false, error: 'تاریخ یادآور باید شمسی و به‌شکل YYYY/MM/DD باشد.' };
+        const target = dbRef.current.users.find((item) => item.id === input.userId && item.active);
+        if (!target) return { ok: false, error: 'کاربر مقصد را انتخاب کنید.' };
+        const time = input.time?.trim() ? (normalizeReminderTime(input.time) ?? undefined) : undefined;
+        if (input.time?.trim() && !time) return { ok: false, error: 'ساعت یادآور باید به‌شکل HH:MM باشد.' };
+        const reminder: Reminder = {
+          id: uid('rem-'),
+          title,
+          note: input.note?.trim() || undefined,
+          date,
+          time,
+          userId: target.id,
+          userName: target.fullName,
+          done: false,
+          createdAt: nowISO(),
+          createdBy: currentActor.id,
+          createdByName: currentActor.name,
+        };
+        commit((draft) => {
+          draft.reminders = [reminder, ...draft.reminders];
+          pushAudit(draft, {
+            action: 'ایجاد یادآور',
+            entity: 'reminder',
+            entityId: reminder.id,
+            entityLabel: target.fullName,
+            detail: title,
+          });
+        });
+        return { ok: true, reminder };
+      },
+
+      markReminderDone(id) {
+        const target = dbRef.current.reminders.find((item) => item.id === id);
+        if (!target || target.done) return;
+        commit((draft) => {
+          const index = draft.reminders.findIndex((item) => item.id === id);
+          if (index < 0) return;
+          draft.reminders[index] = { ...draft.reminders[index], done: true, doneAt: nowISO() };
+          pushAudit(draft, {
+            action: 'انجام یادآور',
+            entity: 'reminder',
+            entityId: id,
+            entityLabel: target.userName,
+            detail: target.title,
+          });
+        });
+      },
+
+      deleteReminder(id) {
+        const target = dbRef.current.reminders.find((item) => item.id === id);
+        commit((draft) => {
+          draft.reminders = draft.reminders.filter((item) => item.id !== id);
+          pushAudit(draft, {
+            action: 'حذف یادآور',
+            entity: 'reminder',
+            entityId: id,
+            entityLabel: target?.userName,
+            detail: target?.title,
+          });
+        });
+      },
+
       /* ------------------------------ تنظیمات ----------------------------- */
       updateSettings(patch) {
         commit((draft) => {
@@ -910,9 +985,9 @@ export function DataProvider({ children }: { children: ReactNode }) {
       },
 
       exportBackup() {
-        const { users, companies, clients, documents, templates, roles, scans, workflowEvidence, audit, settings } = dbRef.current;
+        const { users, companies, clients, documents, templates, roles, scans, workflowEvidence, reminders, audit, settings } = dbRef.current;
         return JSON.stringify(
-          { version: 1, exportedAt: nowISO(), users, companies, clients, documents, templates, roles, scans, workflowEvidence, audit, settings },
+          { version: 1, exportedAt: nowISO(), users, companies, clients, documents, templates, roles, scans, workflowEvidence, reminders, audit, settings },
           null,
           2,
         );
@@ -933,6 +1008,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
             roles: parsed.roles ?? [],
             scans: parsed.scans ?? [],
             workflowEvidence: parsed.workflowEvidence ?? [],
+            reminders: parsed.reminders ?? [],
             audit: parsed.audit ?? [],
             settings: { ...dbRef.current.settings, ...(parsed.settings ?? {}) },
           };

@@ -15,7 +15,7 @@ import {
   CLIENT_CASE_TYPE_LABELS,
   CLIENT_CASE_TYPE_OPTIONS,
 } from '../data/labels';
-import { displayDigits, formatCode, formatDate } from '../lib/format';
+import { formatCode, formatDate } from '../lib/format';
 import { jalaliDateFromDate } from '../lib/jalali';
 import { useListQuery } from '../lib/hooks';
 import { compareText } from '../lib/utils';
@@ -23,7 +23,6 @@ import { exportCsv } from '../lib/print';
 import { Avatar, PageHeader } from '../components/ui/Avatar';
 import { Badge } from '../components/ui/Badge';
 import { Button } from '../components/ui/Button';
-import { Progress } from '../components/ui/Card';
 import { Dropdown } from '../components/ui/Dropdown';
 import { EmptyState } from '../components/ui/EmptyState';
 import { Modal, ConfirmDialog } from '../components/ui/Modal';
@@ -113,9 +112,7 @@ export default function ClientsList() {
     toast.success(editing ? 'پرونده ویرایش شد' : 'پرونده ثبت شد', `${saved.fullName} — ${formatCode(saved.code)}`);
   };
 
-  const workflowOf = (client: Client) => client.workflow ?? [];
-  const completedSteps = (client: Client) => workflowOf(client).filter((step) => step.status === 'completed').length;
-  const currentStep = (client: Client) => workflowOf(client).find((step) => step.status === 'pending');
+  const currentStep = (client: Client) => (client.workflow ?? []).find((step) => step.status === 'pending');
 
   const columns: Array<Column<Client>> = [
     {
@@ -168,20 +165,14 @@ export default function ClientsList() {
       responsiveClass: 'hidden md:table-cell',
       widthClassName: 'w-[190px]',
       cell: (client) => {
-        const steps = workflowOf(client);
-        const done = completedSteps(client);
         const active = currentStep(client);
         return (
-          <div
-            className="flex min-w-0 items-center gap-2"
+          <span
+            className="block truncate text-fg-muted"
             title={active ? `مرحله جاری: ${active.title}` : 'همه مراحل تکمیل شده'}
           >
-            <Progress value={done} max={steps.length || 1} className="w-12 shrink-0" label="پیشرفت مراحل" />
-            <span className="num shrink-0 text-[10.5px] text-fg-subtle">
-              {displayDigits(done)}/{displayDigits(steps.length)}
-            </span>
-            <span className="truncate text-fg-muted">{active?.title ?? 'تکمیل‌شده'}</span>
-          </div>
+            {active?.title ?? 'تکمیل‌شده'}
+          </span>
         );
       },
     },
@@ -224,7 +215,7 @@ export default function ClientsList() {
               ? [
                   {
                     id: 'document',
-                    label: 'ساخت سند از قالب',
+                    label: 'ساخت سند از فرم',
                     icon: 'file-text' as const,
                     onSelect: () => navigate(`/documents/new?client=${client.id}`),
                   },

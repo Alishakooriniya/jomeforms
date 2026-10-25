@@ -215,6 +215,27 @@ export interface PermissionRole {
   createdBy: string;
 }
 
+/* ------------------------------- یادآورها ------------------------------ */
+
+/** یادآور زمان‌دار: مدیر برای یک کاربر تعریف می‌کند و در زمان مقرر در اعلان‌های او می‌نشیند */
+export interface Reminder {
+  id: string;
+  title: string;
+  note?: string;
+  /** تاریخ سررسید شمسی YYYY/MM/DD */
+  date: string;
+  /** ساعت اختیاری HH:MM — بدون ساعت یعنی از ابتدای همان روز نمایش داده می‌شود */
+  time?: string;
+  userId: string;
+  /** نام کاربر مقصد در زمان ثبت (برای نمایش بدون وابستگی به کاربر فعلی) */
+  userName: string;
+  done: boolean;
+  doneAt?: string;
+  createdAt: string;
+  createdBy: string;
+  createdByName: string;
+}
+
 /* ---------------------------- گزارش فعالیت ---------------------------- */
 
 export type AuditEntity =
@@ -227,7 +248,8 @@ export type AuditEntity =
   | 'company'
   | 'settings'
   | 'scan'
-  | 'workflow';
+  | 'workflow'
+  | 'reminder';
 
 export interface AuditEntry {
   id: string;
@@ -267,17 +289,13 @@ export interface DbShape {
   roles: PermissionRole[];
   scans: ScanFile[];
   workflowEvidence: WorkflowEvidence[];
+  reminders: Reminder[];
   audit: AuditEntry[];
   settings: AppSettings;
 }
 
-export type ThemeMode = 'light' | 'dark' | 'system';
-/** رنگ سازمانی — فقط خانواده سبز (پالت سامانه «سبز روی خاکستری» است) */
-export type ThemeAccent = 'green' | 'emerald' | 'mint' | 'forest';
-export type ThemeRadius = 'sm' | 'md' | 'lg';
+export type ThemeMode = 'light' | 'dark';
 
 export interface ThemePrefs {
   mode: ThemeMode;
-  accent: ThemeAccent;
-  radius: ThemeRadius;
 }
