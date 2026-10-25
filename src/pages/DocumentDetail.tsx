@@ -67,7 +67,7 @@ export default function DocumentDetail() {
 
   const handlePrint = () => {
     if (!template) {
-      toast.error('قالب این سند در دسترس نیست');
+      toast.error('فرم این سند در دسترس نیست');
       return;
     }
     const opened = printDocument(document, template, settings);
@@ -147,7 +147,7 @@ export default function DocumentDetail() {
               <span>بدون پرونده</span>
             )}
             <span className="text-line-strong">•</span>
-            <span>{template?.title ?? 'قالب در دسترس نیست'}</span>
+            <span>{template?.title ?? 'فرم در دسترس نیست'}</span>
             <span className="text-line-strong">•</span>
             <span>ثبت {formatDate(document.createdAt, 'long')}</span>
           </span>
@@ -286,7 +286,7 @@ export default function DocumentDetail() {
                     columns={2}
                   />
                 ) : (
-                  <EmptyState compact icon="alert" title="قالب این سند در دسترس نیست" />
+                  <EmptyState compact icon="alert" title="فرم این سند در دسترس نیست" />
                 )}
               </CardBody>
             ) : null}
@@ -443,7 +443,7 @@ export default function DocumentDetail() {
             onChange={(key, value) => setDraftValues((prev) => ({ ...prev, [key]: value }))}
           />
         ) : (
-          <EmptyState compact icon="alert" title="قالب این سند در دسترس نیست" />
+          <EmptyState compact icon="alert" title="فرم این سند در دسترس نیست" />
         )}
       </Modal>
 

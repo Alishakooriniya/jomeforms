@@ -1,4 +1,4 @@
-/* سازنده قالب فرم — سوپرادمین فرم‌های واقعی را همین‌جا می‌سازد */
+/* سازنده فرم — مدیر فرم‌های واقعی را همین‌جا می‌سازد و ویرایش می‌کند */
 
 import { useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
@@ -111,8 +111,8 @@ export default function TemplateEditor() {
   };
 
   const validate = (): string | null => {
-    if (draft.title.trim().length < 2) return 'عنوان قالب باید دست‌کم دو حرف داشته باشد.';
-    if (!draft.body.trim()) return 'متن قالب را وارد کنید.';
+    if (draft.title.trim().length < 2) return 'عنوان فرم باید دست‌کم دو حرف داشته باشد.';
+    if (!draft.body.trim()) return 'متن فرم را وارد کنید.';
     if (!draft.fields.length) return 'حداقل یک فیلد به فرم اضافه کنید.';
     if (draft.fields.some((field) => !field.label.trim())) return 'برای همه فیلدها یک عنوان وارد کنید.';
     const keys = draft.fields.map((field) => field.key.trim());
@@ -141,7 +141,7 @@ export default function TemplateEditor() {
       },
       existing?.id,
     );
-    toast.success(existing ? 'قالب ویرایش شد' : 'قالب ساخته شد', saved.title);
+    toast.success(existing ? 'فرم ویرایش شد' : 'فرم ساخته شد', saved.title);
     navigate('/templates');
   };
 
@@ -150,10 +150,10 @@ export default function TemplateEditor() {
       <div className="card">
         <EmptyState
           icon="alert"
-          title="قالب پیدا نشد"
+          title="فرم پیدا نشد"
           action={
             <Button to="/templates" variant="primary" icon="template">
-              بازگشت به فهرست قالب‌ها
+              بازگشت به فهرست فرم‌ها
             </Button>
           }
         />
@@ -166,13 +166,13 @@ export default function TemplateEditor() {
   return (
     <div className="flex flex-col gap-4">
       <PageHeader
-        title={existing ? `ویرایش قالب: ${existing.title}` : 'افزودن قالب فرم جدید'}
+        title={existing ? `ویرایش فرم: ${existing.title}` : 'افزودن فرم جدید'}
         subtitle="سه قدم کوتاه: مشخصات فرم، پرسش‌ها و متن نهایی."
         icon="template"
         breadcrumbs={[
           { label: 'داشبورد', to: '/' },
-          { label: 'قالب فرم‌ها', to: '/templates' },
-          { label: existing ? existing.title : 'قالب جدید' },
+          { label: 'فرم‌ها', to: '/templates' },
+          { label: existing ? existing.title : 'فرم جدید' },
         ]}
         actions={
           <>
@@ -181,7 +181,7 @@ export default function TemplateEditor() {
             </Button>
             {!readOnly ? (
               <Button variant="primary" icon="save" onClick={submit}>
-                {existing ? 'ذخیره تغییرات' : 'ساخت قالب'}
+                {existing ? 'ذخیره تغییرات' : 'ساخت فرم'}
               </Button>
             ) : null}
           </>
@@ -191,7 +191,7 @@ export default function TemplateEditor() {
       {readOnly ? (
         <p className="flex items-center gap-2 rounded-card border border-line bg-warn-soft px-3 py-2 text-[12px] text-warn-fg">
           <Icon name="lock" size={14} />
-          برای ویرایش این قالب به دسترسی «ویرایش قالب» نیاز دارید. فقط مشاهده در دسترس است.
+          برای ویرایش این فرم به دسترسی «ویرایش فرم» نیاز دارید. فقط مشاهده در دسترس است.
         </p>
       ) : null}
 
@@ -212,7 +212,7 @@ export default function TemplateEditor() {
             <CardBody>
               <FormGrid columns={2}>
                 <TextInput
-                  label="عنوان قالب"
+                  label="عنوان فرم"
                   required
                   value={draft.title}
                   disabled={readOnly}
@@ -581,7 +581,7 @@ export default function TemplateEditor() {
               انصراف
             </Button>
             <Button variant="primary" icon="save" onClick={submit}>
-              {existing ? 'ذخیره تغییرات' : 'ساخت قالب'}
+              {existing ? 'ذخیره تغییرات' : 'ساخت فرم'}
             </Button>
           </div>
         </div>

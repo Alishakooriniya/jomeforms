@@ -30,6 +30,7 @@ const UsersList = lazy(() => import('./pages/UsersList'));
 const UserEditor = lazy(() => import('./pages/UserEditor'));
 const RolesPage = lazy(() => import('./pages/RolesPage'));
 const ReportsPage = lazy(() => import('./pages/ReportsPage'));
+const RemindersPage = lazy(() => import('./pages/RemindersPage'));
 const AuditPage = lazy(() => import('./pages/AuditPage'));
 const SettingsPage = lazy(() => import('./pages/SettingsPage'));
 const ProfilePage = lazy(() => import('./pages/ProfilePage'));
@@ -131,7 +132,7 @@ function AppRoutes() {
           <Route
             path="templates"
             element={
-              <RequirePermission permission="templates.view">
+              <RequirePermission permission="templates.edit">
                 <TemplatesList />
               </RequirePermission>
             }
@@ -147,7 +148,7 @@ function AppRoutes() {
           <Route
             path="templates/:id"
             element={
-              <RequirePermission permission="templates.view">
+              <RequirePermission permission="templates.edit">
                 <TemplateEditor />
               </RequirePermission>
             }
@@ -200,6 +201,14 @@ function AppRoutes() {
             element={
               <RequirePermission permission="reports.view">
                 <ReportsPage />
+              </RequirePermission>
+            }
+          />
+          <Route
+            path="reminders"
+            element={
+              <RequirePermission permission="reminders.manage">
+                <RemindersPage />
               </RequirePermission>
             }
           />

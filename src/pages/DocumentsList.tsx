@@ -104,7 +104,7 @@ export default function DocumentsList() {
   const handlePrint = (document: DocRecord) => {
     const template = templates.find((item) => item.id === document.templateId);
     if (!template) {
-      toast.error('قالب این سند پیدا نشد');
+      toast.error('فرم این سند پیدا نشد');
       return;
     }
     const ok = printDocument(document, template, settings);
@@ -267,7 +267,7 @@ export default function DocumentsList() {
     <div className="flex flex-col gap-4">
       <PageHeader
         title="اسناد و فرم‌ها"
-        subtitle="اسناد ساخته‌شده از قالب‌ها؛ آماده چاپ، امضا و بایگانی اسکن"
+        subtitle="اسناد ساخته‌شده از فرم‌ها؛ آماده چاپ، امضا و بایگانی اسکن"
         actions={
           <>
             {can('documents.export') ? (
@@ -289,12 +289,12 @@ export default function DocumentsList() {
         summary={<ResultsSummary total={query.total} unit="سند" />}
         advanced={
           <>
-            <FilterField label="قالب">
+            <FilterField label="فرم">
               <FilterSelect
                 value={query.filters.templateId ?? 'all'}
                 onChange={(value) => query.setFilter('templateId', value)}
                 options={templateOptions}
-                placeholder="همه قالب‌ها"
+                placeholder="همه فرم‌ها"
               />
             </FilterField>
             <FilterField label="از تاریخ">
@@ -334,7 +334,7 @@ export default function DocumentsList() {
               ) : null}
               {query.filters.templateId && query.filters.templateId !== 'all' ? (
                 <ActiveFilterChip
-                  label={`قالب: ${templates.find((item) => item.id === query.filters.templateId)?.title ?? ''}`}
+                  label={`فرم: ${templates.find((item) => item.id === query.filters.templateId)?.title ?? ''}`}
                   onRemove={() => query.setFilter('templateId', 'all')}
                 />
               ) : null}
@@ -382,7 +382,7 @@ export default function DocumentsList() {
               description={
                 query.hasActiveFilters
                   ? 'فیلترها یا بازه تاریخ را تغییر دهید.'
-                  : 'یک قالب فرم انتخاب کنید، پرونده را متصل کنید و اطلاعات خودکار جای‌گذاری می‌شود.'
+                  : 'یک فرم انتخاب کنید، پرونده را متصل کنید و اطلاعات خودکار جای‌گذاری می‌شود.'
               }
               action={
                 query.hasActiveFilters ? (

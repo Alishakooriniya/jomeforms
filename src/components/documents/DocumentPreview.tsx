@@ -38,37 +38,38 @@ export function DocumentPreview({ template, values, document, settings, isTempla
   const dateText = document ? documentDate(document, template) : formatDate(values.doc_date, 'long');
 
   return (
-    <div className="mx-auto w-full max-w-[210mm] rounded-card border border-line bg-white p-6 text-[#171717] shadow-soft sm:p-8">
+    <div className="form-font relative mx-auto w-full max-w-[210mm] border border-line bg-white p-10 text-[#171717] shadow-soft sm:p-12">
+      <div className="pointer-events-none absolute inset-[8mm] border border-[#171717]" aria-hidden="true" />
       {/* سرصفحه سازمان */}
       <div className="flex items-start justify-between gap-4 border-b-2 border-[#24815d] pb-2.5">
         <div>
-          <p className="text-[15px] font-bold text-[#1f674c]">{settings.orgName}</p>
-          <p className="mt-0.5 text-[10.5px] leading-5 text-[#565656]">{settings.orgAddress}</p>
+          <p className="text-[16px] font-bold text-[#1f674c]">{settings.orgName}</p>
+          <p className="mt-0.5 text-[11px] leading-5 text-[#565656]">{settings.orgAddress}</p>
         </div>
-        <div className="text-end text-[10.5px] leading-5 text-[#565656]">
+        <div className="text-end text-[11px] leading-5 text-[#565656]">
           {settings.orgPhone ? <p>تلفن: {settings.orgPhone}</p> : null}
           <p>تاریخ: {dateText}</p>
         </div>
       </div>
 
       {/* فراداده */}
-      <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-[10.5px] text-[#565656]">
+      <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-[11px] text-[#565656]">
         <span>{document?.clientName ? `پرونده: ${document.clientName}` : ''}</span>
         <span>{document?.number ? `شماره سند: ${formatCode(document.number)}` : ''}</span>
       </div>
 
-      <h2 className="my-4 text-center text-[15px] font-bold">{document?.title ?? template.title}</h2>
+      <h2 className="my-4 text-center text-[16px] font-bold">{document?.title ?? template.title}</h2>
 
       {rendered.header ? (
-        <p className="mb-3 rounded-[6px] border border-[#d1d1d1] bg-[#f5f5f5] px-3 py-2 text-[11.5px] leading-6">
+        <p className="mb-3 rounded-[6px] border border-[#d1d1d1] bg-[#f5f5f5] px-3 py-2 text-[12.5px] leading-6">
           {rendered.header}
         </p>
       ) : null}
 
-      <div className="whitespace-pre-wrap text-justify text-[12px] leading-7">{rendered.body}</div>
+      <div className="whitespace-pre-wrap text-justify text-[13.5px] leading-7">{rendered.body}</div>
 
       {rendered.footer ? (
-        <p className="mt-4 border-t border-dashed border-[#d1d1d1] pt-2 text-[10.5px] leading-6 text-[#565656]">
+        <p className="mt-4 border-t border-dashed border-[#d1d1d1] pt-2 text-[11px] leading-6 text-[#565656]">
           {rendered.footer}
         </p>
       ) : null}
@@ -77,9 +78,9 @@ export function DocumentPreview({ template, values, document, settings, isTempla
         <div className="mt-8 flex flex-wrap gap-4">
           {signatures.map((signature) => (
             <div key={signature.label} className="min-w-40 flex-1 rounded-[6px] border border-[#d1d1d1] p-2.5">
-              <p className="text-[11px] font-medium">{signature.label}</p>
+              <p className="text-[12px] font-medium">{signature.label}</p>
               <div className="h-12" />
-              <p className="text-[10px] text-[#565656]">{signature.name || 'نام و امضا'}</p>
+              <p className="text-[10.5px] text-[#565656]">{signature.name || 'نام و امضا'}</p>
             </div>
           ))}
         </div>

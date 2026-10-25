@@ -9,6 +9,29 @@
   font-display: swap;
 }
 
+/* فونت رسمی فرم‌ها: B Nazanin. ابتدا فونت نصب‌شده روی سیستم خوانده می‌شود؛
+   اگر فایل فونت در public/fonts قرار گیرد همان استفاده می‌شود. */
+@font-face {
+  font-family: 'B Nazanin';
+  src:
+    local('B Nazanin'), local('BNazanin'), local('B-Nazanin'),
+    url('/fonts/BNazanin.woff2') format('woff2'),
+    url('/fonts/BNazanin.ttf') format('truetype');
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'B Nazanin';
+  src:
+    local('B Nazanin Bold'), local('BNazanin Bold'), local('BNazanin-Bold'),
+    url('/fonts/BNazaninBold.woff2') format('woff2'),
+    url('/fonts/BNazaninBold.ttf') format('truetype');
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+}
+
 /* تم کلاس‌محور (به‌جای prefers-color-scheme) تا کاربر بتواند دستی انتخاب کند */
 @custom-variant dark (&:where(.dark, .dark *));
 
@@ -62,58 +85,6 @@
 
   --ui-radius: 0.625rem;
   --shadow-soft: 0 1px 2px rgb(0 0 0 / 0.035), 0 10px 24px -18px rgb(0 0 0 / 0.18);
-}
-
-/* سبز روشن و پررنگ */
-html[data-accent='emerald'] {
-  --brand-50: #ecfdf5;
-  --brand-100: #d1fae5;
-  --brand-200: #a7f3d0;
-  --brand-300: #6ee7b7;
-  --brand-400: #34d399;
-  --brand-500: #10b981;
-  --brand-600: #059669;
-  --brand-700: #047857;
-  --brand-800: #065f46;
-  --brand-900: #064e3b;
-  --brand-950: #022c22;
-}
-
-/* سبز خنک و آرام */
-html[data-accent='mint'] {
-  --brand-50: #f0fdf8;
-  --brand-100: #d6f8ea;
-  --brand-200: #aeeee0;
-  --brand-300: #79ddcb;
-  --brand-400: #45c4b1;
-  --brand-500: #22a892;
-  --brand-600: #168774;
-  --brand-700: #146c5e;
-  --brand-800: #14554c;
-  --brand-900: #13463f;
-  --brand-950: #052722;
-}
-
-/* سبز تیره و کم‌جوان (خاکستری‌سبز) */
-html[data-accent='forest'] {
-  --brand-50: #f4f7f4;
-  --brand-100: #e3eae3;
-  --brand-200: #c6d4c7;
-  --brand-300: #a0b7a3;
-  --brand-400: #779a7b;
-  --brand-500: #527a56;
-  --brand-600: #3f6142;
-  --brand-700: #344e37;
-  --brand-800: #2b3f2e;
-  --brand-900: #243427;
-  --brand-950: #131d15;
-}
-
-html[data-radius='sm'] {
-  --ui-radius: 0.5rem;
-}
-html[data-radius='lg'] {
-  --ui-radius: 1rem;
 }
 
 .dark {
@@ -341,6 +312,11 @@ html[data-radius='lg'] {
 
   .chip {
     @apply inline-flex items-center gap-1 rounded-full border border-line bg-card-2 px-2 py-0.5 text-[11px] text-fg-muted;
+  }
+
+  /* فونت رسمی داخل فرم‌ها — در نمایش و چاپ یکسان است (print.ts/documentRequestPrint.ts) */
+  .form-font {
+    font-family: 'B Nazanin', BNazanin, 'B-Nazanin', Vazirmatn, Tahoma, Arial, sans-serif;
   }
 
   .skeleton {

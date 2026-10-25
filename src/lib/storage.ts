@@ -11,6 +11,7 @@ export const KEYS = {
   documents: 'crm.documents.v1',
   scans: 'crm.scans.v1',
   workflowEvidence: 'crm.workflow-evidence.v1',
+  reminders: 'crm.reminders.v1',
   templates: 'crm.templates.v1',
   roles: 'crm.roles.v1',
   audit: 'crm.audit.v1',

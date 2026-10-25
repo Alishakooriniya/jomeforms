@@ -1,5 +1,5 @@
-/* ساخت سند از قالب در سه گام:
-   ۱) انتخاب قالب  ۲) انتخاب پرونده  ۳) تکمیل اطلاعات و چاپ */
+/* ساخت سند از فرم در سه گام:
+   ۱) انتخاب فرم  ۲) انتخاب پرونده  ۳) تکمیل اطلاعات و چاپ */
 
 import { useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
@@ -24,9 +24,10 @@ import { SearchInput } from '../components/ui/Toolbar';
 import { Tabs } from '../components/ui/Tabs';
 import { DynamicFields } from '../components/form/DynamicFields';
 import { DocumentPreview } from '../components/documents/DocumentPreview';
+import { NoAccess } from '../components/guards';
 
 const STEPS = [
-  { id: 'template', label: 'انتخاب قالب فرم', icon: 'template' as const },
+  { id: 'template', label: 'انتخاب فرم', icon: 'template' as const },
   { id: 'client', label: 'اتصال به پرونده', icon: 'users' as const },
   { id: 'fill', label: 'تکمیل و ذخیره', icon: 'check' as const },
 ];
@@ -80,6 +81,9 @@ export default function DocumentCreate() {
         .slice(0, 40),
     [clients, clientQuery],
   );
+
+  // کاربران فقط فرم‌هایی را می‌بینند و استفاده می‌کنند که مدیر ثبت کرده است
+  if (!can('templates.view')) return <NoAccess />;
 
   const pickTemplate = (next: FormTemplate) => {
     setTemplateId(next.id);
@@ -146,8 +150,8 @@ export default function DocumentCreate() {
   return (
     <div className="flex flex-col gap-4">
       <PageHeader
-        title="ساخت سند از قالب"
-        subtitle="قالب را انتخاب کنید، پرونده را وصل کنید و اطلاعات خودکار جای‌گذاری می‌شود."
+        title="ساخت سند از فرم"
+        subtitle="فرم را انتخاب کنید، پرونده را وصل کنید و اطلاعات خودکار جای‌گذاری می‌شود."
         icon="file-text"
         breadcrumbs={[
           { label: 'داشبورد', to: '/' },
@@ -197,14 +201,14 @@ export default function DocumentCreate() {
         })}
       </ol>
 
-      {/* گام ۱ — قالب */}
+      {/* گام ۱ — فرم */}
       {step === 0 ? (
         <div className="flex flex-col gap-3">
           <div className="flex flex-wrap items-center gap-2">
             <SearchInput
               value={templateQuery}
               onChange={setTemplateQuery}
-              placeholder="جستجوی قالب…"
+              placeholder="جستجوی فرم…"
               className="w-full sm:w-64"
             />
             <Select
@@ -212,10 +216,10 @@ export default function DocumentCreate() {
               onChange={(event) => setCategoryFilter(event.target.value)}
               options={[{ value: 'all', label: 'همه دسته‌ها' }, ...TEMPLATE_CATEGORY_OPTIONS]}
               containerClassName="w-44"
-              aria-label="دسته قالب"
+              aria-label="دسته فرم"
             />
             <span className="num ms-auto text-[11.5px] text-fg-subtle">
-              {displayDigits(visibleTemplates.length)} قالب
+              {displayDigits(visibleTemplates.length)} فرم
             </span>
           </div>
 
@@ -260,12 +264,12 @@ export default function DocumentCreate() {
             <Card>
               <EmptyState
                 icon="template"
-                title="قالبی یافت نشد"
-                description="عبارت جستجو را تغییر دهید یا از سوپرادمین بخواهید قالب فرم جدیدی اضافه کند."
+                title="فرمی یافت نشد"
+                description="عبارت جستجو را تغییر دهید یا از مدیر بخواهید فرم جدیدی اضافه کند."
                 action={
                   can('templates.create') ? (
                     <Button variant="soft" icon="plus" to="/templates/new">
-                      افزودن قالب
+                      افزودن فرم
                     </Button>
                   ) : null
                 }
@@ -281,10 +285,10 @@ export default function DocumentCreate() {
           <Card className="flex flex-wrap items-center gap-3 p-3">
             <div className="flex items-center gap-2 text-[12px] text-fg-muted">
               <Icon name="template" size={15} />
-              قالب انتخابی: <b className="text-fg">{template?.title}</b>
+              فرم انتخابی: <b className="text-fg">{template?.title}</b>
             </div>
             <Button size="sm" variant="ghost" icon="edit" onClick={() => setStep(0)} className="ms-auto">
-              تغییر قالب
+              تغییر فرم
             </Button>
           </Card>
 

@@ -63,11 +63,18 @@ export default function Dashboard() {
         title={firstName ? `سلام، ${firstName}` : 'داشبورد'}
         subtitle={`امروز ${formatDate(new Date(), 'long')} — ${displayDigits(actionItems.length)} کار در انتظار شماست`}
         actions={
-          can('clients.create') ? (
-            <Button variant="primary" icon="plus" onClick={() => navigate('/clients/new')}>
-              پرونده جدید
-            </Button>
-          ) : null
+          <>
+            {can('reminders.manage') ? (
+              <Button variant="secondary" icon="bell" to="/reminders">
+                یادآورها
+              </Button>
+            ) : null}
+            {can('clients.create') ? (
+              <Button variant="primary" icon="plus" onClick={() => navigate('/clients/new')}>
+                پرونده جدید
+              </Button>
+            ) : null}
+          </>
         }
       />
 

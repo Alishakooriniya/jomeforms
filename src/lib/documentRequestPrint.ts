@@ -1,11 +1,19 @@
 import type { FormTemplate } from '../types';
 import { formatFieldValue, renderDocument } from './template';
+import { FORM_FONT_FACE, FORM_FONT_FAMILY } from './print';
 
 import vazirmatnFontUrl from '../assets/fonts/Vazirmatn[wght].woff2?url';
 
 export const DOCUMENT_REQUEST_PAGE = {
   width: 595.32,
   height: 841.92,
+} as const;
+
+/** کادر دور صفحهٔ فرم — هم در پیش‌نمایش هم در چاپ کشیده می‌شود (~۸mm از لبه کاغذ) */
+export const DOCUMENT_REQUEST_FRAME = {
+  inset: 22.7,
+  stroke: '#171717',
+  strokeWidth: 0.9,
 } as const;
 
 export interface DocumentRequestBodyLine {
@@ -106,6 +114,7 @@ export function buildDocumentRequestPrintHtml(
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>${escapeHtml(template.title)}</title>
 <style>
+  ${FORM_FONT_FACE}
   @font-face {
     font-family: Vazirmatn;
     src: url("${escapeHtml(vazirmatnFontUrl)}") format("woff2");
@@ -115,7 +124,7 @@ export function buildDocumentRequestPrintHtml(
   @page { size: A4; margin: 0; }
   * { box-sizing: border-box; }
   html, body { width: 210mm; height: 297mm; margin: 0; padding: 0; }
-  body { font-family: Vazirmatn, Tahoma, Arial, sans-serif; color: #111; }
+  body { font-family: ${FORM_FONT_FAMILY}; color: #111; }
   .sheet {
     position: relative; width: 210mm; height: 297mm; overflow: hidden;
     background: #fff; direction: rtl;
@@ -124,27 +133,33 @@ export function buildDocumentRequestPrintHtml(
   .request-date {
     position: absolute; left: 20.2%; top: 7.8%; width: 34%; z-index: 1;
     direction: rtl; text-align: right; white-space: nowrap;
-    font-size: 3.4mm; line-height: 1.2;
+    font-size: 3.7mm; line-height: 1.2;
   }
   .form-body {
     position: absolute; inset: 5.6% 7% 5% 7%; z-index: 1;
     white-space: pre-wrap; text-align: justify; direction: rtl;
-    font-size: 3.4mm; line-height: 1.82;
+    font-size: 3.7mm; line-height: 1.82;
   }
   .form-line { min-height: 1.82em; }
   .form-line.heading { text-align: center; font-weight: 700; }
   .parcel-option {
     position: absolute; z-index: 2; transform: translateY(-70%);
     overflow: hidden; white-space: nowrap; direction: rtl; text-align: right;
-    font-size: 3.4mm; line-height: 1.2; background: #fff;
+    font-size: 3.7mm; line-height: 1.2; background: #fff;
   }
   @media print { .sheet { break-after: avoid; } }
 </style>
 </head>
 <body>
   <main class="sheet">
-    <svg class="frame" viewBox="0 0 595.32 841.92" aria-hidden="true">
-      <path d="M 584 0 V 841.92" fill="none" stroke="#171717" stroke-width="0.55" />
+    <svg class="frame" viewBox="0 0 ${DOCUMENT_REQUEST_PAGE.width} ${DOCUMENT_REQUEST_PAGE.height}" aria-hidden="true">
+      <path d="M 584 0 V ${DOCUMENT_REQUEST_PAGE.height}" fill="none" stroke="#171717" stroke-width="0.55" />
+      <rect
+        x="${DOCUMENT_REQUEST_FRAME.inset}" y="${DOCUMENT_REQUEST_FRAME.inset}"
+        width="${DOCUMENT_REQUEST_PAGE.width - DOCUMENT_REQUEST_FRAME.inset * 2}"
+        height="${DOCUMENT_REQUEST_PAGE.height - DOCUMENT_REQUEST_FRAME.inset * 2}"
+        fill="none" stroke="${DOCUMENT_REQUEST_FRAME.stroke}" stroke-width="${DOCUMENT_REQUEST_FRAME.strokeWidth}"
+      />
       ${parcelMarks}
     </svg>
     <div class="request-date">${escapeHtml(dateLabel)}: ${escapeHtml(date)}</div>

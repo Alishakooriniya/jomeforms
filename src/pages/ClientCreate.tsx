@@ -33,6 +33,7 @@ export default function ClientCreate() {
       <div className="card p-4 sm:p-5">
         <ClientForm
           initial={emptyClientDraft()}
+          alwaysShowExtra
           submitting={submitting}
           submitLabel="ثبت پرونده"
           onCancel={() => navigate('/clients')}

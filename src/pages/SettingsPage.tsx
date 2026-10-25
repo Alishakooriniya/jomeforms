@@ -11,19 +11,17 @@ import { formatBytes, formatDate, nowISO } from '../lib/format';
 import { jalaliDateFromDate } from '../lib/jalali';
 import { storageFootprint } from '../lib/storage';
 import { estimateBlobUsage } from '../lib/idb';
-import { cn, downloadFile } from '../lib/utils';
+import { downloadFile } from '../lib/utils';
 import { Button } from '../components/ui/Button';
 import { Card, CardBody, CardHeader, InfoList, SectionTitle } from '../components/ui/Card';
 import { FormGrid, NumberInput, Switch } from '../components/ui/Controls';
-import { Select, TextInput, Textarea } from '../components/ui/Field';
+import { TextInput, Textarea } from '../components/ui/Field';
 import { Icon } from '../components/ui/Icon';
 import { ConfirmDialog } from '../components/ui/Modal';
 import { PageHeader } from '../components/ui/Avatar';
 import { Tabs } from '../components/ui/Tabs';
-import { THEME_ACCENTS, THEME_MODES, THEME_RADII } from '../config/theme';
+import { THEME_MODES } from '../config/theme';
 import { useMediaQuery } from '../lib/hooks';
-
-const ACCENT_OPTIONS = THEME_ACCENTS.map(({ value, label }) => ({ value, label }));
 
 export default function SettingsPage() {
   const { settings, clients, documents, templates, users, scans, roles, audit } = useDb();
@@ -232,11 +230,11 @@ export default function SettingsPage() {
       {tab === 'appearance' ? (
         <div className="grid gap-4 lg:grid-cols-2">
           <Card>
-            <CardHeader title="پوسته" subtitle="حالت نمایش، رنگ سازمانی و گردی گوشه‌ها" icon="sun" />
+            <CardHeader title="پوسته" subtitle="حالت روشن یا تاریک" icon="sun" />
             <CardBody className="flex flex-col gap-4">
               <div>
-                <SectionTitle title="حالت نمایش" subtitle="می‌توانید حالت سیستم را انتخاب کنید" />
-                <div className="grid grid-cols-3 gap-2">
+                <SectionTitle title="حالت نمایش" />
+                <div className="grid grid-cols-2 gap-2">
                   {THEME_MODES.map((option) => (
                     <button
                       key={option.value}
@@ -251,51 +249,6 @@ export default function SettingsPage() {
                       <Icon name={option.icon} size={18} />
                       {option.label}
                     </button>
-                  ))}
-                </div>
-              </div>
-
-              <div>
-                <SectionTitle
-                  title="رنگ سازمانی"
-                  subtitle="فقط خانواده سبز؛ سطح‌های سامانه خاکستری خنثی می‌مانند"
-                />
-                <div className="mb-2 flex items-center gap-2">
-                  {THEME_ACCENTS.map((accent) => (
-                    <button
-                      key={accent.value}
-                      type="button"
-                      onClick={() => theme.setAccent(accent.value)}
-                      className={cn(
-                        'h-8 w-8 rounded-full border-2 transition-transform hover:scale-105',
-                        theme.accent === accent.value ? 'border-fg' : 'border-transparent',
-                      )}
-                      style={{ background: accent.color }}
-                      aria-label={accent.hint}
-                      title={`${accent.label} — ${accent.hint}`}
-                    />
-                  ))}
-                </div>
-                <Select
-                  value={theme.accent}
-                  options={ACCENT_OPTIONS}
-                  onChange={(event) => theme.setAccent(event.target.value as typeof theme.accent)}
-                  containerClassName="max-w-xs"
-                />
-              </div>
-
-              <div>
-                <SectionTitle title="گردی گوشه‌ها" subtitle="ظاهر کلی کارت‌ها و دکمه‌ها" />
-                <div className="flex items-center gap-2">
-                  {THEME_RADII.map((option) => (
-                    <Button
-                      key={option.value}
-                      size="sm"
-                      variant={theme.radius === option.value ? 'primary' : 'secondary'}
-                      onClick={() => theme.setRadius(option.value)}
-                    >
-                      {option.label}
-                    </Button>
                   ))}
                 </div>
               </div>
@@ -326,8 +279,7 @@ export default function SettingsPage() {
               </div>
               <InfoList
                 items={[
-                  { label: 'حالت فعلی', value: theme.mode === 'dark' ? 'تاریک' : theme.mode === 'light' ? 'روشن' : 'بر پایه سیستم' },
-                  { label: 'رنگ سازمانی', value: ACCENT_OPTIONS.find((option) => option.value === theme.accent)?.label ?? '' },
+                  { label: 'حالت فعلی', value: theme.isDark ? 'تاریک' : 'روشن' },
                   { label: 'کاربر جاری', value: user?.fullName ?? '—' },
                 ]}
                 columns={1}
@@ -347,7 +299,7 @@ export default function SettingsPage() {
                   {[
                     { label: 'پرونده', value: clients.length, icon: 'users' as const },
                     { label: 'سند', value: documents.length, icon: 'file-text' as const },
-                    { label: 'قالب', value: templates.length, icon: 'template' as const },
+                    { label: 'فرم', value: templates.length, icon: 'template' as const },
                     { label: 'کاربر', value: users.length, icon: 'user-cog' as const },
                     { label: 'نقش', value: roles.length, icon: 'shield' as const },
                     { label: 'اسکن', value: scans.length, icon: 'scan' as const },
@@ -390,7 +342,7 @@ export default function SettingsPage() {
               <CardHeader title="پشتیبان‌گیری" subtitle="خروجی JSON از کل داده‌ها" icon="download" />
               <CardBody className="flex flex-col gap-4">
                 <p className="text-[12px] leading-6 text-fg-muted">
-                  فایل پشتیبان شامل کاربران، پرونده‌ها، قالب‌ها، اسناد، نقش‌ها و گزارش فعالیت است. فایل‌های اسکن‌شده داخل
+                  فایل پشتیبان شامل کاربران، پرونده‌ها، فرم‌ها، اسناد، نقش‌ها و گزارش فعالیت است. فایل‌های اسکن‌شده داخل
                   فایل پشتیبان قرار نمی‌گیرند (در IndexedDB مرورگر ذخیره می‌شوند).
                 </p>
                 <div className="flex flex-wrap items-center gap-2">
@@ -428,7 +380,7 @@ export default function SettingsPage() {
                 <div>
                   <p className="text-[12.5px] font-medium text-fg">بازنشانی به داده نمونه</p>
                   <p className="text-[11px] text-fg-subtle">
-                    همه تغییرات پاک و داده‌های نمایشی اولیه (کاربران، پرونده‌ها، قالب‌ها) بازسازی می‌شود.
+                    همه تغییرات پاک و داده‌های نمایشی اولیه (کاربران، پرونده‌ها، فرم‌ها) بازسازی می‌شود.
                   </p>
                 </div>
                 <Button variant="danger" icon="refresh" disabled={!can('settings.edit')} onClick={() => setConfirmReset(true)}>
@@ -440,7 +392,7 @@ export default function SettingsPage() {
                 <div>
                   <p className="text-[12.5px] font-medium text-fg">پاک‌کردن کامل داده‌ها</p>
                   <p className="text-[11px] text-fg-subtle">
-                    برای شروع کار واقعی: همه پرونده‌ها، اسناد و قالب‌ها حذف می‌شوند و سامانه خالی می‌ماند.
+                    برای شروع کار واقعی: همه پرونده‌ها، اسناد و فرم‌ها حذف می‌شوند و سامانه خالی می‌ماند.
                   </p>
                 </div>
                 <Button variant="danger" icon="trash" disabled={!can('settings.edit')} onClick={() => setConfirmClear(true)}>
@@ -493,7 +445,7 @@ export default function SettingsPage() {
           toast.success('همه داده‌ها پاک شد');
         }}
         title="پاک‌کردن همه داده‌ها"
-        description="این عملیات همه پرونده‌ها، اسناد، قالب‌ها، کاربران و گزارش‌ها را حذف می‌کند. پیش از ادامه فایل پشتیبان بگیرید."
+        description="این عملیات همه پرونده‌ها، اسناد، فرم‌ها، کاربران و گزارش‌ها را حذف می‌کند. پیش از ادامه فایل پشتیبان بگیرید."
         confirmLabel="همه را پاک کن"
         variant="danger"
         icon="trash"

@@ -1,5 +1,6 @@
 import type { FormTemplate } from '../../types';
 import {
+  DOCUMENT_REQUEST_FRAME,
   DOCUMENT_REQUEST_PAGE,
   documentRequestBodyLines,
   documentRequestDate,
@@ -17,7 +18,7 @@ export function DocumentRequestFormPreview({ template, values }: DocumentRequest
   const dateField = template.fields.find((field) => field.key === 'request_date');
 
   return (
-    <div className="relative mx-auto aspect-[210/297] w-full max-w-[210mm] [container-type:inline-size] overflow-hidden bg-white text-black shadow-soft">
+    <div className="form-font relative mx-auto aspect-[210/297] w-full max-w-[210mm] [container-type:inline-size] overflow-hidden bg-white text-black shadow-soft">
       <svg
         className="pointer-events-none absolute inset-0 h-full w-full"
         viewBox={`0 0 ${DOCUMENT_REQUEST_PAGE.width} ${DOCUMENT_REQUEST_PAGE.height}`}
@@ -28,6 +29,15 @@ export function DocumentRequestFormPreview({ template, values }: DocumentRequest
           fill="none"
           stroke="#171717"
           strokeWidth="0.55"
+        />
+        <rect
+          x={DOCUMENT_REQUEST_FRAME.inset}
+          y={DOCUMENT_REQUEST_FRAME.inset}
+          width={DOCUMENT_REQUEST_PAGE.width - DOCUMENT_REQUEST_FRAME.inset * 2}
+          height={DOCUMENT_REQUEST_PAGE.height - DOCUMENT_REQUEST_FRAME.inset * 2}
+          fill="none"
+          stroke={DOCUMENT_REQUEST_FRAME.stroke}
+          strokeWidth={DOCUMENT_REQUEST_FRAME.strokeWidth}
         />
         {parcelOptions.map((option) => {
           const boxY = DOCUMENT_REQUEST_PAGE.height - option.y - 7;
@@ -57,7 +67,7 @@ export function DocumentRequestFormPreview({ template, values }: DocumentRequest
         })}
       </svg>
       <div
-        className="absolute z-10 whitespace-nowrap text-right text-[1.62cqw] leading-tight"
+        className="absolute z-10 whitespace-nowrap text-right text-[1.76cqw] leading-tight"
         style={{ left: '20.2%', top: '7.8%', width: '34%' }}
         dir="rtl"
       >
@@ -66,7 +76,7 @@ export function DocumentRequestFormPreview({ template, values }: DocumentRequest
       {parcelOptions.map((option) => (
         <span
           key={option.label}
-          className="absolute z-10 -translate-y-[70%] overflow-hidden bg-white text-right text-[1.62cqw] leading-tight"
+          className="absolute z-10 -translate-y-[70%] overflow-hidden bg-white text-right text-[1.76cqw] leading-tight"
           style={{
             left: `${((option.x + 11) / DOCUMENT_REQUEST_PAGE.width) * 100}%`,
             top: `${((DOCUMENT_REQUEST_PAGE.height - option.y) / DOCUMENT_REQUEST_PAGE.height) * 100}%`,
@@ -78,7 +88,7 @@ export function DocumentRequestFormPreview({ template, values }: DocumentRequest
         </span>
       ))}
       <div
-        className="absolute z-10 flex flex-col text-justify text-[1.62cqw] leading-[1.82]"
+        className="absolute z-10 flex flex-col text-justify text-[1.76cqw] leading-[1.82]"
         style={{ inset: '5.6% 7% 5%' }}
         dir="rtl"
       >
