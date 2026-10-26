@@ -4,7 +4,6 @@ import { AuthController } from '../controllers/auth.controller.js';
 import { asyncHandler } from '../utils/async-handler.js';
 import {
   authenticate,
-  loginRateLimiter,
   requireSameOrigin,
   validate,
 } from '../middleware/index.js';
@@ -16,7 +15,6 @@ export function createAuthRouter(container: Container): Router {
 
   router.post(
     '/login',
-    loginRateLimiter,
     validate({ body: loginBodySchema }),
     asyncHandler(controller.login),
   );

@@ -1,31 +1,8 @@
-/* هش رمز عبور — سبک و بدون وابستگی.
-   ⚠️ فقط برای دموی سمت کلاینت: این الگوریتم امنیتی نیست.
-   در بک‌اند واقعی از bcrypt/argon2 استفاده شود (docs/database-schema.sql). */
+/* ابزارهای کاربری — تولید رمز پیشنهادی و اعتبارسنجی کد ملی/موبایل.
+   هش رمز عبور فقط سمت بک‌اند (bcrypt) انجام می‌شود؛ کلاینت هیچ رمزی را
+   هش یا بررسی نمی‌کند. */
 
 import { toLatinDigits } from './utils';
-
-const SALT = 'estate-crm::v1';
-
-function fnv1a(text: string, seed: number): number {
-  let hash = seed;
-  for (let i = 0; i < text.length; i += 1) {
-    hash ^= text.charCodeAt(i);
-    hash = Math.imul(hash, 0x01000193) >>> 0;
-  }
-  return hash >>> 0;
-}
-
-export function hashPassword(raw: string): string {
-  const base = `${SALT}|${raw}|${raw.length}`;
-  const a = fnv1a(base, 0x811c9dc5);
-  const b = fnv1a(`${base}::${a}`, 0x1000193);
-  const c = fnv1a(`${a.toString(16)}${base}`, 0x9e3779b9);
-  return `${a.toString(16)}${b.toString(16)}${c.toString(16)}`;
-}
-
-export function verifyPassword(raw: string, hash: string): boolean {
-  return hashPassword(raw) === hash;
-}
 
 const PASSWORD_CHARS = 'abcdefghjkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 

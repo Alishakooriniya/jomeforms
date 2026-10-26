@@ -9,7 +9,7 @@ import { AuthProvider, useAuth } from './store/AuthProvider';
 import { DataProvider, useDb } from './store/DataProvider';
 import { ThemeProvider } from './store/ThemeProvider';
 import { ToastProvider } from './store/ToastProvider';
-import { RequireAuth, RequirePermission, RequireSuperadmin, NoAccess } from './components/guards';
+import { RequireAuth, RequirePermission, NoAccess } from './components/guards';
 import { AppLayout } from './components/layout/AppLayout';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { PageSkeleton } from './components/ui/EmptyState';
@@ -23,18 +23,16 @@ const ClientCreate = lazy(() => import('./pages/ClientCreate'));
 const DocumentsList = lazy(() => import('./pages/DocumentsList'));
 const DocumentCreate = lazy(() => import('./pages/DocumentCreate'));
 const DocumentDetail = lazy(() => import('./pages/DocumentDetail'));
+const LetterheadPage = lazy(() => import('./pages/LetterheadPage'));
 const TemplatesList = lazy(() => import('./pages/TemplatesList'));
 const TemplateEditor = lazy(() => import('./pages/TemplateEditor'));
 const CollectionsList = lazy(() => import('./pages/CollectionsList'));
 const UsersList = lazy(() => import('./pages/UsersList'));
 const UserEditor = lazy(() => import('./pages/UserEditor'));
-const RolesPage = lazy(() => import('./pages/RolesPage'));
-const ReportsPage = lazy(() => import('./pages/ReportsPage'));
 const RemindersPage = lazy(() => import('./pages/RemindersPage'));
 const AuditPage = lazy(() => import('./pages/AuditPage'));
 const SettingsPage = lazy(() => import('./pages/SettingsPage'));
 const ProfilePage = lazy(() => import('./pages/ProfilePage'));
-const AdminUsersPage = lazy(() => import('./pages/AdminUsersPage'));
 
 /** مسیر خانه: داشبورد اگر مجاز باشد، وگرنه نخستین بخش در دسترس */
 function HomeRedirect() {
@@ -70,14 +68,8 @@ function AppRoutes() {
         >
           <Route index element={<HomeRedirect />} />
           <Route path="profile" element={<ProfilePage />} />
-          <Route
-            path="admin-users"
-            element={
-              <RequireSuperadmin>
-                <AdminUsersPage />
-              </RequireSuperadmin>
-            }
-          />
+          {/* مسیر قدیمی «مدیریت مدیران» با «کاربران» ادغام شده است */}
+          <Route path="admin-users" element={<Navigate to="/users" replace />} />
 
           <Route
             path="clients"
@@ -125,6 +117,15 @@ function AppRoutes() {
             element={
               <RequirePermission permission="documents.view">
                 <DocumentDetail />
+              </RequirePermission>
+            }
+          />
+
+          <Route
+            path="letterhead"
+            element={
+              <RequirePermission permission="letterhead.view">
+                <LetterheadPage />
               </RequirePermission>
             }
           />
@@ -188,22 +189,6 @@ function AppRoutes() {
             }
           />
 
-          <Route
-            path="roles"
-            element={
-              <RequirePermission permission="roles.view">
-                <RolesPage />
-              </RequirePermission>
-            }
-          />
-          <Route
-            path="reports"
-            element={
-              <RequirePermission permission="reports.view">
-                <ReportsPage />
-              </RequirePermission>
-            }
-          />
           <Route
             path="reminders"
             element={

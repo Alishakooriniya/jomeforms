@@ -4,8 +4,6 @@ import type { QueryParam } from '../config/database.js';
 import type { AppSettings } from '../types/domain.js';
 
 interface SettingsRow extends QueryResultRow {
-  org_name: string;
-  org_legal_name: string;
   org_phone: string;
   org_address: string;
   default_province: string;
@@ -19,8 +17,6 @@ interface SettingsRow extends QueryResultRow {
 
 function mapSettings(row: SettingsRow): AppSettings {
   return {
-    orgName: row.org_name,
-    orgLegalName: row.org_legal_name,
     orgPhone: row.org_phone,
     orgAddress: row.org_address,
     defaultProvince: row.default_province,
@@ -34,8 +30,6 @@ function mapSettings(row: SettingsRow): AppSettings {
 }
 
 const COLUMNS: Record<keyof AppSettings, string> = {
-  orgName: 'org_name',
-  orgLegalName: 'org_legal_name',
   orgPhone: 'org_phone',
   orgAddress: 'org_address',
   defaultProvince: 'default_province',

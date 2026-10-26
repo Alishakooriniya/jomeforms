@@ -5,7 +5,6 @@
 --  نگاشت سریع:
 --    User          → users (+ user_permissions, company_id)
 --    Company       → companies (مجموعه: شرکت/مالک زمین)
---    PermissionRole→ roles (+ role_permissions)
 --    Client        → clients (+ case_workflow_evidence)
 --    FormTemplate  → form_templates (+ form_template_versions)
 --    DocRecord     → documents (+ document_status_history)
@@ -27,7 +26,7 @@ create type client_case_type   as enum ('document_request', 'rent_renewal');
 create type template_category  as enum ('sale', 'rent', 'mortgage', 'presale', 'commission', 'visit', 'other');
 create type document_status    as enum ('draft', 'awaiting_signature', 'signed', 'scanned', 'archived');
 create type company_kind       as enum ('owner', 'developer', 'cooperative', 'investor', 'org', 'other');
-create type audit_entity       as enum ('auth', 'client', 'document', 'template', 'user', 'role', 'company', 'settings', 'scan', 'workflow', 'reminder');
+create type audit_entity       as enum ('auth', 'client', 'document', 'template', 'user', 'role', 'company', 'settings', 'scan', 'workflow', 'reminder', 'letterhead');
 
 -- ----------------------------------------------------------------------------
 -- ۲) کاربران و دسترسی‌ها
@@ -63,22 +62,6 @@ create table user_permissions (
   granted_by      uuid references users(id) on delete set null,
   granted_at      timestamptz not null default now(),
   primary key (user_id, permission_key)
-);
-
--- نقش‌ها / بسته‌های دسترسی قابل استفاده مجدد
-create table roles (
-  id           uuid primary key default gen_random_uuid(),
-  name         text not null,
-  description  text,
-  is_system    boolean not null default false,
-  created_by   uuid references users(id) on delete set null,
-  created_at   timestamptz not null default now()
-);
-
-create table role_permissions (
-  role_id        uuid not null references roles(id) on delete cascade,
-  permission_key text not null references permissions(key) on delete cascade,
-  primary key (role_id, permission_key)
 );
 
 -- نشست‌ها (در صورت استفاده از توکن سمت سرور؛ در حالت JWT لازم نیست)
@@ -379,12 +362,12 @@ insert into permissions (key, group_id, label, sort_order) values
   ('users.create',        'users',     'افزودن کاربر', 2),
   ('users.edit',          'users',     'ویرایش کاربر و دسترسی‌ها', 3),
   ('users.delete',        'users',     'حذف/غیرفعال‌کردن کاربر', 4),
-  ('roles.view',          'roles',     'مشاهده نقش‌ها', 1),
-  ('roles.manage',        'roles',     'ساخت و ویرایش نقش', 2),
   ('reports.view',        'reports',   'مشاهده گزارش‌ها', 1),
   ('reports.export',      'reports',   'خروجی CSV گزارش', 2),
   ('audit.view',          'audit',     'مشاهده گزارش فعالیت', 1),
   ('reminders.manage',    'reminders', 'مدیریت یادآورها', 1),
+  ('letterhead.view',     'letterhead', 'استفاده از سربرگ', 1),
+  ('letterhead.manage',   'letterhead', 'مدیریت سربرگ و گزارش چاپ', 2),
   ('settings.view',       'settings',  'مشاهده تنظیمات', 1),
   ('settings.edit',       'settings',  'تغییر تنظیمات', 2);
 
@@ -448,7 +431,34 @@ group by t.id, t.title
 order by documents desc;
 
 -- ----------------------------------------------------------------------------
--- ۱۴) نکات امنیتی (RLS)
+-- ۱۴) سربرگ سازمان
+--    کادر پایین سربرگ (نشانی دفاتر) در app_settings.letterhead_address نگه
+--    داشته می‌شود و فقط دارندگان letterhead.manage می‌توانند تغییرش دهند.
+--    هر نسخه چاپ‌شده (خالی/تکمیل‌شده، A4/A5) در letterhead_prints ثبت می‌شود
+--    تا نسخه‌های بیرون‌داده‌شده قابل پیگیری باشند؛ رخداد در audit_logs هم می‌نشیند.
+-- ----------------------------------------------------------------------------
+alter table app_settings add column letterhead_address text;
+
+-- پیش‌فرض محصول: همه کاربران «استفاده از سربرگ» را دارند؛ مدیر می‌تواند بگیرد
+insert into user_permissions (user_id, permission_key)
+select u.id, 'letterhead.view' from users u where u.role = 'admin'
+on conflict (user_id, permission_key) do nothing;
+
+create table letterhead_prints (
+  id         uuid primary key default gen_random_uuid(),
+  paper      text not null check (paper in ('A4', 'A5')),
+  kind       text not null check (kind in ('blank', 'filled')),
+  values     jsonb not null default '{}'::jsonb,    -- تصویر لحظه‌ای فیلدهای چاپ‌شده
+  user_id    uuid references users(id) on delete set null,
+  user_name  text not null,
+  created_at timestamptz not null default now()
+);
+
+create index letterhead_prints_user_idx    on letterhead_prints (user_id, created_at desc);
+create index letterhead_prints_created_idx on letterhead_prints (created_at desc);
+
+-- ----------------------------------------------------------------------------
+-- ۱۵) نکات امنیتی (RLS)
 --    سمت سرور باید همه پرس‌وجوها را با شناسه کاربر جاری محدود کند:
 --      • superadmin: دسترسی کامل
 --      • admin: تنها بخش‌هایی که در user_permissions دارد

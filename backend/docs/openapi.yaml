@@ -18,13 +18,11 @@ tags:
   - name: Auth
   - name: Users
   - name: Admin users
-  - name: Roles
   - name: Permissions
   - name: Companies
   - name: Case files
   - name: Templates
   - name: Documents
-  - name: Reports
   - name: Audit
   - name: Settings
 security:
@@ -53,7 +51,6 @@ paths:
               schema: { $ref: '#/components/schemas/LoginResponse' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '422': { $ref: '#/components/responses/ValidationError' }
-        '429': { $ref: '#/components/responses/RateLimited' }
   /auth/refresh:
     post:
       tags: [Auth]
@@ -398,97 +395,6 @@ paths:
                   - type: object
                     properties:
                       data: { $ref: '#/components/schemas/User' }
-        '409': { $ref: '#/components/responses/Conflict' }
-
-  /roles:
-    get:
-      tags: [Roles]
-      summary: List permission roles
-      description: Requires `roles.view`.
-      parameters:
-        - $ref: '#/components/parameters/Page'
-        - $ref: '#/components/parameters/Limit'
-        - $ref: '#/components/parameters/Search'
-      responses:
-        '200':
-          description: Paginated roles.
-          content:
-            application/json:
-              schema:
-                allOf:
-                  - $ref: '#/components/schemas/Success'
-                  - type: object
-                    properties:
-                      data:
-                        type: array
-                        items: { $ref: '#/components/schemas/Role' }
-                      meta: { $ref: '#/components/schemas/PaginationMeta' }
-    post:
-      tags: [Roles]
-      summary: Create a role
-      description: Requires `roles.create`.
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema: { $ref: '#/components/schemas/RoleInput' }
-      responses:
-        '201':
-          description: Created role.
-          content:
-            application/json:
-              schema:
-                allOf:
-                  - $ref: '#/components/schemas/Success'
-                  - type: object
-                    properties:
-                      data: { $ref: '#/components/schemas/Role' }
-        '409': { $ref: '#/components/responses/Conflict' }
-  /roles/{id}:
-    parameters:
-      - $ref: '#/components/parameters/Id'
-    get:
-      tags: [Roles]
-      summary: Get a role
-      responses:
-        '200':
-          description: Role.
-          content:
-            application/json:
-              schema:
-                allOf:
-                  - $ref: '#/components/schemas/Success'
-                  - type: object
-                    properties:
-                      data: { $ref: '#/components/schemas/Role' }
-        '404': { $ref: '#/components/responses/NotFound' }
-    patch:
-      tags: [Roles]
-      summary: Update a role
-      description: Requires `roles.edit`. System roles cannot be renamed.
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema: { $ref: '#/components/schemas/RoleInput' }
-      responses:
-        '200':
-          description: Updated role.
-          content:
-            application/json:
-              schema:
-                allOf:
-                  - $ref: '#/components/schemas/Success'
-                  - type: object
-                    properties:
-                      data: { $ref: '#/components/schemas/Role' }
-        '404': { $ref: '#/components/responses/NotFound' }
-    delete:
-      tags: [Roles]
-      summary: Delete a role
-      description: Requires `roles.delete`. Assigned roles cannot be deleted.
-      responses:
-        '204': { description: Deleted. }
         '409': { $ref: '#/components/responses/Conflict' }
 
   /permissions:
@@ -1196,72 +1102,6 @@ paths:
         '204': { description: Deleted. }
         '404': { $ref: '#/components/responses/NotFound' }
 
-  /reports/dashboard:
-    get:
-      tags: [Reports]
-      summary: Dashboard counters, recent cases, follow-ups and recent activity
-      description: Requires `dashboard.view`.
-      responses:
-        '200':
-          description: Dashboard payload.
-          content:
-            application/json:
-              schema:
-                allOf:
-                  - $ref: '#/components/schemas/Success'
-                  - type: object
-                    properties:
-                      data:
-                        type: object
-                        properties:
-                          counts: { type: object, additionalProperties: { type: integer } }
-                          recentClients: { type: array, items: { type: object } }
-                          evidenceFollowUps: { type: array, items: { type: object } }
-                          recentAudit: { type: array, items: { $ref: '#/components/schemas/AuditEntry' } }
-  /reports/overview:
-    get:
-      tags: [Reports]
-      summary: Aggregated statistics for the reports page
-      description: Requires `reports.view`.
-      responses:
-        '200':
-          description: Overview payload with totals, ratios and six Jalali months.
-          content:
-            application/json:
-              schema: { $ref: '#/components/schemas/Success' }
-  /reports/agents:
-    get:
-      tags: [Reports]
-      summary: Per-agent workload report
-      description: Requires `reports.view`.
-      parameters:
-        - $ref: '#/components/parameters/Page'
-        - $ref: '#/components/parameters/Limit'
-        - $ref: '#/components/parameters/Search'
-        - $ref: '#/components/parameters/SortBy'
-        - $ref: '#/components/parameters/SortOrder'
-      responses:
-        '200':
-          description: Agent rows.
-          content:
-            application/json:
-              schema:
-                allOf:
-                  - $ref: '#/components/schemas/Success'
-                  - type: object
-                    properties:
-                      data:
-                        type: array
-                        items:
-                          type: object
-                          properties:
-                            id: { type: string }
-                            name: { type: string }
-                            clients: { type: integer }
-                            documents: { type: integer }
-                            scans: { type: integer }
-                      meta: { $ref: '#/components/schemas/PaginationMeta' }
-
   /audit-logs:
     get:
       tags: [Audit]
@@ -1403,11 +1243,6 @@ components:
       content:
         application/json:
           schema: { $ref: '#/components/schemas/Error' }
-    RateLimited:
-      description: Too many requests.
-      content:
-        application/json:
-          schema: { $ref: '#/components/schemas/Error' }
   schemas:
     Success:
       type: object
@@ -1532,27 +1367,6 @@ components:
         mobile: { type: string, nullable: true }
         active: { type: boolean }
         note: { type: string, nullable: true }
-    Role:
-      type: object
-      properties:
-        id: { type: string, format: uuid }
-        name: { type: string }
-        description: { type: string }
-        permissions:
-          type: array
-          items: { type: string }
-        system: { type: boolean }
-        createdAt: { type: string, format: date-time }
-        createdBy: { type: string }
-    RoleInput:
-      type: object
-      required: [name, permissions]
-      properties:
-        name: { type: string, minLength: 2, maxLength: 80 }
-        description: { type: string, maxLength: 500 }
-        permissions:
-          type: array
-          items: { type: string }
     Company:
       type: object
       properties:
@@ -1782,8 +1596,6 @@ components:
     Settings:
       type: object
       properties:
-        orgName: { type: string }
-        orgLegalName: { type: string }
         orgPhone: { type: string }
         orgAddress: { type: string }
         defaultProvince: { type: string }

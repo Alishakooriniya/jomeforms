@@ -1,6 +1,7 @@
 /* گزارش فعالیت — چه کسی، چه زمانی، چه کاری انجام داد */
 
 import { useMemo, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import type { AuditEntity, AuditEntry } from '../types';
 import { useAuth } from '../store/AuthProvider';
 import { useDb, useDbActions } from '../store/DataProvider';
@@ -40,9 +41,12 @@ export default function AuditPage() {
   const { can } = useAuth();
   const toast = useToast();
   const [confirmClear, setConfirmClear] = useState(false);
+  const [searchParams] = useSearchParams();
 
   const query = useListQuery<AuditEntry>(audit, {
     pageSize: settings.defaultPageSize,
+    // پیوند «مشاهده عملکرد» از فهرست کاربران با ?user=<id> می‌آید
+    initialFilters: { userId: searchParams.get('user') ?? 'all' },
     search: (entry) => `${entry.userName} ${entry.action} ${entry.entityLabel ?? ''} ${entry.detail ?? ''}`,
     filters: {
       entity: (entry, value) => entry.entity === value,
@@ -155,11 +159,9 @@ export default function AuditPage() {
         subtitle="ردیابی عملیات کاربران برای پیگیری و پاسخ‌گویی"
         actions={
           <>
-            {can('reports.export') ? (
-              <Button variant="secondary" icon="download" onClick={handleExport} disabled={!query.rows.length}>
-                خروجی
-              </Button>
-            ) : null}
+            <Button variant="secondary" icon="download" onClick={handleExport} disabled={!query.rows.length}>
+              خروجی
+            </Button>
             {can('settings.edit') && audit.length ? (
               <Button variant="danger" icon="trash" onClick={() => setConfirmClear(true)}>
                 پاک‌کردن
@@ -278,9 +280,12 @@ export default function AuditPage() {
         open={confirmClear}
         onClose={() => setConfirmClear(false)}
         onConfirm={() => {
-          clearAudit();
           setConfirmClear(false);
-          toast.success('گزارش فعالیت پاک شد');
+          void clearAudit()
+            .then(() => toast.success('گزارش فعالیت پاک شد'))
+            .catch((error: unknown) =>
+              toast.error(error instanceof Error ? error.message : 'پاک‌کردن گزارش انجام نشد.'),
+            );
         }}
         title="پاک‌کردن گزارش فعالیت"
         description={`${displayDigits(audit.length)} رویداد حذف می‌شود. این کار قابل بازگشت نیست.`}

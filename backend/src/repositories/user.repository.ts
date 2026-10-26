@@ -283,6 +283,13 @@ export class UserRepository {
     return Number(result.rows[0]?.count ?? 0);
   }
 
+  async countSuperadmins(): Promise<number> {
+    const result = await query<{ count: string }>(
+      `select count(*)::text as count from users where role = 'superadmin'`,
+    );
+    return Number(result.rows[0]?.count ?? 0);
+  }
+
   async detachCompany(companyId: string): Promise<number> {
     const result = await query(
       'update users set company_id = null, updated_at = now() where company_id = $1',

@@ -1,6 +1,7 @@
 /* عملیات سند: ساخت متن نهایی، چاپ، خروجی HTML/متن و کپی */
 
 import type { AppSettings, DocRecord, FormTemplate } from '../types';
+import { ORG_NAME } from '../config/org';
 import { formatDate } from './format';
 import { renderDocument } from './template';
 import {
@@ -53,7 +54,6 @@ export function buildPrintOptions(
     docNumber: document.number,
     clientName: document.clientName,
     clientCode: document.clientCode,
-    orgName: settings.orgName,
     date: document.values.doc_date ?? document.createdAt,
     emptyPlaceholder: BLANK,
   });
@@ -66,23 +66,22 @@ export function buildPrintOptions(
     headerText: rendered.header,
     bodyText: rendered.body,
     footerText: rendered.footer || settings.contractNote,
-    org: { name: settings.orgName, phone: settings.orgPhone, address: settings.orgAddress },
+    org: { name: ORG_NAME, phone: settings.orgPhone, address: settings.orgAddress },
     signatures: template.requiresSignature ? buildSignatureBlocks(template, document.values) : [],
   };
 }
 
 /** خروجی متنی سند (برای کپی یا فایل txt) */
-export function buildPlainText(document: DocRecord, template: FormTemplate, settings: AppSettings): string {
+export function buildPlainText(document: DocRecord, template: FormTemplate, _settings: AppSettings): string {
   const rendered = renderDocument(template, document.values, {
     docNumber: document.number,
     clientName: document.clientName,
     clientCode: document.clientCode,
-    orgName: settings.orgName,
     date: document.values.doc_date ?? document.createdAt,
     emptyPlaceholder: BLANK,
   });
   return [
-    settings.orgName,
+    ORG_NAME,
     `${document.title} — شماره سند: ${document.number}`,
     document.clientName ? `پرونده: ${document.clientName}` : '',
     `تاریخ: ${documentDate(document, template)}`,
@@ -96,7 +95,7 @@ export function buildPlainText(document: DocRecord, template: FormTemplate, sett
 }
 
 export function printDocument(document: DocRecord, template: FormTemplate, settings: AppSettings): boolean {
-  if (template.printLayout === 'document-request-a4') {
+  if (template.printLayout === 'document-request-a4' || template.printLayout === 'canvas-a4') {
     const printWindow = openDocumentRequestPrintWindow(template, document.values);
     if (!printWindow) return false;
     printWindow.print();
@@ -108,7 +107,7 @@ export function printDocument(document: DocRecord, template: FormTemplate, setti
 
 export function downloadDocumentAsHtml(document: DocRecord, template: FormTemplate, settings: AppSettings) {
   const html =
-    template.printLayout === 'document-request-a4'
+    template.printLayout === 'document-request-a4' || template.printLayout === 'canvas-a4'
       ? buildDocumentRequestPrintHtml(template, document.values)
       : buildDocumentHtml(buildPrintOptions(document, template, settings));
   downloadDocumentHtml(`${document.number}.html`, html);

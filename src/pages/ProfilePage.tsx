@@ -8,12 +8,9 @@ import { TextInput } from '../components/ui/Field';
 import { useAuth } from '../store/AuthProvider';
 import { authApi } from '../lib/apiClient';
 import { useToast } from '../store/ToastProvider';
-import { useDbActions } from '../store/DataProvider';
-import { verifyPassword } from '../lib/crypto';
 
 export default function ProfilePage() {
-  const { user, logout, serverMode } = useAuth();
-  const { saveUser } = useDbActions();
+  const { user, logout } = useAuth();
   const toast = useToast();
   const navigate = useNavigate();
   const [currentPassword, setCurrentPassword] = useState('');
@@ -31,30 +28,7 @@ export default function ProfilePage() {
     }
     setSaving(true);
     try {
-      if (serverMode) {
-        await authApi.changePassword(currentPassword, newPassword, confirmPassword);
-      } else {
-        if (!verifyPassword(currentPassword, user.passwordHash)) {
-          toast.error('رمز عبور فعلی نادرست است.');
-          return;
-        }
-        const result = saveUser({
-          username: user.username,
-          fullName: user.fullName,
-          role: user.role,
-          permissions: user.permissions,
-          title: user.title,
-          mobile: user.mobile,
-          companyId: user.companyId,
-          active: user.active,
-          note: user.note,
-          password: newPassword,
-        }, user.id);
-        if (!result.ok) {
-          toast.error(result.error ?? 'تغییر رمز عبور انجام نشد.');
-          return;
-        }
-      }
+      await authApi.changePassword(currentPassword, newPassword, confirmPassword);
       toast.success('رمز عبور تغییر کرد. برای امنیت، دوباره وارد شوید.');
       await logout();
       navigate('/login', { replace: true });

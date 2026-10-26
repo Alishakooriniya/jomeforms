@@ -2,6 +2,7 @@
    کاغذ همیشه سفید می‌ماند تا در حالت تاریک هم قابل خواندن باشد. */
 
 import type { AppSettings, DocRecord, FormTemplate } from '../../types';
+import { ORG_NAME } from '../../config/org';
 import { formatCode, formatDate } from '../../lib/format';
 import { renderDocument } from '../../lib/template';
 import { buildSignatureBlocks, documentDate } from '../../lib/documentActions';
@@ -21,15 +22,14 @@ export function DocumentPreview({ template, values, document, settings, isTempla
   if (!template) {
     return <EmptyState icon="file" title="قالب سند پیدا نشد" description="ممکن است این قالب حذف شده باشد." />;
   }
-  if (template.printLayout === 'document-request-a4') {
-    return <DocumentRequestFormPreview template={template} values={values} />;
+  if (template.printLayout === 'document-request-a4' || template.printLayout === 'canvas-a4') {
+    return <DocumentRequestFormPreview template={template} values={values} isTemplatePreview={isTemplatePreview} />;
   }
 
   const rendered = renderDocument(template, values, {
     docNumber: document?.number,
     clientName: document?.clientName,
     clientCode: document?.clientCode,
-    orgName: settings.orgName,
     date: values.doc_date ?? values.visit_date ?? document?.createdAt,
     emptyPlaceholder: isTemplatePreview ? '' : '…………………',
   });
@@ -43,7 +43,7 @@ export function DocumentPreview({ template, values, document, settings, isTempla
       {/* سرصفحه سازمان */}
       <div className="flex items-start justify-between gap-4 border-b-2 border-[#24815d] pb-2.5">
         <div>
-          <p className="text-[16px] font-bold text-[#1f674c]">{settings.orgName}</p>
+          <p className="text-[16px] font-bold text-[#1f674c]">{ORG_NAME}</p>
           <p className="mt-0.5 text-[11px] leading-5 text-[#565656]">{settings.orgAddress}</p>
         </div>
         <div className="text-end text-[11px] leading-5 text-[#565656]">

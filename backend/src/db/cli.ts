@@ -16,15 +16,13 @@ async function verify(): Promise<void> {
     documents: string;
     templates: string;
     permissions: string;
-    roles: string;
   }>(`
     select
       (select count(*)::text from users) as users,
       (select count(*)::text from clients) as clients,
       (select count(*)::text from documents) as documents,
       (select count(*)::text from form_templates) as templates,
-      (select count(*)::text from permissions) as permissions,
-      (select count(*)::text from roles) as roles
+      (select count(*)::text from permissions) as permissions
   `);
 
   logger.info({ tables: tables.rows.map((row) => row.table_name) }, 'schema verification');

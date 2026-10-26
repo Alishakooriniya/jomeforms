@@ -232,8 +232,11 @@ export default function DocumentsList() {
                     label: `تغییر وضعیت به ${option.label}`,
                     icon: 'refresh' as const,
                     onSelect: () => {
-                      setDocumentStatus(document.id, option.value as DocStatus);
-                      toast.success('وضعیت سند تغییر کرد', option.label);
+                      void setDocumentStatus(document.id, option.value as DocStatus)
+                        .then(() => toast.success('وضعیت سند تغییر کرد', option.label))
+                        .catch((error: unknown) =>
+                          toast.error(error instanceof Error ? error.message : 'تغییر وضعیت انجام نشد.'),
+                        );
                     },
                   })),
                 ]
@@ -417,8 +420,11 @@ export default function DocumentsList() {
         onClose={() => setPendingDelete(null)}
         onConfirm={() => {
           if (pendingDelete) {
-            deleteDocument(pendingDelete.id);
-            toast.success('سند حذف شد', pendingDelete.number);
+            void deleteDocument(pendingDelete.id)
+              .then(() => toast.success('سند حذف شد', pendingDelete.number))
+              .catch((error: unknown) =>
+                toast.error(error instanceof Error ? error.message : 'حذف سند انجام نشد.'),
+              );
           }
           setPendingDelete(null);
         }}

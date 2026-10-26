@@ -89,9 +89,9 @@ export default function RemindersPage() {
     setCreating(true);
   };
 
-  const submit = () => {
+  const submit = async () => {
     setSaving(true);
-    const result = createReminder(form);
+    const result = await createReminder(form);
     setSaving(false);
     if (!result.ok) {
       toast.error('یادآور ثبت نشد', result.error);
@@ -297,7 +297,7 @@ export default function RemindersPage() {
             <Button variant="ghost" onClick={() => setCreating(false)} disabled={saving}>
               انصراف
             </Button>
-            <Button variant="primary" icon="check" onClick={submit} loading={saving}>
+            <Button variant="primary" icon="check" onClick={() => void submit()} loading={saving}>
               ثبت یادآور
             </Button>
           </>
@@ -352,8 +352,11 @@ export default function RemindersPage() {
         onClose={() => setPendingDelete(null)}
         onConfirm={() => {
           if (pendingDelete) {
-            deleteReminder(pendingDelete.id);
-            toast.success('یادآور حذف شد', pendingDelete.title);
+            void deleteReminder(pendingDelete.id)
+              .then(() => toast.success('یادآور حذف شد', pendingDelete.title))
+              .catch((error: unknown) =>
+                toast.error(error instanceof Error ? error.message : 'حذف یادآور انجام نشد.'),
+              );
           }
           setPendingDelete(null);
         }}

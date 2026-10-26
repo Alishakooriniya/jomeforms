@@ -1,71 +1,19 @@
-import type { FormTemplate } from '../types';
-import { formatFieldValue, renderDocument } from './template';
+import type { FormTemplate, TemplateField } from '../types';
+import { displayDigits, formatDate } from './format';
+import { formatFieldValue, TOKEN_PATTERN } from './template';
 import { FORM_FONT_FACE, FORM_FONT_FAMILY } from './print';
-
-import vazirmatnFontUrl from '../assets/fonts/Vazirmatn[wght].woff2?url';
 
 export const DOCUMENT_REQUEST_PAGE = {
   width: 595.32,
   height: 841.92,
 } as const;
 
-/** کادر دور صفحهٔ فرم — هم در پیش‌نمایش هم در چاپ کشیده می‌شود (~۸mm از لبه کاغذ) */
-export const DOCUMENT_REQUEST_FRAME = {
-  inset: 22.7,
-  stroke: '#171717',
-  strokeWidth: 0.9,
-} as const;
-
-export interface DocumentRequestBodyLine {
-  text: string;
-  heading: boolean;
+export interface DocumentRequestRenderOptions {
+  emptyPlaceholder?: string;
+  isTemplatePreview?: boolean;
 }
 
-export interface DocumentRequestParcelOption {
-  label: string;
-  x: number;
-  y: number;
-  width: number;
-  selected: boolean;
-}
-
-const PARCEL_OPTION_POSITIONS = [
-  { x: 289, y: 548, width: 126 },
-  { x: 128, y: 548, width: 112 },
-] as const;
-
-export function documentRequestBodyLines(
-  template: FormTemplate,
-  values: Record<string, string>,
-  emptyPlaceholder = '',
-): DocumentRequestBodyLine[] {
-  const body = renderDocument(template, { ...values, land_parcel: ' ' }, { emptyPlaceholder }).body;
-  let headings = 0;
-
-  return body.split(/\r?\n/).map((text) => {
-    const heading = Boolean(text.trim()) && headings < 2;
-    if (heading) headings += 1;
-    return { text, heading };
-  });
-}
-
-export function documentRequestParcelOptions(
-  template: FormTemplate,
-  values: Record<string, string>,
-): DocumentRequestParcelOption[] {
-  const field = template.fields.find((item) => item.key === 'land_parcel');
-  return (field?.options ?? []).slice(0, PARCEL_OPTION_POSITIONS.length).map((label, index) => ({
-    ...PARCEL_OPTION_POSITIONS[index],
-    label,
-    selected: values.land_parcel === label,
-  }));
-}
-
-export function documentRequestDate(template: FormTemplate, values: Record<string, string>): string {
-  const field = template.fields.find((item) => item.key === 'request_date');
-  const value = values.request_date?.trim() ?? '';
-  return field ? formatFieldValue(field, value) : value;
-}
+const CHECK_SVG = `<svg viewBox="0 0 10 10" class="check-svg" aria-hidden="true"><path d="M 1.8 5.4 L 4.2 8 L 8.4 2.4" fill="none" stroke="#111" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" /></svg>`;
 
 function escapeHtml(value: string): string {
   return value
@@ -76,36 +24,107 @@ function escapeHtml(value: string): string {
     .replace(/'/g, '&#39;');
 }
 
+export function formatInlineValue(
+  field: TemplateField | undefined,
+  val: string | undefined,
+  options: DocumentRequestRenderOptions = {},
+): string {
+  const trimmed = val?.trim() ?? '';
+  if (trimmed) {
+    const formatted = field ? formatFieldValue(field, trimmed) : trimmed;
+    return `<span class="val-filled">${escapeHtml(displayDigits(formatted))}</span>`;
+  }
+  if (options.isTemplatePreview && field?.label) {
+    return `<span class="val-sample">«${escapeHtml(field.label)}»</span>`;
+  }
+  const dots = options.emptyPlaceholder ?? '................................';
+  return `<span class="val-empty">${escapeHtml(dots)}</span>`;
+}
+
+/** تبدیل متن قالب فرم به HTML جاری با چک‌باکس‌ها و داده‌های جایگزین‌شده */
+export function renderDocumentRequestBodyHtml(
+  template: FormTemplate,
+  values: Record<string, string>,
+  options: DocumentRequestRenderOptions = {},
+): string {
+  const fieldMap = new Map(template.fields.map((field) => [field.key, field]));
+
+  // خطوط متن را جدا می‌کنیم تا عنوان‌های پیش‌فرض و پاراگراف اصلی تمیز شوند
+  const rawBody = template.body.trim();
+
+  // نشانه‌ها را با HTML جاری جایگزین می‌کنیم
+  const replaced = rawBody.replace(TOKEN_PATTERN, (_match, rawKey: string) => {
+    const raw = rawKey.trim();
+
+    // نشانه گزینه مثل {{land_parcel:اراضی مزرعه هاشم آباد پلاک ثبتی یک اصلی}}
+    if (raw.includes(':')) {
+      const colonIdx = raw.indexOf(':');
+      const key = raw.slice(0, colonIdx).trim();
+      const option = raw.slice(colonIdx + 1).trim();
+      const isSelected = (values[key]?.trim() ?? '') === option;
+      return `<span class="inline-checkbox${isSelected ? ' is-checked' : ''}">${isSelected ? CHECK_SVG : ''}</span>`;
+    }
+
+    const field = fieldMap.get(raw);
+    return formatInlineValue(field, values[raw], options);
+  });
+
+  // پاراگراف‌ها را با تگ p یا div می‌سازیم
+  return replaced
+    .split(/\r?\n\r?\n/)
+    .map((p) => p.trim())
+    .filter(Boolean)
+    .map((p) => `<p class="form-p">${p.replace(/\r?\n/g, '<br />')}</p>`)
+    .join('');
+}
+
+export function documentRequestDate(
+  template: FormTemplate,
+  values: Record<string, string>,
+  options: DocumentRequestRenderOptions = {},
+): string {
+  const field = template.fields.find((item) => item.key === 'request_date' || item.type === 'date');
+  const val = field ? values[field.key]?.trim() : values.request_date?.trim();
+  if (val) {
+    return `<bdi dir="ltr">${escapeHtml(displayDigits(formatDate(val, 'short')))}</bdi>`;
+  }
+  if (options.isTemplatePreview) return '«تاریخ»';
+  return options.emptyPlaceholder ?? '…………………';
+}
+
+export function documentRequestFullName(
+  template: FormTemplate,
+  values: Record<string, string>,
+  options: DocumentRequestRenderOptions = {},
+): string {
+  const field = template.fields.find((item) => item.key === 'full_name' || item.source === 'fullName');
+  const val = field ? values[field.key]?.trim() : values.full_name?.trim();
+  if (val) return escapeHtml(displayDigits(val));
+  if (options.isTemplatePreview) return '«نام متقاضی»';
+  return options.emptyPlaceholder ?? '................................';
+}
+
+export function documentRequestNationalId(
+  template: FormTemplate,
+  values: Record<string, string>,
+  options: DocumentRequestRenderOptions = {},
+): string {
+  const field = template.fields.find((item) => item.key === 'national_id' || item.type === 'nationalId');
+  const val = field ? values[field.key]?.trim() : values.national_id?.trim();
+  if (val) return escapeHtml(displayDigits(val));
+  if (options.isTemplatePreview) return '«کد ملی»';
+  return options.emptyPlaceholder ?? '................';
+}
+
 export function buildDocumentRequestPrintHtml(
   template: FormTemplate,
   values: Record<string, string>,
+  options: DocumentRequestRenderOptions = {},
 ): string {
-  const body = documentRequestBodyLines(template, values, '…………………')
-    .map(({ text, heading }) => {
-      const className = heading ? 'form-line heading' : 'form-line';
-      return `<div class="${className}">${text ? escapeHtml(text) : '&nbsp;'}</div>`;
-    })
-    .join('');
-  const parcelOptions = documentRequestParcelOptions(template, values)
-    .map(({ label, x, y, width }) => {
-      const left = ((x + 11) / DOCUMENT_REQUEST_PAGE.width) * 100;
-      const top = ((DOCUMENT_REQUEST_PAGE.height - y) / DOCUMENT_REQUEST_PAGE.height) * 100;
-      const maxWidth = (width / DOCUMENT_REQUEST_PAGE.width) * 100;
-      return `<span class="parcel-option" style="left:${left}%;top:${top}%;max-width:${maxWidth}%">${escapeHtml(label)}</span>`;
-    })
-    .join('');
-  const parcelMarks = documentRequestParcelOptions(template, values)
-    .map(({ x, y, selected }) => {
-      const boxY = DOCUMENT_REQUEST_PAGE.height - y - 7;
-      const check = selected
-        ? `<path d="M ${x - 1} ${boxY + 4} l 2 2 l 4 -5" fill="none" stroke="#111" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" />`
-        : '';
-      return `<rect x="${x - 3}" y="${boxY}" width="8" height="8" fill="#fff" stroke="#171717" stroke-width="0.65" />${check}`;
-    })
-    .join('');
-  const dateField = template.fields.find((field) => field.key === 'request_date');
-  const dateLabel = dateField?.label ?? 'تاریخ تقاضا';
-  const date = documentRequestDate(template, values);
+  const bodyHtml = renderDocumentRequestBodyHtml(template, values, options);
+  const dateStr = documentRequestDate(template, values, options);
+  const fullNameStr = documentRequestFullName(template, values, options);
+  const nationalIdStr = documentRequestNationalId(template, values, options);
 
   return `<!doctype html>
 <html lang="fa" dir="rtl">
@@ -115,56 +134,187 @@ export function buildDocumentRequestPrintHtml(
 <title>${escapeHtml(template.title)}</title>
 <style>
   ${FORM_FONT_FACE}
-  @font-face {
-    font-family: Vazirmatn;
-    src: url("${escapeHtml(vazirmatnFontUrl)}") format("woff2");
-    font-style: normal;
-    font-weight: 100 900;
-  }
-  @page { size: A4; margin: 0; }
+  @page { size: A4 portrait; margin: 0; }
   * { box-sizing: border-box; }
-  html, body { width: 210mm; height: 297mm; margin: 0; padding: 0; }
-  body { font-family: ${FORM_FONT_FAMILY}; color: #111; }
+  html, body { margin: 0; padding: 0; width: 210mm; height: 297mm; }
+  body {
+    font-family: ${FORM_FONT_FAMILY};
+    color: #111;
+    background: #fff;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
   .sheet {
-    position: relative; width: 210mm; height: 297mm; overflow: hidden;
-    background: #fff; direction: rtl;
+    position: relative;
+    width: 210mm;
+    height: 297mm;
+    overflow: hidden;
+    background: #fff;
+    direction: rtl;
+    padding: 12mm 13.5mm;
   }
-  .frame { position: absolute; inset: 0; width: 100%; height: 100%; }
-  .request-date {
-    position: absolute; left: 20.2%; top: 7.8%; width: 34%; z-index: 1;
-    direction: rtl; text-align: right; white-space: nowrap;
-    font-size: 3.7mm; line-height: 1.2;
+  .frame-border {
+    position: absolute;
+    top: 8.5mm;
+    left: 8.5mm;
+    right: 8.5mm;
+    bottom: 8.5mm;
+    border: 1.5px double #171717;
+    pointer-events: none;
   }
-  .form-body {
-    position: absolute; inset: 5.6% 7% 5% 7%; z-index: 1;
-    white-space: pre-wrap; text-align: justify; direction: rtl;
-    font-size: 3.7mm; line-height: 1.82;
+  .top-meta {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
   }
-  .form-line { min-height: 1.82em; }
-  .form-line.heading { text-align: center; font-weight: 700; }
-  .parcel-option {
-    position: absolute; z-index: 2; transform: translateY(-70%);
-    overflow: hidden; white-space: nowrap; direction: rtl; text-align: right;
-    font-size: 3.7mm; line-height: 1.2; background: #fff;
+  .top-left-block {
+    position: absolute;
+    top: 13mm;
+    left: 14mm;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    text-align: left;
+    direction: ltr;
   }
-  @media print { .sheet { break-after: avoid; } }
+  .fn-code {
+    font-family: Arial, sans-serif;
+    font-size: 12pt;
+    color: #111;
+    line-height: 1.2;
+  }
+  .date-row {
+    margin-top: 5mm;
+    font-size: 13.5pt;
+    line-height: 1.2;
+    direction: rtl;
+    text-align: right;
+  }
+  .header-block {
+    text-align: center;
+    margin-top: 12mm;
+  }
+  .bismillah {
+    font-family: Arial, sans-serif;
+    font-size: 13pt;
+    color: #111;
+    margin-bottom: 4mm;
+  }
+  .form-title {
+    font-size: 16pt;
+    font-weight: 700;
+    color: #111;
+    margin: 0;
+  }
+  .recipient-block {
+    margin-top: 9mm;
+    text-align: right;
+    font-size: 13.5pt;
+    font-weight: 700;
+    line-height: 1.7;
+  }
+  .recipient-title { margin: 0; }
+  .recipient-salutation { margin: 1.5mm 0 0 0; }
+  .form-content {
+    margin-top: 5mm;
+    font-size: 13.5pt;
+    line-height: 2.15;
+    text-align: justify;
+    text-justify: inter-word;
+    color: #111;
+  }
+  .form-p {
+    margin: 0 0 4mm 0;
+    text-indent: 0;
+  }
+  .val-filled {
+    font-weight: 700;
+    color: #111;
+    padding: 0 1.5pt;
+  }
+  .val-empty {
+    color: #777;
+    letter-spacing: 0.05em;
+    font-family: Arial, sans-serif;
+    font-size: 11pt;
+  }
+  .val-sample {
+    color: #1f674c;
+    font-weight: 700;
+    padding: 0 2pt;
+  }
+  .inline-checkbox {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 10.5pt;
+    height: 10.5pt;
+    border: 1pt solid #171717;
+    background: #fff;
+    vertical-align: -1.5pt;
+    margin: 0 3.5pt;
+  }
+  .check-svg {
+    width: 100%;
+    height: 100%;
+  }
+  .signatures-area {
+    margin-top: 14mm;
+    display: flex;
+    justify-content: flex-end;
+  }
+  .applicant-sig {
+    width: 60mm;
+    font-size: 13.5pt;
+    font-weight: 700;
+    line-height: 1.85;
+    text-align: right;
+  }
+  .sig-space {
+    height: 18mm;
+  }
+  .custodian-area {
+    margin-top: 20mm;
+    text-align: right;
+    font-size: 13.5pt;
+    font-weight: 700;
+  }
+  @media print {
+    .sheet { break-after: avoid; }
+  }
 </style>
 </head>
 <body>
   <main class="sheet">
-    <svg class="frame" viewBox="0 0 ${DOCUMENT_REQUEST_PAGE.width} ${DOCUMENT_REQUEST_PAGE.height}" aria-hidden="true">
-      <path d="M 584 0 V ${DOCUMENT_REQUEST_PAGE.height}" fill="none" stroke="#171717" stroke-width="0.55" />
-      <rect
-        x="${DOCUMENT_REQUEST_FRAME.inset}" y="${DOCUMENT_REQUEST_FRAME.inset}"
-        width="${DOCUMENT_REQUEST_PAGE.width - DOCUMENT_REQUEST_FRAME.inset * 2}"
-        height="${DOCUMENT_REQUEST_PAGE.height - DOCUMENT_REQUEST_FRAME.inset * 2}"
-        fill="none" stroke="${DOCUMENT_REQUEST_FRAME.stroke}" stroke-width="${DOCUMENT_REQUEST_FRAME.strokeWidth}"
-      />
-      ${parcelMarks}
-    </svg>
-    <div class="request-date">${escapeHtml(dateLabel)}: ${escapeHtml(date)}</div>
-    ${parcelOptions}
-    <div class="form-body">${body}</div>
+    <div class="frame-border"></div>
+    <div class="top-meta">
+      <div class="top-left-block">
+        <span class="fn-code">FN04</span>
+        <div class="date-row">تاریخ : ${dateStr}</div>
+      </div>
+    </div>
+    <div class="header-block">
+      <div class="bismillah">بسمه تعالی</div>
+      <h1 class="form-title">${escapeHtml(template.title)}</h1>
+    </div>
+    <div class="recipient-block">
+      <p class="recipient-title">تولیت محترم محبوسات عام المنفعه امام جمعه</p>
+      <p class="recipient-salutation">سلام علیکم</p>
+    </div>
+    <div class="form-content">
+      ${bodyHtml}
+    </div>
+    <div class="signatures-area">
+      <div class="applicant-sig">
+        <div>نام و نام خانوادگی : ${fullNameStr}</div>
+        <div>کد ملی : ${nationalIdStr}</div>
+        <div style="margin-top: 2mm;">امضاء</div>
+        <div class="sig-space"></div>
+      </div>
+    </div>
+    <div class="custodian-area">
+      <div>نظریه تولیت:</div>
+    </div>
   </main>
 </body>
 </html>`;
@@ -178,16 +328,22 @@ export interface DocumentRequestPrintWindow {
 export function openDocumentRequestPrintWindow(
   template: FormTemplate,
   values: Record<string, string>,
+  options: DocumentRequestRenderOptions = {},
 ): DocumentRequestPrintWindow | null {
   const printWindow = window.open('', '_blank', 'noopener=no,width=920,height=1000');
   if (!printWindow) return null;
 
   printWindow.document.open();
-  printWindow.document.write(buildDocumentRequestPrintHtml(template, values));
+  printWindow.document.write(buildDocumentRequestPrintHtml(template, values, options));
   printWindow.document.close();
 
   return {
-    print: () => {
+    print: async () => {
+      try {
+        await printWindow.document.fonts?.ready;
+      } catch {
+        /* noop */
+      }
       printWindow.focus();
       printWindow.print();
     },

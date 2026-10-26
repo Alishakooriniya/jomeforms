@@ -80,25 +80,22 @@ const GROUPS: PermissionGroupDefinition[] = [
     ],
   },
   {
-    id: 'roles',
-    label: 'نقش‌ها',
-    permissions: [
-      { key: 'roles.view', label: 'مشاهده نقش‌ها' },
-      { key: 'roles.manage', label: 'ساخت و ویرایش نقش' },
-    ],
-  },
-  {
-    id: 'reports',
-    label: 'گزارش‌ها',
-    permissions: [
-      { key: 'reports.view', label: 'مشاهده گزارش‌ها' },
-      { key: 'reports.export', label: 'خروجی CSV گزارش' },
-    ],
-  },
-  {
     id: 'audit',
     label: 'گزارش فعالیت',
     permissions: [{ key: 'audit.view', label: 'مشاهده گزارش فعالیت' }],
+  },
+  {
+    id: 'reminders',
+    label: 'یادآورها',
+    permissions: [{ key: 'reminders.manage', label: 'مدیریت یادآورها' }],
+  },
+  {
+    id: 'letterhead',
+    label: 'سربرگ',
+    permissions: [
+      { key: 'letterhead.view', label: 'استفاده از سربرگ' },
+      { key: 'letterhead.manage', label: 'مدیریت سربرگ و گزارش چاپ' },
+    ],
   },
   {
     id: 'settings',
@@ -126,86 +123,3 @@ export function isPermissionKey(value: string): boolean {
 }
 
 export const ALL_PERMISSION_KEYS = [...PERMISSION_KEYS];
-
-export interface PresetRoleDefinition {
-  code: string;
-  name: string;
-  description: string;
-  permissions: string[];
-}
-
-const VIEWER = [
-  'dashboard.view',
-  'clients.view',
-  'documents.view',
-  'templates.view',
-  'companies.view',
-  'reports.view',
-];
-
-const OPERATOR = [
-  'dashboard.view',
-  'clients.view',
-  'clients.create',
-  'clients.edit',
-  'clients.workflow.advance',
-  'documents.view',
-  'documents.create',
-  'documents.edit',
-  'documents.print',
-  'documents.export',
-  'documents.upload',
-  'documents.status',
-  'templates.view',
-  'companies.view',
-  'companies.assign',
-  'reports.view',
-];
-
-const CONTRACTS = [
-  'dashboard.view',
-  'clients.view',
-  'documents.view',
-  'documents.create',
-  'documents.edit',
-  'documents.print',
-  'documents.export',
-  'documents.upload',
-  'documents.status',
-  'templates.view',
-  'companies.view',
-  'companies.assign',
-  'reports.view',
-  'reports.export',
-];
-
-const MANAGER = PERMISSION_KEYS.filter(
-  (key) => !key.startsWith('users.') && !key.startsWith('roles.') && key !== 'settings.edit',
-);
-
-export const PRESET_ROLES: PresetRoleDefinition[] = [
-  {
-    code: 'preset-viewer',
-    name: 'فقط‌خواندنی',
-    description: 'مشاهده پرونده‌ها و اسناد بدون امکان تغییر',
-    permissions: VIEWER,
-  },
-  {
-    code: 'preset-operator',
-    name: 'کارشناس پرونده',
-    description: 'ثبت پرونده، تکمیل و چاپ اسناد و بارگذاری اسکن',
-    permissions: OPERATOR,
-  },
-  {
-    code: 'preset-contracts',
-    name: 'کارشناس قرارداد',
-    description: 'تمرکز روی اسناد، چاپ، امضا و بایگانی اسکن‌ها',
-    permissions: CONTRACTS,
-  },
-  {
-    code: 'preset-manager',
-    name: 'مدیر شعبه',
-    description: 'دسترسی کامل به پرونده‌ها، اسناد، گزارش‌ها و فرم‌ها',
-    permissions: MANAGER,
-  },
-];

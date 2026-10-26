@@ -56,7 +56,7 @@ export function Topbar({ onOpenMenu }: { onOpenMenu: () => void }) {
       (reminder.title.length > 48 ? '…' : '') +
       (reminder.time ? ` · ${displayDigits(reminder.time)}` : ''),
     icon: 'bell' as const,
-    onSelect: () => markReminderDone(reminder.id),
+    onSelect: () => void markReminderDone(reminder.id),
   }));
 
   const documentItems: DropdownItem[] = pending.length

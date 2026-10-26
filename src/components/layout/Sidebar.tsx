@@ -6,20 +6,17 @@ import { useEffect, useState } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 import { cn } from '../../lib/utils';
 import { useAuth } from '../../store/AuthProvider';
-import { useDb } from '../../store/DataProvider';
 import { NAV_ITEMS } from '../../config/navigation';
+import { ORG_NAME } from '../../config/org';
 import { ROLE_LABELS } from '../../data/labels';
 import { Icon } from '../ui/Icon';
 import { Avatar } from '../ui/Avatar';
 import { Button } from '../ui/Button';
 
 export function Sidebar({ onNavigate, showBrand = true }: { onNavigate?: () => void; showBrand?: boolean }) {
-  const { user, can, logout, serverMode } = useAuth();
-  const { settings } = useDb();
+  const { user, can, logout } = useAuth();
   const location = useLocation();
-  const visibleItems = NAV_ITEMS.filter(
-    (item) => can(item.permission) && (item.to !== '/admin-users' || serverMode),
-  );
+  const visibleItems = NAV_ITEMS.filter((item) => can(item.permission));
   const mainItems = visibleItems.filter((item) => item.section === 'اصلی');
   const adminItems = visibleItems.filter((item) => item.section === 'مدیریت');
   const adminActive = adminItems.some((item) => item.to === '/' ? location.pathname === '/' : location.pathname.startsWith(item.to));
@@ -60,16 +57,12 @@ export function Sidebar({ onNavigate, showBrand = true }: { onNavigate?: () => v
 
   return (
     <div className="flex h-full flex-col bg-card">
-      {/* برند */}
+      {/* برند — فقط نام سازمان با خط نستعلیق و رنگ سبز؛ بدون لوگو/آیکن */}
       {showBrand ? (
-        <div className="flex items-center gap-2.5 border-b border-line px-4 py-4">
-          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-field bg-brand-600 text-white">
-            <Icon name="building" size={16} bold />
-          </span>
-          <div className="min-w-0">
-            <p className="truncate text-[13.5px] font-semibold text-fg">{settings.orgName || 'سامانه املاک'}</p>
-            <p className="truncate text-[10.5px] text-fg-subtle">مدیریت پرونده و اسناد</p>
-          </div>
+        <div className="border-b border-line px-4 pb-3 pt-4">
+          <p className="nastaliq-font text-center text-[19px] leading-[2] text-brand-700 dark:text-brand-400">
+            {ORG_NAME}
+          </p>
         </div>
       ) : null}
 

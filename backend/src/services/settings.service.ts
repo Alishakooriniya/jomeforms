@@ -19,7 +19,7 @@ export class SettingsService {
       action: 'تغییر تنظیمات',
       entity: 'settings',
       entityId: 'app_settings',
-      entityLabel: updated.orgName,
+      entityLabel: 'تنظیمات سامانه',
       detail: Object.keys(patch).length ? Object.keys(patch).join(', ') : undefined,
     });
 

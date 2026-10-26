@@ -32,7 +32,7 @@ import {
 
 export default function UsersList() {
   const { users, companies } = useDb();
-  const { deleteUser, toggleUserActive, saveRole } = useDbActions();
+  const { deleteUser, toggleUserActive } = useDbActions();
   const { user: currentUser, can } = useAuth();
   const toast = useToast();
   const navigate = useNavigate();
@@ -154,8 +154,11 @@ export default function UsersList() {
             checked={user.active}
             disabled={!can('users.edit') || user.id === currentUser?.id}
             onChange={() => {
-              toggleUserActive(user.id);
-              toast.success(user.active ? 'کاربر غیرفعال شد' : 'کاربر فعال شد', user.fullName);
+              void toggleUserActive(user.id)
+                .then(() => toast.success(user.active ? 'کاربر غیرفعال شد' : 'کاربر فعال شد', user.fullName))
+                .catch((error: unknown) =>
+                  toast.error(error instanceof Error ? error.message : 'تغییر وضعیت کاربر انجام نشد.'),
+                );
             }}
             id={`active-${user.id}`}
           />
@@ -171,6 +174,16 @@ export default function UsersList() {
         <Dropdown
           label="عملیات کاربر"
           items={[
+            ...(can('audit.view')
+              ? [
+                  {
+                    id: 'activity',
+                    label: 'مشاهده عملکرد',
+                    icon: 'history' as const,
+                    onSelect: () => navigate(`/audit?user=${user.id}`),
+                  },
+                ]
+              : []),
             ...(can('users.edit')
               ? [
                   {
@@ -178,22 +191,6 @@ export default function UsersList() {
                     label: 'ویرایش و دسترسی‌ها',
                     icon: 'user-cog' as const,
                     onSelect: () => navigate(`/users/${user.id}`),
-                  },
-                ]
-              : []),
-            ...(can('roles.manage')
-              ? [
-                  {
-                    id: 'save-role',
-                    label: 'ذخیره دسترسی‌ها به‌عنوان نقش',
-                    icon: 'shield' as const,
-                    disabled: user.role === 'superadmin' || !user.permissions.length,
-                    onSelect: () => {
-                      const name = window.prompt('نام نقش جدید:', `${user.fullName} — الگو`);
-                      if (!name) return;
-                      saveRole({ name, description: `برگرفته از دسترسی‌های ${user.fullName}`, permissions: user.permissions });
-                      toast.success('نقش ساخته شد', name);
-                    },
                   },
                 ]
               : []),
@@ -222,11 +219,6 @@ export default function UsersList() {
         subtitle="مدیران سامانه، دسترسی‌ها و وضعیت حساب‌ها"
         actions={
           <>
-            {can('roles.view') ? (
-              <Button variant="secondary" icon="shield" to="/roles">
-                نقش‌ها
-              </Button>
-            ) : null}
             {can('users.create') ? (
               <Button variant="primary" icon="plus" to="/users/new">
                 افزودن کاربر
@@ -370,9 +362,10 @@ export default function UsersList() {
         onClose={() => setPendingDelete(null)}
         onConfirm={() => {
           if (pendingDelete) {
-            const result = deleteUser(pendingDelete.id);
-            if (result.ok) toast.success('کاربر حذف شد', pendingDelete.fullName);
-            else toast.error('حذف انجام نشد', result.error);
+            void deleteUser(pendingDelete.id).then((result) => {
+              if (result.ok) toast.success('کاربر حذف شد', pendingDelete.fullName);
+              else toast.error('حذف انجام نشد', result.error);
+            });
           }
           setPendingDelete(null);
         }}
@@ -380,7 +373,7 @@ export default function UsersList() {
         description={
           <>
             حساب <b className="text-fg">{pendingDelete?.fullName}</b> حذف می‌شود و دیگر نمی‌تواند وارد شود. سوابق فعالیت
-            او در گزارش‌ها باقی می‌ماند.
+            او در گزارش فعالیت باقی می‌ماند.
           </>
         }
         confirmLabel="حذف کن"

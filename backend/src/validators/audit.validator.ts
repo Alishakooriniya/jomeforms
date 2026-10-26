@@ -12,6 +12,8 @@ const auditEntitySchema = z.enum([
   'settings',
   'scan',
   'workflow',
+  'reminder',
+  'letterhead',
 ]);
 
 export const auditListQuerySchema = listQuerySchema.extend({

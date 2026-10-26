@@ -63,6 +63,8 @@ export interface ListQueryOptions<T> {
   filters?: Record<string, (row: T, value: string) => boolean>;
   /** مرتب‌سازی: کلید = نام ستون */
   sorters?: Record<string, (a: T, b: T) => number>;
+  /** مقادیر اولیه فیلترها (مثلاً خوانده‌شده از پارامترهای نشانی) */
+  initialFilters?: Record<string, string>;
   pageSize?: number;
 }
 
@@ -96,7 +98,7 @@ export function useListQuery<T>(allRows: T[], options: ListQueryOptions<T>): Lis
   optionsRef.current = options;
 
   const [q, setQRaw] = useState('');
-  const [filters, setFilters] = useState<Record<string, string>>({});
+  const [filters, setFilters] = useState<Record<string, string>>(() => options.initialFilters ?? {});
   const [sortKey, setSortKey] = useState<string | undefined>(undefined);
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
   const [page, setPage] = useState(1);

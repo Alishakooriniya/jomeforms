@@ -127,11 +127,35 @@ export interface TemplateField {
   defaultValue?: string;
 }
 
+/* چیدمان کانواسی فرم — مقدار فیلدها روی قاب ثابت فرم کاغذی (تصویر) در جای
+   دقیق خودش چاپ می‌شود؛ همه مختصات درصدِ صفحه و y مرکز خط است. */
+export interface CanvasPlacement {
+  /** نامک فیلد قالب یا یک نشانه سیستمی مثل __date */
+  field: string;
+  /** برای فیلد select: این نشانه تیکِ مربع همان گزینه را روی قاب می‌زند */
+  option?: string;
+  x: number;
+  y: number;
+  /** عرض جای متغیر در درصدِ صفحه؛ خالی یعنی به‌اندازه متن */
+  width?: number;
+  align?: 'right' | 'center' | 'left';
+  fontScale?: number;
+}
+
+export interface TemplateCanvas {
+  /** مسیر عمومی تصویر قاب فرم (دارایی باندل‌شده در frontend) */
+  frame?: string;
+  /** اندازه پایه فونت مقادیر به cqw */
+  fontSize?: number;
+  placements: CanvasPlacement[];
+}
+
 export interface FormTemplate {
   id: string;
   title: string;
   category: TemplateCategory;
-  printLayout?: 'document-request-a4';
+  printLayout?: 'document-request-a4' | 'canvas-a4';
+  canvas?: TemplateCanvas;
   description?: string;
   fields: TemplateField[];
   body: string;
@@ -187,14 +211,21 @@ export interface ScanFile {
   uploadedBy: string;
 }
 
-export interface PermissionRole {
+export interface Reminder {
   id: string;
-  name: string;
-  description?: string;
-  permissions: string[];
-  system?: boolean;
+  title: string;
+  note?: string;
+  /** user-entered Jalali due date, stored as YYYY/MM/DD */
+  date: string;
+  /** optional HH:MM — no time means due at the start of the day */
+  time?: string;
+  userId: string;
+  userName: string;
+  done: boolean;
+  doneAt?: string;
   createdAt: string;
   createdBy: string;
+  createdByName: string;
 }
 
 export type AuditEntity =
@@ -207,7 +238,9 @@ export type AuditEntity =
   | 'company'
   | 'settings'
   | 'scan'
-  | 'workflow';
+  | 'workflow'
+  | 'reminder'
+  | 'letterhead';
 
 export interface AuditEntry {
   id: string;
@@ -222,8 +255,6 @@ export interface AuditEntry {
 }
 
 export interface AppSettings {
-  orgName: string;
-  orgLegalName: string;
   orgPhone: string;
   orgAddress: string;
   defaultProvince: string;
@@ -233,6 +264,28 @@ export interface AppSettings {
   showPersianDigits: boolean;
   defaultPageSize: number;
   contractNote: string;
+}
+
+/* ------------------------------- سربرگ -------------------------------- */
+
+/** تنظیمات سربرگ — کادر پایین (نشانی دفاتر) تنها بخش قابل‌ویرایش آن است */
+export interface LetterheadConfig {
+  address: string;
+}
+
+export type LetterheadPaper = 'A4' | 'A5';
+export type LetterheadPrintKind = 'blank' | 'filled';
+
+/** رخداد چاپ سربرگ — برای پیگیری امنیتی نسخه‌های بیرون‌داده‌شده نگه داشته می‌شود */
+export interface LetterheadPrint {
+  id: string;
+  paper: LetterheadPaper;
+  kind: LetterheadPrintKind;
+  /** تصویر لحظه‌ای فیلدهای چاپ‌شده (برای «خالی» خالی است) */
+  values: Record<string, string>;
+  userId: string;
+  userName: string;
+  createdAt: string;
 }
 
 export interface Actor {

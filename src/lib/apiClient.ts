@@ -14,14 +14,16 @@ import type {
   DocRecord,
   DocStatus,
   FormTemplate,
-  PermissionRole,
+  LetterheadConfig,
+  LetterheadPaper,
+  LetterheadPrint,
+  LetterheadPrintKind,
+  Reminder,
   ScanFile,
   User,
   WorkflowEvidence,
 } from '../types';
 
-export const API_MODE = (import.meta.env.VITE_API_MODE ?? 'local') as 'local' | 'server';
-export const isServerMode = API_MODE === 'server';
 export const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL ?? '/api/v1').replace(/\/$/, '');
 
 export interface PaginationMeta {
@@ -197,8 +199,6 @@ function toAppUser(user: ApiUser): User {
 }
 
 export const authApi = {
-  isServerMode,
-
   async login(username: string, password: string): Promise<{ user: User; expiresAt: string }> {
     const session = await request<AuthSession>('/auth/login', {
       method: 'POST',
@@ -243,8 +243,10 @@ export const authApi = {
 
 /* ------------------------------ resources ------------------------------ */
 
-export interface ClientInput extends Omit<Client, 'id' | 'code' | 'createdAt' | 'updatedAt' | 'createdBy'> {
+export interface ClientInput extends Omit<Client, 'id' | 'code' | 'status' | 'createdAt' | 'updatedAt' | 'createdBy'> {
   code?: string;
+  /** اگر ندهیم سرور پیش‌فرض «new» می‌گذارد */
+  status?: Client['status'];
 }
 
 export type DocumentInput = {
@@ -265,6 +267,8 @@ export type CompanyInput = Omit<Company, 'id' | 'createdAt' | 'updatedAt' | 'cre
 export type UserInput = Omit<User, 'id' | 'createdAt' | 'updatedAt' | 'lastLoginAt' | 'passwordHash'> & {
   password?: string;
 };
+
+export type ReminderInput = Pick<Reminder, 'title' | 'date' | 'time' | 'userId'> & { note?: string };
 
 export type AdminUserInput = Pick<User, 'username' | 'fullName'> & {
   password: string;
@@ -302,16 +306,6 @@ export const api = {
       request<ApiUser>(`/users/${id}/status`, { method: 'PATCH', body: { active } }),
   },
 
-  roles: {
-    list: (query?: QueryParams) => list<PermissionRole>('/roles', query),
-    get: (id: string) => request<PermissionRole>(`/roles/${id}`),
-    create: (input: Pick<PermissionRole, 'name' | 'permissions'> & { description?: string }) =>
-      request<PermissionRole>('/roles', { method: 'POST', body: input }),
-    update: (id: string, input: Partial<Pick<PermissionRole, 'name' | 'description' | 'permissions'>>) =>
-      request<PermissionRole>(`/roles/${id}`, { method: 'PATCH', body: input }),
-    remove: (id: string) => request<void>(`/roles/${id}`, { method: 'DELETE' }),
-  },
-
   permissions: {
     list: () => request<Array<{ key: string; group: string; label: string }>>('/permissions'),
   },
@@ -333,7 +327,7 @@ export const api = {
 
   clients: {
     list: (query?: QueryParams) => list<Client>('/clients', query),
-    get: (id: string) => request<Client>(`/clients/${id}`),
+    get: (id: string) => request<Client & { evidence: WorkflowEvidence[] }>(`/clients/${id}`),
     create: (input: ClientInput) => request<Client>('/clients', { method: 'POST', body: input }),
     update: (id: string, input: Partial<ClientInput>) =>
       request<Client>(`/clients/${id}`, { method: 'PATCH', body: input }),
@@ -354,6 +348,16 @@ export const api = {
       });
     },
     evidenceUrl: (evidenceId: string) => `${API_BASE_URL}/clients/evidence/${evidenceId}/file`,
+    evidenceBlob: async (evidenceId: string): Promise<Blob> => {
+      const response = await fetch(`${API_BASE_URL}/clients/evidence/${evidenceId}/file`, {
+        credentials: 'include',
+        headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : {},
+      });
+      if (!response.ok) {
+        throw new ApiError(response.status, 'EVIDENCE_UNAVAILABLE', 'دریافت فایل مدرک ناموفق بود.');
+      }
+      return response.blob();
+    },
   },
 
   templates: {
@@ -400,6 +404,33 @@ export const api = {
     },
   },
 
+  reminders: {
+    list: (query?: QueryParams) => list<Reminder>('/reminders', query),
+    create: (input: ReminderInput) =>
+      request<Reminder>('/reminders', { method: 'POST', body: input }),
+    markDone: (id: string) =>
+      request<Reminder>(`/reminders/${id}/done`, { method: 'PATCH' }),
+    remove: (id: string) => request<void>(`/reminders/${id}`, { method: 'DELETE' }),
+  },
+
+  letterhead: {
+    get: () => request<LetterheadConfig>('/letterhead'),
+    update: (patch: Partial<LetterheadConfig>) =>
+      request<LetterheadConfig>('/letterhead', { method: 'PATCH', body: patch }),
+    recordPrint: (input: { paper: LetterheadPaper; kind: LetterheadPrintKind; values?: Record<string, string> }) =>
+      request<LetterheadPrint>('/letterhead/prints', { method: 'POST', body: input }),
+    prints: (query?: QueryParams) => list<LetterheadPrint>('/letterhead/prints', query),
+  },
+
+  backup: {
+    export: () =>
+      request<{ version: number; kind: string; exportedAt: string; tables: Record<string, unknown[]> }>(
+        '/backup/export',
+      ),
+    import: (dump: unknown) =>
+      request<{ restored: number }>('/backup/import', { method: 'POST', body: dump }),
+  },
+
   audit: {
     list: (query?: QueryParams) => list<AuditEntry>('/audit-logs', query),
     clear: () => request<void>('/audit-logs', { method: 'DELETE' }),
@@ -411,9 +442,4 @@ export const api = {
       request<AppSettings>('/settings', { method: 'PATCH', body: patch }),
   },
 
-  reports: {
-    dashboard: () => request<Record<string, unknown>>('/reports/dashboard'),
-    overview: () => request<Record<string, unknown>>('/reports/overview'),
-    agents: (query?: QueryParams) => list<Record<string, unknown>>('/reports/agents', query),
-  },
 };

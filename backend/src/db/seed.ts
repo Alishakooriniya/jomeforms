@@ -1,6 +1,6 @@
-import { PERMISSION_CATALOG, PRESET_ROLES } from '../config/permissions.js';
+import { PERMISSION_CATALOG } from '../config/permissions.js';
 import { logger } from '../config/logger.js';
-import { query, withTransaction } from '../config/database.js';
+import { query } from '../config/database.js';
 import { hashPassword } from '../utils/password.js';
 import { createClientWorkflow } from '../domain/workflow.js';
 
@@ -20,41 +20,6 @@ async function seedPermissions(): Promise<void> {
     );
   }
   logger.info({ permissions: PERMISSION_CATALOG.length, groups: groups.length }, 'permissions seeded');
-}
-
-async function seedPresetRoles(): Promise<void> {
-  for (const preset of PRESET_ROLES) {
-    await withTransaction(async (client) => {
-      const existing = await client.query<{ id: string }>('select id from roles where code = $1', [
-        preset.code,
-      ]);
-      let roleId = existing.rows[0]?.id;
-
-      if (!roleId) {
-        const inserted = await client.query<{ id: string }>(
-          `insert into roles (code, name, description, is_system)
-           values ($1, $2, $3, true) returning id`,
-          [preset.code, preset.name, preset.description],
-        );
-        roleId = inserted.rows[0]?.id;
-      } else {
-        await client.query(
-          'update roles set name = $1, description = $2, is_system = true where id = $3',
-          [preset.name, preset.description, roleId],
-        );
-      }
-
-      if (!roleId) throw new Error(`Failed to seed role ${preset.code}`);
-
-      await client.query('delete from role_permissions where role_id = $1', [roleId]);
-      await client.query(
-        `insert into role_permissions (role_id, permission_key)
-         select $1, unnest($2::text[])`,
-        [roleId, preset.permissions],
-      );
-    });
-  }
-  logger.info({ roles: PRESET_ROLES.length }, 'preset roles seeded');
 }
 
 async function seedAdmin(): Promise<void> {
@@ -149,7 +114,6 @@ async function seedDemoClients(): Promise<void> {
 
 export async function seed(): Promise<void> {
   await seedPermissions();
-  await seedPresetRoles();
   await seedAdmin();
   await seedDemoClients();
 }

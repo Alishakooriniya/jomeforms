@@ -9,6 +9,19 @@
   font-display: swap;
 }
 
+/* فونت نام برند: ایران نستعلیق — فقط برای نام سازمان در سربرگ سایدبار
+   و صفحه ورود استفاده می‌شود. فایل‌ها در public/fonts قرار دارند. */
+@font-face {
+  font-family: 'IranNastaliq';
+  src:
+    local('IranNastaliq'), local('Iran Nastaliq'),
+    url('/fonts/IranNastaliq.woff2') format('woff2'),
+    url('/fonts/IranNastaliq.woff') format('woff');
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+}
+
 /* فونت رسمی فرم‌ها: B Nazanin. ابتدا فونت نصب‌شده روی سیستم خوانده می‌شود؛
    اگر فایل فونت در public/fonts قرار گیرد همان استفاده می‌شود. */
 @font-face {
@@ -317,6 +330,22 @@
   /* فونت رسمی داخل فرم‌ها — در نمایش و چاپ یکسان است (print.ts/documentRequestPrint.ts) */
   .form-font {
     font-family: 'B Nazanin', BNazanin, 'B-Nazanin', Vazirmatn, Tahoma, Arial, sans-serif;
+  }
+
+  /* نام برند به خط نستعلیق — بدون لوگو/آیکن، با رنگ سبز برند */
+  .nastaliq-font {
+    font-family: 'IranNastaliq', 'B Nazanin', Vazirmatn, Tahoma, serif;
+  }
+
+  /* کانواس متن نامه داخل کادر میانی سربرگ (LetterheadPreview) */
+  .letterhead-editor:empty::before {
+    content: 'متن نامه را اینجا بنویسید…';
+    color: #b5b5b5;
+    pointer-events: none;
+  }
+  .letterhead-editor div,
+  .letterhead-editor p {
+    margin: 0;
   }
 
   .skeleton {

@@ -1,8 +1,8 @@
 /* کاتالوگ دسترسی‌ها — تنها منبع حقیقت برای مجوزها.
-   هر صفحه/دکمه با کلیدهایی مثل `clients.create` محافظت می‌شود. */
+   هر صفحه/دکمه با کلیدهایی مثل `clients.create` محافظت می‌شود.
+   نقش‌های آماده وجود ندارند؛ دسترسی هر کاربر جداگانه و سفارشی تعیین می‌شود. */
 
-import type { PermissionRole, RoleId } from '../types';
-import { nowISO } from '../lib/format';
+import type { RoleId } from '../types';
 
 export interface PermissionDef {
   key: string;
@@ -95,26 +95,6 @@ export const PERMISSION_GROUPS: PermissionGroup[] = [
     ],
   },
   {
-    id: 'roles',
-    label: 'نقش‌ها',
-    description: 'بسته‌های دسترسی قابل استفاده مجدد',
-    icon: 'shield',
-    perms: [
-      { key: 'roles.view', label: 'مشاهده نقش‌ها' },
-      { key: 'roles.manage', label: 'ساخت و ویرایش نقش' },
-    ],
-  },
-  {
-    id: 'reports',
-    label: 'گزارش‌ها',
-    description: 'تحلیل عملکرد و خروجی گزارش',
-    icon: 'chart',
-    perms: [
-      { key: 'reports.view', label: 'مشاهده گزارش‌ها' },
-      { key: 'reports.export', label: 'خروجی CSV گزارش' },
-    ],
-  },
-  {
     id: 'audit',
     label: 'گزارش فعالیت',
     description: 'ردیابی عملیات کاربران',
@@ -127,6 +107,16 @@ export const PERMISSION_GROUPS: PermissionGroup[] = [
     description: 'تعریف یادآور زمان‌دار برای کاربران سامانه',
     icon: 'bell',
     perms: [{ key: 'reminders.manage', label: 'مدیریت یادآورها' }],
+  },
+  {
+    id: 'letterhead',
+    label: 'سربرگ',
+    description: 'نوشتن نامه روی سربرگ رسمی و چاپ آن؛ هر چاپ برای پیگیری ثبت می‌شود',
+    icon: 'file',
+    perms: [
+      { key: 'letterhead.view', label: 'استفاده از سربرگ' },
+      { key: 'letterhead.manage', label: 'مدیریت سربرگ و گزارش چاپ' },
+    ],
   },
   {
     id: 'settings',
@@ -151,90 +141,6 @@ export const PERMISSION_LABELS: Record<string, string> = PERMISSION_GROUPS.reduc
   },
   {},
 );
-
-export const ROLE_LABELS: Record<RoleId, string> = {
-  superadmin: 'مدیر ارشد',
-  admin: 'مدیر',
-};
-
-/* --------------------------- نقش‌های آماده ---------------------------- */
-
-function range(...keys: string[]): string[] {
-  return keys;
-}
-
-export const PRESET_ROLES: PermissionRole[] = [
-  {
-    id: 'preset-viewer',
-    name: 'فقط‌خواندنی',
-    description: 'مشاهده پرونده‌ها و اسناد بدون امکان تغییر',
-    permissions: range('dashboard.view', 'clients.view', 'documents.view', 'templates.view', 'companies.view', 'reports.view'),
-    system: true,
-    createdAt: nowISO(),
-    createdBy: 'system',
-  },
-  {
-    id: 'preset-operator',
-    name: 'کارشناس پرونده',
-    description: 'ثبت پرونده، تکمیل و چاپ اسناد و بارگذاری اسکن',
-    permissions: range(
-      'dashboard.view',
-      'clients.view',
-      'clients.create',
-      'clients.edit',
-      'clients.workflow.advance',
-      'documents.view',
-      'documents.create',
-      'documents.edit',
-      'documents.print',
-      'documents.export',
-      'documents.upload',
-      'documents.status',
-      'templates.view',
-      'companies.view',
-      'companies.assign',
-      'reports.view',
-    ),
-    system: true,
-    createdAt: nowISO(),
-    createdBy: 'system',
-  },
-  {
-    id: 'preset-contracts',
-    name: 'کارشناس قرارداد',
-    description: 'تمرکز روی اسناد، چاپ، امضا و بایگانی اسکن‌ها',
-    permissions: range(
-      'dashboard.view',
-      'clients.view',
-      'documents.view',
-      'documents.create',
-      'documents.edit',
-      'documents.print',
-      'documents.export',
-      'documents.upload',
-      'documents.status',
-      'templates.view',
-      'companies.view',
-      'companies.assign',
-      'reports.view',
-      'reports.export',
-    ),
-    system: true,
-    createdAt: nowISO(),
-    createdBy: 'system',
-  },
-  {
-    id: 'preset-manager',
-    name: 'مدیر شعبه',
-    description: 'دسترسی کامل به پرونده‌ها، اسناد، گزارش‌ها و فرم‌ها',
-    permissions: ALL_PERMISSIONS.filter(
-      (key) => !key.startsWith('users.') && !key.startsWith('roles.') && key !== 'settings.edit',
-    ),
-    system: true,
-    createdAt: nowISO(),
-    createdBy: 'system',
-  },
-];
 
 /** بررسی دسترسی کاربر (سوپرادمین همه‌چیز دارد) */
 export function userCan(user: { role: RoleId; permissions: string[] } | null | undefined, permission: string): boolean {

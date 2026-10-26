@@ -104,6 +104,7 @@ export const AUDIT_ENTITY_LABELS: Record<AuditEntity, string> = {
   scan: 'اسکن',
   workflow: 'مرحله پرونده',
   reminder: 'یادآور',
+  letterhead: 'سربرگ',
 };
 
 /** گزینه‌های پرکاربرد برای فیلترها */
