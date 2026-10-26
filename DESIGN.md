@@ -4,13 +4,12 @@ This document is the source of truth for the product structure, UI patterns, and
 
 ## 1. Product intent
 
-Jomeforms is a local-first CRM and document management application with Persian/RTL ergonomics. The system is designed to support:
+Jomeforms is a server-backed CRM and document management application with Persian/RTL ergonomics. All business data lives in PostgreSQL behind the `backend/` API; the frontend is a thin client. The system is designed to support:
 
 - client records and company relationships
 - document management with scans and templates
-- role-based permissions and audit tracking
-- theme customization and local persistence
-- simple offline-first workflow with browser storage
+- permission-based access control and audit tracking
+- theme customization (the only browser-persisted preference)
 
 The primary workflow is registering and processing case files, then collecting and generating the documents attached to them. Pricing is supporting data, not a primary dashboard or case-list signal. Current case groups are document requests and rent renewals; their detailed forms can be introduced independently while common and group-specific steps remain trackable.
 
@@ -45,29 +44,20 @@ This keeps access control centralized and predictable.
 
 ### Central store
 
-`src/store/DataProvider.tsx` is the system-of-record for database states and business operations. All CRUD logic for clients, documents, templates, users, roles, companies, reminders, settings, and audit entries should live here.
+`src/store/DataProvider.tsx` is the client-side cache and single gateway for business operations. All CRUD logic for clients, documents, templates, users, companies, reminders, settings, and audit entries lives here; every action calls the API and writes the server's authoritative response back into the cached `DbShape`. Pages keep consuming `useDb()`/`useDbActions()` and do not talk to the API directly (except lazy file/blob fetches via `api.*Blob`).
 
 Design rules:
 
 - keep business operations in the provider rather than scattering them across pages
-- update immutable state via a `commit` helper pattern
-- preserve audit logging for meaningful actions
-- treat the database model as the single source of truth
+- all actions are async (`Promise`-returning); optimistic updates are avoided — the server response is the truth that gets cached
+- preserve audit logging for meaningful actions (it happens server-side; the provider just refreshes the cached audit list)
+- treat PostgreSQL as the single source of truth; the in-memory `DbShape` is only a cache
+- lazy-load heavy collections: document scans load per document (`loadDocumentScans`), workflow evidence loads per client (`loadClientDetail`)
 - avoid direct mutation of arrays/objects in page components
 
-### Local-first persistence
+### Server-backed persistence (no local mode)
 
-The application is designed to work without a server dependency.
-
-- persisted DB state is saved through local storage / IndexedDB helpers
-- scanning and binary file payloads are stored with the IDB utilities
-- the app is structured so backend integration can replace the provider implementation later without redesigning the UI layer
-
-### Server mode (opt-in)
-
-The repository ships a production backend under `backend/`. It is consumed only
-when `VITE_API_MODE=server` is set; the default remains `local`, so offline demos
-and the local-first guarantees are unchanged. In server mode:
+The application is server-only. The former local-first mode (browser `localStorage`/`IndexedDB` database, client-side demo seeding, local auth) was removed deliberately — the product requirement is that the UI always displays the backend data.
 
 - `src/lib/apiClient.ts` is the single HTTP client (envelope, versioned paths,
   in-memory access token, refresh-cookie session recovery, typed resources)
@@ -75,15 +65,26 @@ and the local-first guarantees are unchanged. In server mode:
   through the rotating HttpOnly cookie, and reads permissions from the server
 - account profiles and password changes use authenticated API endpoints; password
   changes revoke all refresh sessions and return the user to sign-in
-- superadmin-only manager administration uses dedicated API routes for account
-  lifecycle, permission assignment, and audit-backed activity history
-- the access token is never persisted in local storage
-- indexedDB/local storage still owns everything else until the data provider is
-  migrated deliberately; that migration must keep the `useDb`/`useDbActions`
-  interfaces so pages do not change
-
-This split is intentional: it delivers real server authentication without
-breaking offline usage or rewriting page components in one step.
+- reminders, letterhead prints, settings, audit logs, and backup export/import
+  are all server resources (`/reminders`, `/letterhead`, `/settings`,
+  `/audit-logs`, `/backup`)
+- uploaded files (document scans, workflow evidence) live on the server and are
+  fetched as authenticated blobs (`api.documents.scanBlob`,
+  `api.clients.evidenceBlob`)
+- the access token is never persisted; the only `localStorage` key is the theme
+  preference (`crm.theme.v1`) plus a one-time cleanup pass that removes legacy
+  `crm.*` business-data keys
+- reusable permission roles (`PermissionRole`, `/roles` page) were removed;
+  permissions are assigned per user in the user editor's `PermissionMatrix`.
+  Exactly one `superadmin` account may exist — it is created by the seed and the
+  API rejects creating or promoting a second one — so the user editor has no
+  role selector: every account created from it is an `admin` whose access comes
+  solely from the permissions checked in the matrix. The editor collects only
+  full name, username, mobile, password, active flag, and permissions
+  The backend `/roles` routes, services, and the `roles`/`role_permissions`
+  tables were removed as well (migration `010_drop_roles.sql`); the
+  `roles.view`/`roles.manage` permission keys no longer exist. `GET
+  /permissions` still exposes the catalog for permission-assignment UIs
 
 ### Audit trail
 
@@ -173,13 +174,31 @@ less-common field and template settings stay available under expandable
 "more settings" sections. In the text editor, fields are inserted by their
 human-readable labels rather than exposing template syntax as the primary UX.
 
-Official forms with a fixed paper frame are rendered from frontend HTML/SVG,
-not by placing a PDF or image behind the form. Keep the A4 frame and its
-non-editable geometry in a named frontend print layout; keep editable wording
+Official forms with a fixed paper frame are rendered in one of two ways.
+Simple fixed frames (border + checkboxes + date line) are drawn in frontend
+HTML/SVG (`document-request-a4` layout) — keep the A4 frame and its
+non-editable geometry in the named frontend print layout; keep editable wording
 and field definitions in the template data so they continue to persist and be
 versioned with the backend template. Preview and print must use the same
 code-rendered layout, preserve the source form's page dimensions, and leave the
 surrounding app layout and shared document patterns unchanged.
+
+Forms whose paper original is dense or fixed (the regional office's official
+request forms, e.g. FN04 «تقاضای صدور سند») use the **canvas layout**
+(`canvas-a4`, 2026-10): like the letterhead, the page extracted from the
+source PDF is bundled as a frame image in `public/forms/` and field values
+are layered on top of it at percentage-of-page positions. This diverges from
+the HTML/SVG rule on purpose — the value layer is data-driven (`canvas` jsonb
+on `form_templates`, versioned with the template) so a manager can reposition
+fields from the «چیدمان روی فرم» tab of the template editor without touching
+code, which a hand-redrawn HTML layout cannot offer. `x`/`y` mark the value's
+horizontal-left and vertical-center in % of the page; each value renders with
+a white background so it covers the baked dotted blank exactly and no gap is
+left visible. `option` placements draw a check over the frame's baked ☐ boxes
+for select fields. Frames are bundled assets — admins edit positions only and
+do not upload new frames; new official forms get their frame added with code.
+`src/lib/canvasFormPrint.ts` and `CanvasFormPreview` share the same model, so
+preview and print are identical.
 
 Form documents use B Nazanin as their typeface in both preview and print. The
 family stack lives once in `src/index.css` (`.form-font` for screen) and once in
@@ -241,7 +260,7 @@ Follow this structure unless there is a very strong reason to change it. New fil
 - Prefer composition over duplication.
 - Keep forms and tables aligned with established naming and behavior.
 - Preserve RTL support and Persian language conventions.
-- Maintain local-first behavior and offline resilience.
+- Maintain the server-backed data flow — no business data in browser storage.
 - When adding a new permission or route, update the navigation config and access checks together.
 - When changing a design element, update the functional context and documentation in the same change.
 
@@ -259,7 +278,7 @@ Before any design-related modification, do the following:
 
 These are the non-negotiables to preserve:
 
-- local-first data architecture
+- server-backed data architecture (PostgreSQL is the source of truth)
 - provider-driven state management
 - route-level permission enforcement
 - reusable UI primitives and consistency
@@ -273,7 +292,7 @@ The frontend was tightened around scan-ability and lower cognitive load. The bac
 
 ### Page headers
 
-- Top-level pages (lists, dashboard, reports, settings) do not show breadcrumbs; breadcrumbs render only when a route is more than one level below a section (for example a case or document detail).
+- Top-level pages (lists, dashboard, settings) do not show breadcrumbs; breadcrumbs render only when a route is more than one level below a section (for example a case or document detail).
 - Large decorative icon tiles are removed from page headers. Page identity comes from the title, subtitle, and the active sidebar item. The `icon` prop remains accepted for compatibility but is not rendered as a header ornament.
 - One primary action per page stays in the header; secondary actions (export, delete, alternate outputs) are secondary buttons or inside an overflow menu.
 
@@ -302,13 +321,42 @@ The dashboard is action-first: open work (overdue evidence, documents awaiting s
 
 ### Reminders
 
-Managers define time-bound reminders at `/reminders` (permission `reminders.manage`, under the management nav group): reminder text, a Jalali date that defaults to today, an optional `HH:MM` time, and a target user. A reminder without a time is due at the start of its day. Due reminders surface in the recipient's topbar bell — the same dropdown that lists documents awaiting signature, now shown to every signed-in user — and selecting one marks it done. The dashboard header keeps a secondary shortcut button to the page. Reminders live in the local DB (`crm.reminders.v1`), are audit-logged like other entities (`reminder`), and have no backend contract yet.
+Managers define time-bound reminders at `/reminders` (permission `reminders.manage`, under the management nav group): reminder text, a Jalali date that defaults to today, an optional `HH:MM` time, and a target user. A reminder without a time is due at the start of its day. Due reminders surface in the recipient's topbar bell — the same dropdown that lists documents awaiting signature, now shown to every signed-in user — and selecting one marks it done. The dashboard header keeps a secondary shortcut button to the page. Reminders are a server resource (`/reminders`), stored in PostgreSQL and audit-logged like other entities (`reminder`).
+
+### Brand identity
+
+The product is «محبوسات عام المنفعه امام جمعه», held in the static `ORG_NAME` constant in `src/config/org.ts` — it is not stored in settings, local storage, or the backend and is not editable from the settings page (the `orgName`/`orgLegalName` fields were removed from the settings model, API, and `app_settings` table). The brand is deliberately text-only — there is no logo or icon and none should be introduced. In the sidebar header and on the login page the name renders in IranNastaliq via `.nastaliq-font` (files in `public/fonts/`) in brand green (`brand-700` light / `brand-400` dark); everywhere else the standard UI font is used. The document title, footer, print header, and the `__org_name` template token all resolve to `ORG_NAME`.
+
+The login page is a single centered composition with minimal copy: the Nastaliq org name over a compact sign-in card that posts to `POST /auth/login`. There are no demo-account chips — authentication is server-only. There is no marketing panel or feature list.
 
 ### Navigation and forms
 
-The sidebar brand reads from `settings.orgName`; the management group is collapsed unless one of its routes is active. On the dedicated registration page (`/clients/new`) the case form renders as one unified grid — all fields visible, only full name required, every field validated (name/letters, national-ID checksum, mobile format, certificate digits, Jalali date, length caps matching the API schema). The edit dialogs instead keep the supplementary fields under a collapsible `اطلاعات تکمیلی` disclosure that auto-opens when the record already has such data (`ClientForm`'s `alwaysShowExtra` prop). Redundant dashboard-style stat cards and duplicated summary cards were removed from collections, audit, reports, and role pages; the information they repeated is still available in the main list or detail view.
+The sidebar brand shows the static `ORG_NAME` from `src/config/org.ts`; the management group is collapsed unless one of its routes is active. Account administration lives in a single «کاربران» page (`/users`) — the former superadmin-only «مدیریت مدیران» page was merged into it (2026-10) since both managed the same accounts; `/admin-users` redirects to `/users`, and each row's «مشاهده عملکرد» action deep-links to `/audit?user=<id>` for the per-user activity report the old page showed inline. The dedicated `/admin-users` API routes remain available server-side; the frontend simply no longer consumes them. On the dedicated registration page (`/clients/new`) the case form renders as one unified grid — all fields visible, only full name required, every field validated (name/letters, national-ID checksum, mobile format, certificate digits, Jalali date, length caps matching the API schema). The edit dialogs instead keep the supplementary fields under a collapsible `اطلاعات تکمیلی` disclosure that auto-opens when the record already has such data (`ClientForm`'s `alwaysShowExtra` prop). Redundant dashboard-style stat cards and duplicated summary cards were removed from collections, audit, and role pages; the information they repeated is still available in the main list or detail view.
 
 All of these are frontend-only changes. Do not move filtering, numbering, permissions, or workflow rules out of the store/API while refining presentation.
+
+The dedicated «گزارش‌ها» page (`/reports`) was removed (2026-10) — the product
+does not need a separate analytics screen; the dashboard covers the actionable
+overview and «گزارش فعالیت» covers accountability. The `reports.view` and
+`reports.export` permission keys, the backend `/reports` routes, service,
+repository, and validator, and the `api.reports` client methods were removed
+with it (migration `011_drop_reports_permissions.sql` deletes the retired
+keys). The letterhead print log that used to live on that page was removed
+from the UI — prints are still recorded server-side and remain queryable via
+`GET /letterhead/prints` (`letterhead.manage`). The audit-page CSV export is now simply
+part of `audit.view` — it exports rows the viewer already sees.
+
+### Letterhead
+
+The official letterhead lives at `/letterhead` as a standalone page and is never reused inside form documents. To stay pixel-identical to the organization's printed stationery, the three separated boxes — fixed header with the Nastaliq brand mark and dotted تاریخ/شماره/پیوست lines, the large middle writing box, and the footer address box — are **not redrawn in HTML**: they come from `public/letterhead/frame.jpg`, the frame image extracted from the source letterhead PDF (1287×1812 ≈ 155dpi). The image fills the whole sheet; editable content is layered on top of it:
+
+- **Header meta values** — تاریخ/شماره/پیوست render as absolutely-positioned text on the baked dotted lines (`LETTERHEAD_META_FIELDS` tops are measured in image-pixel rows).
+- **Middle box** — a simple canvas: a `contentEditable` region inside the box where the letter is typed directly. The toolbar above the preview offers bold, italic, underline, right/center/left alignment, and text color (`document.execCommand`; paste is forced to plain text). The stored value is the region's `innerHTML`, sanitized to a small tag/style allowlist before printing (`sanitizeLetterHtml`).
+- **Footer box** — the baked footer in the image is covered by a white rounded box redrawn in the same position, so the address (`app_settings.letterhead_address`, editable with `letterhead.manage`) is always live and applies to every print.
+
+Preview (`src/components/letterhead/LetterheadPreview.tsx`) and print (`src/lib/letterheadPrint.ts`) share `LETTERHEAD_LAYOUT` geometry — positions in % of the sheet, font sizes in `cqw` — so preview and print are identical and A5 is an exact scale-down of A4. Four outputs are supported: blank/filled × A4/A5; a blank print renders only the frame image plus the footer overlay.
+
+Permissions follow the product default: `letterhead.view` is pre-granted to every user (checked by default in `UserEditor`, seeded for all existing users) and can be revoked per user; `letterhead.manage` gates address editing and the print log. The print log has no UI — every print is still recorded server-side and `GET /letterhead/prints` requires `letterhead.manage`, so the records stay queryable for audit purposes. Every print/copy is recorded in `letterhead_prints` — and in `audit_logs` with entity `letterhead` — capturing the acting user, paper size, blank/filled kind, and a snapshot of the printed field values before the print window opens, so distributed letterheads stay traceable.
 
 ## 11. Summary
 

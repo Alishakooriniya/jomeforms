@@ -1,41 +1,40 @@
-/* استور مرکزی: نگه‌داری داده‌ها + عملیات (CRUD) + ثبت گزارش فعالیت.
-   ساختار آن طوری چیده شده که با اتصال بک‌اند فقط پیاده‌سازی این توابع
-   با درخواست‌های HTTP جایگزین شود (به src/lib/api.ts نگاه کنید). */
+/* استور مرکزی: تمام داده‌ها و عملیات از طریق API بک‌اند انجام می‌شود.
+   این فایل فقط کش سمت کلاینت را نگه می‌دارد و پس از هر موفقیت، خروجی
+   واقعی سرور را در state می‌نشاند. اسکن‌ها و مدارک مراحل پرونده تنبل بارگذاری
+   می‌شوند (loadDocumentScans / loadClientDetail). */
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import type {
   AppSettings,
-  AuditEntity,
-  AuditEntry,
   Client,
   Company,
   DbShape,
   DocRecord,
   DocStatus,
   FormTemplate,
-  PermissionRole,
+  LetterheadConfig,
+  LetterheadPaper,
+  LetterheadPrintKind,
   Reminder,
   ScanFile,
   User,
   WorkflowEvidence,
 } from '../types';
-import { emptyAndSave, loadDb, resetDb, saveDb } from './db';
-import { hashPassword, suggestPassword } from '../lib/crypto';
-import { jalaliYear, nowISO, sequenceNumber } from '../lib/format';
-import { autofillValues } from '../lib/template';
-import { deleteBlob, putBlob } from '../lib/idb';
-import { compressImage, uid } from '../lib/utils';
-import { createClientWorkflow } from '../lib/caseWorkflow';
-import { normalizeJalaliDate, normalizeLegacyJalaliDate } from '../lib/jalali';
+import { api, ApiError } from '../lib/apiClient';
+import type { Page, QueryParams } from '../lib/apiClient';
+import { DEFAULT_SETTINGS } from '../config/defaults';
+import { normalizeJalaliDate } from '../lib/jalali';
 import { normalizeReminderTime } from '../lib/reminders';
+import { autofillValues } from '../lib/template';
+import { compressImage } from '../lib/utils';
 
 /* ------------------------------ ورودی‌ها ------------------------------ */
 
 export type ClientDraft = Pick<Client, 'fullName' | 'nationalId' | 'mobile'> &
   Partial<Omit<Client, 'id' | 'code' | 'createdAt' | 'updatedAt' | 'createdBy' | 'fullName' | 'nationalId' | 'mobile'>> & {
-  code?: string;
-};
+    code?: string;
+  };
 
 export interface DocumentDraft {
   templateId: string;
@@ -50,11 +49,9 @@ export type TemplateDraft = Omit<FormTemplate, 'id' | 'createdAt' | 'updatedAt' 
   version?: number;
 };
 
-export type UserDraft = Omit<User, 'id' | 'createdAt' | 'updatedAt' | 'lastLoginAt' | 'passwordHash'> & {
+export type UserDraft = Pick<User, 'username' | 'fullName' | 'mobile' | 'role' | 'permissions' | 'active'> & {
   password?: string;
 };
-
-export type RoleDraft = Omit<PermissionRole, 'id' | 'createdAt' | 'createdBy'>;
 
 export type CompanyDraft = Omit<Company, 'id' | 'createdAt' | 'updatedAt' | 'createdBy'>;
 
@@ -66,72 +63,96 @@ export interface ActionResult {
 }
 
 export interface DataActions {
-  saveClient: (input: ClientDraft, id?: string) => Client;
-  deleteClient: (id: string) => void;
+  /** همه‌ی مجموعه‌ها را دوباره از سرور می‌خواند */
+  reload: () => Promise<void>;
+  /** کش را خالی می‌کند (خروج از حساب) */
+  reset: () => void;
+  /** اسکن‌های یک سند را از سرور می‌خواند و در کش می‌نشاند */
+  loadDocumentScans: (documentId: string) => Promise<void>;
+  /** پرونده و مدارک مراحل آن را تازه می‌کند */
+  loadClientDetail: (clientId: string) => Promise<void>;
+
+  saveClient: (input: ClientDraft, id?: string) => Promise<Client>;
+  deleteClient: (id: string) => Promise<void>;
   addWorkflowEvidence: (clientId: string, stepId: string, file: File) => Promise<WorkflowEvidence | null>;
-  completeWorkflowStep: (clientId: string, stepId: string) => ActionResult;
-  overrideWorkflowStep: (clientId: string, stepId: string, reason: string) => ActionResult;
-  createDocument: (input: DocumentDraft) => DocRecord;
-  updateDocument: (id: string, patch: Partial<DocRecord>, logAction?: string) => void;
-  setDocumentStatus: (id: string, status: DocStatus) => void;
-  deleteDocument: (id: string) => void;
+  completeWorkflowStep: (clientId: string, stepId: string) => Promise<ActionResult>;
+  overrideWorkflowStep: (clientId: string, stepId: string, reason: string) => Promise<ActionResult>;
+  createDocument: (input: DocumentDraft) => Promise<DocRecord>;
+  updateDocument: (id: string, patch: Partial<DocRecord>, logAction?: string) => Promise<void>;
+  setDocumentStatus: (id: string, status: DocStatus) => Promise<void>;
+  markPrinted: (id: string) => Promise<void>;
+  deleteDocument: (id: string) => Promise<void>;
   addScan: (documentId: string, file: File) => Promise<ScanFile | null>;
   deleteScan: (scanId: string) => Promise<void>;
-  saveTemplate: (input: TemplateDraft, id?: string) => FormTemplate;
-  duplicateTemplate: (id: string) => FormTemplate | null;
-  deleteTemplate: (id: string) => void;
-  saveUser: (input: UserDraft, id?: string) => ActionResult & { user?: User };
-  deleteUser: (id: string) => ActionResult;
-  toggleUserActive: (id: string) => void;
-  saveRole: (input: RoleDraft, id?: string) => PermissionRole;
-  deleteRole: (id: string) => ActionResult;
-  saveCompany: (input: CompanyDraft, id?: string) => Company;
-  deleteCompany: (id: string) => ActionResult & { detached: number };
-  /** همگام‌سازی اعضای یک مجموعه: کاربران انتخابی به آن وصل و بقیه‌ی اعضای قبلی آزاد می‌شوند */
-  setCompanyMembers: (companyId: string, userIds: string[]) => ActionResult & { added: number; removed: number };
-  createReminder: (input: ReminderDraft) => ActionResult & { reminder?: Reminder };
-  markReminderDone: (id: string) => void;
-  deleteReminder: (id: string) => void;
-  updateSettings: (patch: Partial<AppSettings>) => void;
-  touchLogin: (userId: string) => void;
-  log: (entry: { action: string; entity: AuditEntity; entityId?: string; entityLabel?: string; detail?: string }) => void;
-  clearAudit: () => void;
-  resetDemoData: () => void;
-  clearAllData: () => void;
-  exportBackup: () => string;
-  importBackup: (json: string) => ActionResult;
-}
-
-/* --------------------------- بازیگر جاری ---------------------------- */
-
-interface Actor {
-  id: string;
-  name: string;
-}
-
-let currentActor: Actor = { id: 'system', name: 'سیستم' };
-
-/** توسط AuthProvider هنگام ورود/خروج تنظیم می‌شود */
-export function setCurrentActor(actor: Actor | null) {
-  currentActor = actor ?? { id: 'system', name: 'سیستم' };
+  saveTemplate: (input: TemplateDraft, id?: string) => Promise<FormTemplate>;
+  duplicateTemplate: (id: string) => Promise<FormTemplate | null>;
+  deleteTemplate: (id: string) => Promise<void>;
+  saveUser: (input: UserDraft, id?: string) => Promise<ActionResult & { user?: User }>;
+  deleteUser: (id: string) => Promise<ActionResult>;
+  toggleUserActive: (id: string) => Promise<void>;
+  saveCompany: (input: CompanyDraft, id?: string) => Promise<Company>;
+  deleteCompany: (id: string) => Promise<ActionResult & { detached: number }>;
+  setCompanyMembers: (companyId: string, userIds: string[]) => Promise<ActionResult & { added: number; removed: number }>;
+  createReminder: (input: ReminderDraft) => Promise<ActionResult & { reminder?: Reminder }>;
+  markReminderDone: (id: string) => Promise<void>;
+  deleteReminder: (id: string) => Promise<void>;
+  updateSettings: (patch: Partial<AppSettings>) => Promise<void>;
+  /** ویرایش نشانی کادر پایین سربرگ (فقط دارندگان letterhead.manage) */
+  saveLetterheadAddress: (address: string) => Promise<ActionResult & { config?: LetterheadConfig }>;
+  /** ثبت رخداد چاپ سربرگ در جدول پیگیری + گزارش فعالیت */
+  recordLetterheadPrint: (input: {
+    paper: LetterheadPaper;
+    kind: LetterheadPrintKind;
+    values?: Record<string, string>;
+  }) => Promise<ActionResult>;
+  clearAudit: () => Promise<void>;
+  exportBackup: () => Promise<string>;
+  importBackup: (json: string) => Promise<ActionResult>;
 }
 
 /* ----------------------------- کمکی‌ها ------------------------------ */
 
-function escapeForRegExp(value: string): string {
-  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+function blankDb(): DbShape {
+  return {
+    users: [],
+    companies: [],
+    clients: [],
+    documents: [],
+    templates: [],
+    scans: [],
+    workflowEvidence: [],
+    reminders: [],
+    audit: [],
+    settings: DEFAULT_SETTINGS,
+  };
 }
 
-/** شماره ترتیبی بعدی در سال جاری (بر اساس بیشترین شماره موجود) */
-function nextSequence(values: string[], prefix: string): number {
-  const year = jalaliYear();
-  const pattern = new RegExp(`^${escapeForRegExp(prefix)}${year}-(\\d+)$`);
-  let max = 0;
-  values.forEach((value) => {
-    const match = pattern.exec(value ?? '');
-    if (match) max = Math.max(max, Number(match[1]));
-  });
-  return max + 1;
+/** خطاها را به پیام فارسی مناسب نمایش تبدیل می‌کند */
+function errorMessage(error: unknown): string {
+  if (error instanceof ApiError) return error.message;
+  if (error instanceof Error) return error.message;
+  return 'خطای غیرمنتظره رخ داد.';
+}
+
+/** فهرست کامل یک منبع را صفحه‌به‌صفحه می‌خواند */
+async function fetchAll<T>(listFn: (query?: QueryParams) => Promise<Page<T>>, sort?: QueryParams): Promise<T[]> {
+  const items: T[] = [];
+  let page = 1;
+  for (;;) {
+    const result = await listFn({ page, limit: 100, ...sort });
+    items.push(...result.items);
+    if (page >= result.meta.totalPages || !result.items.length) return items;
+    page += 1;
+  }
+}
+
+/** منابعی که کاربر به آن‌ها دسترسی ندارد به‌جای خطا، فهرست خالی برمی‌گردانند */
+async function fetchAllSafe<T>(listFn: (query?: QueryParams) => Promise<Page<T>>, sort?: QueryParams): Promise<T[]> {
+  try {
+    return await fetchAll(listFn, sort);
+  } catch {
+    return [];
+  }
 }
 
 function normalizeClientBirthDate(value?: string | null): string | undefined {
@@ -155,15 +176,12 @@ function normalizeDocumentDateValues(
   return normalized;
 }
 
-function pushAudit(draft: DbShape, entry: { action: string; entity: AuditEntity; entityId?: string; entityLabel?: string; detail?: string }) {
-  const record: AuditEntry = {
-    id: uid('log'),
-    at: nowISO(),
-    userId: currentActor.id,
-    userName: currentActor.name,
-    ...entry,
-  };
-  draft.audit = [record, ...draft.audit].slice(0, 600);
+function upsert<T extends { id: string }>(items: T[], entity: T): T[] {
+  const index = items.findIndex((item) => item.id === entity.id);
+  if (index === -1) return [entity, ...items];
+  const next = [...items];
+  next[index] = { ...next[index], ...entity };
+  return next;
 }
 
 /* ---------------------------- Context ------------------------------ */
@@ -172,241 +190,150 @@ const StateContext = createContext<DbShape | null>(null);
 const ActionsContext = createContext<DataActions | null>(null);
 
 export function DataProvider({ children }: { children: ReactNode }) {
-  const [db, setDb] = useState<DbShape>(() => loadDb());
+  const [db, setDb] = useState<DbShape>(blankDb);
   const dbRef = useRef(db);
   dbRef.current = db;
 
-  // ذخیره با تأخیر کوتاه تا رندر تند تند دیسک را مشغول نکند
-  useEffect(() => {
-    const timer = setTimeout(() => saveDb(db), 250);
-    return () => clearTimeout(timer);
-  }, [db]);
-
-  const commit = useCallback((mutate: (draft: DbShape) => void) => {
-    setDb((prev) => {
-      const next: DbShape = {
-        users: [...prev.users],
-        companies: [...prev.companies],
-        clients: [...prev.clients],
-        documents: [...prev.documents],
-        templates: [...prev.templates],
-        roles: [...prev.roles],
-        scans: [...prev.scans],
-        workflowEvidence: [...prev.workflowEvidence],
-        reminders: [...prev.reminders],
-        audit: [...prev.audit],
-        settings: prev.settings,
-      };
-      mutate(next);
-      return next;
-    });
+  const patch = useCallback((partial: Partial<DbShape>) => {
+    setDb((prev) => ({ ...prev, ...partial }));
   }, []);
 
+  const reload = useCallback(async () => {
+    const [users, companies, clients, documents, templates, reminders, audit] = await Promise.all([
+      fetchAllSafe(api.users.list, { sortBy: 'fullName', sortOrder: 'asc' }),
+      fetchAllSafe(api.companies.list, { sortBy: 'name', sortOrder: 'asc' }),
+      fetchAllSafe(api.clients.list, { sortBy: 'createdAt', sortOrder: 'desc' }),
+      fetchAllSafe(api.documents.list, { sortBy: 'createdAt', sortOrder: 'desc' }),
+      fetchAllSafe(api.templates.list, { sortBy: 'title', sortOrder: 'asc' }),
+      fetchAllSafe(api.reminders.list, { sortBy: 'date', sortOrder: 'desc' }),
+      fetchAllSafe(api.audit.list, { sortBy: 'at', sortOrder: 'desc' }),
+    ]);
+    const settings = await api.settings.get().catch(() => dbRef.current.settings);
+    patch({
+      users: users.map((user) => ({ ...user, passwordHash: '' })),
+      companies,
+      clients,
+      documents,
+      templates,
+      reminders,
+      audit,
+      settings,
+    });
+  }, [patch]);
+
+  const reset = useCallback(() => setDb(blankDb()), []);
+
+  // بارگذاری اولیه؛ در صورت نبود نشست معتبر، درخواست‌ها با خطای ۴۰۱ به‌آرامی
+  // به فهرست خالی می‌رسند و AuthProvider پس از ورود reload را صدا می‌زند.
+  useEffect(() => {
+    void reload();
+  }, [reload]);
+
+  const refreshAudit = useCallback(() => {
+    void fetchAllSafe(api.audit.list, { sortBy: 'at', sortOrder: 'desc' }).then((audit) => patch({ audit }));
+  }, [patch]);
+
+  const refreshClient = useCallback(
+    async (clientId: string) => {
+      const detailed = await api.clients.get(clientId).catch(() => null);
+      if (!detailed) return;
+      setDb((prev) => ({
+        ...prev,
+        clients: upsert(prev.clients, detailed),
+        workflowEvidence: [
+          ...prev.workflowEvidence.filter((item) => item.clientId !== clientId),
+          ...detailed.evidence,
+        ],
+      }));
+    },
+    [],
+  );
+
+  const refreshDocument = useCallback(
+    async (documentId: string) => {
+      const fresh = await api.documents.get(documentId).catch(() => null);
+      if (fresh) setDb((prev) => ({ ...prev, documents: upsert(prev.documents, fresh) }));
+    },
+    [],
+  );
+
   const actions = useMemo<DataActions>(() => {
-    const log: DataActions['log'] = (entry) => commit((draft) => pushAudit(draft, entry));
-
     return {
-      log,
+      reload,
+      reset,
 
-      /* ------------------------------ پرونده‌ها ------------------------------ */
-      saveClient(input, id) {
-        const now = nowISO();
-        const normalizedInput = { ...input, birthDate: normalizeClientBirthDate(input.birthDate) };
-        if (id) {
-          const existing = dbRef.current.clients.find((item) => item.id === id);
-          const updated: Client = {
-            ...(existing as Client),
-            ...normalizedInput,
-            id,
-            code: input.code || existing?.code || '',
-            updatedAt: now,
-          };
-          commit((draft) => {
-            const index = draft.clients.findIndex((item) => item.id === id);
-            if (index > -1) draft.clients[index] = updated;
-            pushAudit(draft, {
-              action: 'ویرایش پرونده',
-              entity: 'client',
-              entityId: id,
-              entityLabel: updated.fullName,
-            });
-          });
-          return updated;
-        }
-        const code =
-          input.code?.trim() ||
-          sequenceNumber(
-            dbRef.current.settings.clientPrefix,
-            nextSequence(
-              dbRef.current.clients.map((item) => item.code),
-              dbRef.current.settings.clientPrefix,
-            ),
-          );
-        const created: Client = {
-          ...normalizedInput,
-          caseType: input.caseType ?? 'document_request',
-          workflow: input.workflow?.length ? input.workflow : createClientWorkflow(input.caseType ?? 'document_request'),
-          status: input.status ?? 'new',
-          id: uid('cl-'),
-          code,
-          createdAt: now,
-          updatedAt: now,
-          createdBy: currentActor.id,
-        };
-        commit((draft) => {
-          draft.clients = [created, ...draft.clients];
-          pushAudit(draft, {
-            action: 'ایجاد پرونده',
-            entity: 'client',
-            entityId: created.id,
-            entityLabel: created.fullName,
-          });
-        });
-        return created;
+      async loadDocumentScans(documentId) {
+        const scans = await api.documents.scans(documentId).catch(() => [] as ScanFile[]);
+        setDb((prev) => ({
+          ...prev,
+          scans: [...prev.scans.filter((scan) => scan.documentId !== documentId), ...scans],
+        }));
       },
 
-      deleteClient(id) {
-        const target = dbRef.current.clients.find((item) => item.id === id);
-        dbRef.current.workflowEvidence
-          .filter((item) => item.clientId === id)
-          .forEach((item) => void deleteBlob(item.blobKey));
-        commit((draft) => {
-          draft.clients = draft.clients.filter((item) => item.id !== id);
-          draft.workflowEvidence = draft.workflowEvidence.filter((item) => item.clientId !== id);
-          pushAudit(draft, {
-            action: 'حذف پرونده',
-            entity: 'client',
-            entityId: id,
-            entityLabel: target?.fullName,
-          });
-        });
+      async loadClientDetail(clientId) {
+        await refreshClient(clientId);
+      },
+
+      /* ------------------------------ پرونده‌ها ------------------------------ */
+      async saveClient(input, id) {
+        const payload = {
+          ...input,
+          status: input.status ?? 'new',
+          birthDate: normalizeClientBirthDate(input.birthDate),
+        };
+        const saved = id
+          ? await api.clients.update(id, payload)
+          : await api.clients.create(payload);
+        setDb((prev) => ({ ...prev, clients: upsert(prev.clients, saved) }));
+        refreshAudit();
+        return saved;
+      },
+
+      async deleteClient(id) {
+        await api.clients.remove(id);
+        setDb((prev) => ({
+          ...prev,
+          clients: prev.clients.filter((item) => item.id !== id),
+          workflowEvidence: prev.workflowEvidence.filter((item) => item.clientId !== id),
+          documents: prev.documents.map((doc) =>
+            doc.clientId === id ? { ...doc, clientId: undefined, clientName: undefined, clientCode: undefined } : doc,
+          ),
+        }));
+        refreshAudit();
       },
 
       async addWorkflowEvidence(clientId, stepId, file) {
-        const client = dbRef.current.clients.find((item) => item.id === clientId);
-        if (!client) return null;
-        const workflow = client.workflow ?? createClientWorkflow(client.caseType ?? 'document_request');
-        const step = workflow.find((item) => item.id === stepId);
-        if (!step || step.status === 'completed') return null;
-        const stepIndex = workflow.findIndex((item) => item.id === stepId);
-        if (stepIndex > 0 && workflow[stepIndex - 1].status !== 'completed') return null;
-        const blobKey = `case-evidence://${uid()}`;
-        await putBlob(blobKey, file);
-        const evidence: WorkflowEvidence = {
-          id: uid('evidence-'),
-          clientId,
-          stepId,
-          name: file.name,
-          mime: file.type || 'application/octet-stream',
-          size: file.size,
-          blobKey,
-          uploadedAt: nowISO(),
-          uploadedBy: currentActor.name,
-        };
-        commit((draft) => {
-          draft.workflowEvidence = [evidence, ...draft.workflowEvidence];
-          const index = draft.clients.findIndex((item) => item.id === clientId);
-          if (index > -1) {
-            const current = draft.clients[index];
-            const currentWorkflow = current.workflow ?? createClientWorkflow(current.caseType ?? 'document_request');
-            draft.clients[index] = {
-              ...current,
-              workflow: currentWorkflow.map((item) =>
-                item.id === stepId ? { ...item, evidenceIds: [...item.evidenceIds, evidence.id] } : item,
-              ),
-            };
-          }
-          pushAudit(draft, {
-            action: 'بارگذاری مدرک مرحله پرونده',
-            entity: 'client',
-            entityId: clientId,
-            entityLabel: client.fullName,
-            detail: `${step.title} — ${file.name}`,
-          });
-        });
-        return evidence;
+        const uploaded = await api.clients.uploadEvidence(clientId, stepId, file);
+        await refreshClient(clientId);
+        refreshAudit();
+        return uploaded;
       },
 
-      completeWorkflowStep(clientId, stepId) {
-        const client = dbRef.current.clients.find((item) => item.id === clientId);
-        if (!client) return { ok: false, error: 'پرونده یافت نشد.' };
-        const workflow = client.workflow ?? createClientWorkflow(client.caseType ?? 'document_request');
-        const index = workflow.findIndex((item) => item.id === stepId);
-        if (index < 0) return { ok: false, error: 'مرحله پرونده یافت نشد.' };
-        const step = workflow[index];
-        if (step.status === 'completed') return { ok: false, error: 'این مرحله قبلاً تکمیل شده است.' };
-        if (index > 0 && workflow[index - 1].status !== 'completed') {
-          return { ok: false, error: 'ابتدا مرحله قبلی را تکمیل کنید.' };
+      async completeWorkflowStep(clientId, stepId) {
+        try {
+          await api.clients.completeStep(clientId, stepId);
+        } catch (error) {
+          return { ok: false, error: errorMessage(error) };
         }
-        if (step.requiresEvidence && !step.evidenceIds.length) {
-          return { ok: false, error: 'برای ادامه، ابتدا مدرک یا رسید این مرحله را بارگذاری کنید.' };
-        }
-        const completedAt = nowISO();
-        commit((draft) => {
-          const current = draft.clients.find((item) => item.id === clientId);
-          if (!current) return;
-          const currentWorkflow = current.workflow ?? createClientWorkflow(current.caseType ?? 'document_request');
-          draft.clients[draft.clients.findIndex((item) => item.id === clientId)] = {
-            ...current,
-            workflow: currentWorkflow.map((item) =>
-              item.id === stepId ? { ...item, status: 'completed', completedAt, completedBy: currentActor.name } : item,
-            ),
-            status: step.kind === 'completion' ? 'done' : 'in_progress',
-            updatedAt: completedAt,
-          };
-          pushAudit(draft, {
-            action: 'تکمیل مرحله پرونده',
-            entity: 'client',
-            entityId: clientId,
-            entityLabel: client.fullName,
-            detail: step.title,
-          });
-        });
+        await refreshClient(clientId);
+        refreshAudit();
         return { ok: true };
       },
 
-      overrideWorkflowStep(clientId, stepId, reason) {
-        const client = dbRef.current.clients.find((item) => item.id === clientId);
-        if (!client) return { ok: false, error: 'پرونده یافت نشد.' };
-        const workflow = client.workflow ?? createClientWorkflow(client.caseType ?? 'document_request');
-        const index = workflow.findIndex((item) => item.id === stepId);
-        if (index < 0) return { ok: false, error: 'مرحله پرونده یافت نشد.' };
-        const step = workflow[index];
-        if (step.status === 'completed') return { ok: false, error: 'این مرحله قبلاً تکمیل شده است.' };
-        if (index > 0 && workflow[index - 1].status !== 'completed') {
-          return { ok: false, error: 'ابتدا مرحله قبلی را تکمیل کنید.' };
-        }
+      async overrideWorkflowStep(clientId, stepId, reason) {
         if (!reason.trim()) return { ok: false, error: 'دلیل عبور از شرط مرحله را وارد کنید.' };
-        const completedAt = nowISO();
-        commit((draft) => {
-          const current = draft.clients.find((item) => item.id === clientId);
-          if (!current) return;
-          const currentWorkflow = current.workflow ?? createClientWorkflow(current.caseType ?? 'document_request');
-          const clientIndex = draft.clients.findIndex((item) => item.id === clientId);
-          draft.clients[clientIndex] = {
-            ...current,
-            workflow: currentWorkflow.map((item) =>
-              item.id === stepId
-                ? { ...item, status: 'completed', completedAt, completedBy: currentActor.name, overrideReason: reason.trim() }
-                : item,
-            ),
-            status: step.kind === 'completion' ? 'done' : 'in_progress',
-            updatedAt: completedAt,
-          };
-          pushAudit(draft, {
-            action: 'مدیر عبور از شرط مرحله پرونده',
-            entity: 'client',
-            entityId: clientId,
-            entityLabel: client.fullName,
-            detail: `${step.title} — دلیل: ${reason.trim()}`,
-          });
-        });
+        try {
+          await api.clients.overrideStep(clientId, stepId, reason.trim());
+        } catch (error) {
+          return { ok: false, error: errorMessage(error) };
+        }
+        await refreshClient(clientId);
+        refreshAudit();
         return { ok: true };
       },
 
       /* -------------------------------- اسناد -------------------------------- */
-      createDocument(input) {
-        const now = nowISO();
+      async createDocument(input) {
         const template = dbRef.current.templates.find((item) => item.id === input.templateId);
         const client = input.clientId
           ? dbRef.current.clients.find((item) => item.id === input.clientId)
@@ -415,647 +342,271 @@ export function DataProvider({ children }: { children: ReactNode }) {
           template,
           { ...(template ? autofillValues(template, client) : {}), ...input.values },
         );
-        const number = sequenceNumber(
-          dbRef.current.settings.docPrefix,
-          nextSequence(
-            dbRef.current.documents.map((item) => item.number),
-            dbRef.current.settings.docPrefix,
-          ),
-        );
-        const created: DocRecord = {
-          id: uid('doc-'),
-          number,
-          title: template?.title ?? 'سند بدون فرم',
+        const created = await api.documents.create({
           templateId: input.templateId,
-          templateTitle: template?.title ?? '—',
-          templateVersion: template?.version ?? 1,
-          clientId: client?.id,
-          clientName: client?.fullName,
-          clientCode: client?.code,
+          clientId: input.clientId ?? null,
           values,
-          status: input.status ?? 'draft',
-          tags: input.tags ?? [],
+          status: input.status,
+          tags: input.tags,
           notes: input.notes,
-          createdAt: now,
-          updatedAt: now,
-          createdBy: currentActor.id,
-          createdByName: currentActor.name,
-          scanIds: [],
-        };
-        commit((draft) => {
-          draft.documents = [created, ...draft.documents];
-          pushAudit(draft, {
-            action: 'ایجاد سند',
-            entity: 'document',
-            entityId: created.id,
-            entityLabel: created.title,
-            detail: client ? `بر پایه پرونده ${client.fullName}` : 'بدون پرونده',
-          });
         });
+        setDb((prev) => ({ ...prev, documents: upsert(prev.documents, created) }));
+        refreshAudit();
         return created;
       },
 
-      updateDocument(id, patch, logAction) {
+      async updateDocument(id, patchInput, _logAction) {
         const target = dbRef.current.documents.find((item) => item.id === id);
         const template = target ? dbRef.current.templates.find((item) => item.id === target.templateId) : undefined;
-        const normalizedPatch = patch.values
-          ? { ...patch, values: normalizeDocumentDateValues(template, patch.values) }
-          : patch;
-        commit((draft) => {
-          const index = draft.documents.findIndex((item) => item.id === id);
-          if (index < 0) return;
-          draft.documents[index] = { ...draft.documents[index], ...normalizedPatch, updatedAt: nowISO() };
-          if (logAction !== undefined) {
-            pushAudit(draft, {
-              action: logAction || 'ویرایش سند',
-              entity: 'document',
-              entityId: id,
-              entityLabel: target?.title,
-            });
-          }
+        const values = patchInput.values
+          ? normalizeDocumentDateValues(template, patchInput.values)
+          : undefined;
+        const updated = await api.documents.update(id, {
+          ...(patchInput.title !== undefined ? { title: patchInput.title } : {}),
+          ...(values !== undefined ? { values } : {}),
+          ...(patchInput.tags !== undefined ? { tags: patchInput.tags } : {}),
+          ...(patchInput.notes !== undefined ? { notes: patchInput.notes } : {}),
         });
+        setDb((prev) => ({ ...prev, documents: upsert(prev.documents, updated) }));
+        refreshAudit();
       },
 
-      setDocumentStatus(id, status) {
-        const target = dbRef.current.documents.find((item) => item.id === id);
-        commit((draft) => {
-          const index = draft.documents.findIndex((item) => item.id === id);
-          if (index < 0) return;
-          const previous = draft.documents[index];
-          const signedAt = status === 'signed' || status === 'scanned' ? (previous.signedAt ?? nowISO()) : previous.signedAt;
-          draft.documents[index] = { ...previous, status, signedAt, updatedAt: nowISO() };
-          pushAudit(draft, {
-            action: 'تغییر وضعیت سند',
-            entity: 'document',
-            entityId: id,
-            entityLabel: target?.title,
-            detail: `${previous.status} → ${status}`,
-          });
-        });
+      async setDocumentStatus(id, status) {
+        const updated = await api.documents.changeStatus(id, status);
+        setDb((prev) => ({ ...prev, documents: upsert(prev.documents, updated) }));
+        refreshAudit();
       },
 
-      deleteDocument(id) {
-        const target = dbRef.current.documents.find((item) => item.id === id);
-        const scans = dbRef.current.scans.filter((scan) => scan.documentId === id);
-        scans.forEach((scan) => void deleteBlob(scan.blobKey));
-        commit((draft) => {
-          draft.documents = draft.documents.filter((item) => item.id !== id);
-          draft.scans = draft.scans.filter((scan) => scan.documentId !== id);
-          pushAudit(draft, {
-            action: 'حذف سند',
-            entity: 'document',
-            entityId: id,
-            entityLabel: target?.title,
-          });
-        });
+      async markPrinted(id) {
+        const updated = await api.documents.markPrinted(id);
+        setDb((prev) => ({ ...prev, documents: upsert(prev.documents, updated) }));
+        refreshAudit();
+      },
+
+      async deleteDocument(id) {
+        await api.documents.remove(id);
+        setDb((prev) => ({
+          ...prev,
+          documents: prev.documents.filter((item) => item.id !== id),
+          scans: prev.scans.filter((scan) => scan.documentId !== id),
+        }));
+        refreshAudit();
       },
 
       /* ------------------------------- اسکن‌ها ------------------------------- */
       async addScan(documentId, file) {
-        const target = dbRef.current.documents.find((item) => item.id === documentId);
-        if (!target) return null;
         const compressed = await compressImage(file);
-        const blobKey = `scan://${uid()}`;
-        await putBlob(blobKey, compressed);
-        const scan: ScanFile = {
-          id: uid('scan-'),
-          documentId,
-          name: file.name,
-          mime: compressed.type || file.type || 'image/jpeg',
-          size: compressed.size || file.size,
-          blobKey,
-          pages: 1,
-          uploadedAt: nowISO(),
-          uploadedBy: currentActor.name,
-        };
-        commit((draft) => {
-          draft.scans = [scan, ...draft.scans];
-          const index = draft.documents.findIndex((item) => item.id === documentId);
-          if (index > -1) {
-            const document = draft.documents[index];
-            draft.documents[index] = {
-              ...document,
-              scanIds: [...document.scanIds, scan.id],
-              status: document.status === 'archived' ? document.status : 'scanned',
-              // بارگذاری نسخه اسکن‌شده یعنی سند امضا شده است
-              signedAt: document.signedAt ?? nowISO(),
-              updatedAt: nowISO(),
-            };
-          }
-          pushAudit(draft, {
-            action: 'بارگذاری اسکن امضاشده',
-            entity: 'scan',
-            entityId: scan.id,
-            entityLabel: target.title,
-            detail: file.name,
-          });
-        });
+        const upload = new File([compressed], file.name, { type: compressed.type || file.type });
+        const scan = await api.documents.uploadScan(documentId, upload);
+        setDb((prev) => ({ ...prev, scans: upsert(prev.scans, scan) }));
+        await refreshDocument(documentId);
+        refreshAudit();
         return scan;
       },
 
       async deleteScan(scanId) {
         const scan = dbRef.current.scans.find((item) => item.id === scanId);
         if (!scan) return;
-        await deleteBlob(scan.blobKey);
-        commit((draft) => {
-          draft.scans = draft.scans.filter((item) => item.id !== scanId);
-          const index = draft.documents.findIndex((item) => item.id === scan.documentId);
-          if (index > -1) {
-            draft.documents[index] = {
-              ...draft.documents[index],
-              scanIds: draft.documents[index].scanIds.filter((id) => id !== scanId),
-              updatedAt: nowISO(),
-            };
-          }
-          pushAudit(draft, {
-            action: 'حذف اسکن',
-            entity: 'scan',
-            entityId: scanId,
-            entityLabel: scan.name,
-          });
-        });
+        await api.documents.deleteScan(scan.documentId, scanId);
+        setDb((prev) => ({
+          ...prev,
+          scans: prev.scans.filter((item) => item.id !== scanId),
+          documents: prev.documents.map((doc) =>
+            doc.id === scan.documentId ? { ...doc, scanIds: doc.scanIds.filter((sid) => sid !== scanId) } : doc,
+          ),
+        }));
+        refreshAudit();
       },
 
       /* ------------------------------- قالب‌ها ------------------------------ */
-      saveTemplate(input, id) {
-        const now = nowISO();
-        if (id) {
-          const existing = dbRef.current.templates.find((item) => item.id === id);
-          const updated: FormTemplate = {
-            ...(existing as FormTemplate),
-            ...input,
-            id,
-            version: (existing?.version ?? 0) + 1,
-            updatedAt: now,
-          };
-          commit((draft) => {
-            const index = draft.templates.findIndex((item) => item.id === id);
-            if (index > -1) draft.templates[index] = updated;
-            pushAudit(draft, {
-              action: 'ویرایش فرم',
-              entity: 'template',
-              entityId: id,
-              entityLabel: updated.title,
-            });
-          });
-          return updated;
+      async saveTemplate(input, id) {
+        const saved = id ? await api.templates.update(id, input) : await api.templates.create(input);
+        setDb((prev) => ({ ...prev, templates: upsert(prev.templates, saved) }));
+        refreshAudit();
+        return saved;
+      },
+
+      async duplicateTemplate(id) {
+        const created = await api.templates.duplicate(id).catch(() => null);
+        if (created) {
+          setDb((prev) => ({ ...prev, templates: upsert(prev.templates, created) }));
+          refreshAudit();
         }
-        const created: FormTemplate = {
-          ...input,
-          id: uid('tpl-'),
-          version: input.version ?? 1,
-          createdAt: now,
-          updatedAt: now,
-          createdBy: currentActor.id,
-        };
-        commit((draft) => {
-          draft.templates = [created, ...draft.templates];
-          pushAudit(draft, {
-            action: 'افزودن فرم',
-            entity: 'template',
-            entityId: created.id,
-            entityLabel: created.title,
-          });
-        });
         return created;
       },
 
-      duplicateTemplate(id) {
-        const source = dbRef.current.templates.find((item) => item.id === id);
-        if (!source) return null;
-        const now = nowISO();
-        const created: FormTemplate = {
-          ...source,
-          id: uid('tpl-'),
-          title: `${source.title} (کپی)`,
-          fields: source.fields.map((field) => ({ ...field, id: uid('tf') })),
-          version: 1,
-          createdAt: now,
-          updatedAt: now,
-          createdBy: currentActor.id,
-        };
-        commit((draft) => {
-          draft.templates = [created, ...draft.templates];
-          pushAudit(draft, {
-            action: 'کپی فرم',
-            entity: 'template',
-            entityId: created.id,
-            entityLabel: created.title,
-          });
-        });
-        return created;
-      },
-
-      deleteTemplate(id) {
-        const target = dbRef.current.templates.find((item) => item.id === id);
-        const used = dbRef.current.documents.filter((item) => item.templateId === id).length;
-        commit((draft) => {
-          draft.templates = draft.templates.filter((item) => item.id !== id);
-          pushAudit(draft, {
-            action: 'حذف فرم',
-            entity: 'template',
-            entityId: id,
-            entityLabel: target?.title,
-            detail: used ? `${used} سند ساخته‌شده از این فرم باقی می‌ماند` : undefined,
-          });
-        });
+      async deleteTemplate(id) {
+        await api.templates.remove(id);
+        setDb((prev) => ({
+          ...prev,
+          templates: prev.templates.filter((item) => item.id !== id),
+        }));
+        refreshAudit();
       },
 
       /* ------------------------------- کاربران ------------------------------ */
-      saveUser(input, id) {
-        const users = dbRef.current.users;
-        const username = input.username.trim().toLowerCase();
-        const duplicate = users.find((item) => item.username.toLowerCase() === username && item.id !== id);
-        if (duplicate) return { ok: false, error: 'این نام کاربری قبلاً ثبت شده است.' };
-
-        if (id) {
-          const existing = users.find((item) => item.id === id);
-          if (!existing) return { ok: false, error: 'کاربر یافت نشد.' };
-          const isLastSuperadmin = existing.role === 'superadmin' && users.filter((u) => u.role === 'superadmin').length === 1;
-          if (isLastSuperadmin && (input.role !== 'superadmin' || !input.active)) {
-            return { ok: false, error: 'آخرین مدیر ارشد سامانه را نمی‌توان تغییر نقش یا غیرفعال کرد.' };
-          }
-          const updated: User = {
-            ...existing,
-            ...input,
-            id,
-            username,
-            permissions: input.role === 'superadmin' ? ['*'] : input.permissions,
-            updatedAt: nowISO(),
-          };
-          if (input.password) updated.passwordHash = hashPassword(input.password);
-          else updated.passwordHash = existing.passwordHash;
-          delete (updated as Partial<User> & { password?: string }).password;
-          commit((draft) => {
-            const index = draft.users.findIndex((item) => item.id === id);
-            if (index > -1) draft.users[index] = updated;
-            pushAudit(draft, {
-              action: 'ویرایش کاربر',
-              entity: 'user',
-              entityId: id,
-              entityLabel: updated.fullName,
-              detail: input.password ? 'رمز عبور بازنشانی شد' : `${updated.permissions.length} دسترسی`,
-            });
-          });
-          return { ok: true, user: updated };
+      async saveUser(input, id) {
+        try {
+          const saved = id
+            ? await api.users.update(id, input)
+            : await api.users.create(input);
+          setDb((prev) => ({ ...prev, users: upsert(prev.users, { ...saved, passwordHash: '' }) }));
+          refreshAudit();
+          return { ok: true, user: { ...saved, passwordHash: '' } };
+        } catch (error) {
+          return { ok: false, error: errorMessage(error) };
         }
-
-        const created: User = {
-          id: uid('u-'),
-          username,
-          fullName: input.fullName,
-          passwordHash: hashPassword(input.password || suggestPassword()),
-          role: input.role,
-          permissions: input.role === 'superadmin' ? ['*'] : input.permissions,
-          title: input.title,
-          mobile: input.mobile,
-          active: input.active,
-          note: input.note,
-          createdAt: nowISO(),
-        };
-        commit((draft) => {
-          draft.users = [...draft.users, created];
-          pushAudit(draft, {
-            action: 'ایجاد کاربر',
-            entity: 'user',
-            entityId: created.id,
-            entityLabel: created.fullName,
-            detail: created.role === 'superadmin' ? 'مدیر ارشد' : `${created.permissions.length} دسترسی`,
-          });
-        });
-        return { ok: true, user: created };
       },
 
-      deleteUser(id) {
-        const target = dbRef.current.users.find((item) => item.id === id);
-        if (!target) return { ok: false, error: 'کاربر یافت نشد.' };
-        if (target.role === 'superadmin') {
-          return { ok: false, error: 'حساب مدیر ارشد قابل حذف نیست؛ در صورت نیاز آن را غیرفعال کنید.' };
+      async deleteUser(id) {
+        try {
+          await api.users.remove(id);
+        } catch (error) {
+          return { ok: false, error: errorMessage(error) };
         }
-        commit((draft) => {
-          draft.users = draft.users.filter((item) => item.id !== id);
-          pushAudit(draft, {
-            action: 'حذف کاربر',
-            entity: 'user',
-            entityId: id,
-            entityLabel: target.fullName,
-          });
-        });
+        setDb((prev) => ({ ...prev, users: prev.users.filter((item) => item.id !== id) }));
+        refreshAudit();
         return { ok: true };
       },
 
-      toggleUserActive(id) {
+      async toggleUserActive(id) {
         const target = dbRef.current.users.find((item) => item.id === id);
         if (!target) return;
-        commit((draft) => {
-          const index = draft.users.findIndex((item) => item.id === id);
-          if (index < 0) return;
-          const next = { ...draft.users[index], active: !draft.users[index].active, updatedAt: nowISO() };
-          draft.users[index] = next;
-          pushAudit(draft, {
-            action: next.active ? 'فعال‌سازی کاربر' : 'غیرفعال‌سازی کاربر',
-            entity: 'user',
-            entityId: id,
-            entityLabel: next.fullName,
-          });
-        });
-      },
-
-      /* -------------------------------- نقش‌ها ------------------------------ */
-      saveRole(input, id) {
-        const now = nowISO();
-        const created: PermissionRole = {
-          ...input,
-          id: id ?? uid('role-'),
-          createdAt: dbRef.current.roles.find((role) => role.id === id)?.createdAt ?? now,
-          createdBy: currentActor.id,
-        };
-        commit((draft) => {
-          const index = draft.roles.findIndex((role) => role.id === created.id);
-          if (index > -1) {
-            created.system = draft.roles[index].system;
-            draft.roles[index] = created;
-          } else {
-            draft.roles = [...draft.roles, created];
-          }
-          pushAudit(draft, {
-            action: id ? 'ویرایش نقش' : 'ایجاد نقش',
-            entity: 'role',
-            entityId: created.id,
-            entityLabel: created.name,
-            detail: `${created.permissions.length} دسترسی`,
-          });
-        });
-        return created;
-      },
-
-      deleteRole(id) {
-        const target = dbRef.current.roles.find((role) => role.id === id);
-        if (!target) return { ok: false, error: 'نقش یافت نشد.' };
-        if (target.system) return { ok: false, error: 'نقش‌های آماده سامانه قابل حذف نیستند.' };
-        commit((draft) => {
-          draft.roles = draft.roles.filter((role) => role.id !== id);
-          pushAudit(draft, { action: 'حذف نقش', entity: 'role', entityId: id, entityLabel: target.name });
-        });
-        return { ok: true };
+        const updated = await api.users.setActive(id, !target.active).catch(() => null);
+        if (updated) {
+          setDb((prev) => ({ ...prev, users: upsert(prev.users, { ...updated, passwordHash: '' }) }));
+          refreshAudit();
+        }
       },
 
       /* ------------------------------ مجموعه‌ها ----------------------------- */
-      saveCompany(input, id) {
-        const now = nowISO();
-        const payload: CompanyDraft = { ...input, name: input.name.trim() };
-        if (id) {
-          const existing = dbRef.current.companies.find((item) => item.id === id);
-          const updated: Company = { ...(existing as Company), ...payload, id, updatedAt: now };
-          commit((draft) => {
-            const index = draft.companies.findIndex((item) => item.id === id);
-            if (index > -1) draft.companies[index] = updated;
-            pushAudit(draft, {
-              action: 'ویرایش مجموعه',
-              entity: 'company',
-              entityId: id,
-              entityLabel: updated.name,
-            });
-          });
-          return updated;
-        }
-        const created: Company = {
-          ...payload,
-          id: uid('co-'),
-          createdAt: now,
-          updatedAt: now,
-          createdBy: currentActor.id,
-        };
-        commit((draft) => {
-          draft.companies = [created, ...draft.companies];
-          pushAudit(draft, {
-            action: 'افزودن مجموعه',
-            entity: 'company',
-            entityId: created.id,
-            entityLabel: created.name,
-          });
-        });
-        return created;
+      async saveCompany(input, id) {
+        const payload = { ...input, name: input.name.trim() };
+        const saved = id ? await api.companies.update(id, payload) : await api.companies.create(payload);
+        setDb((prev) => ({ ...prev, companies: upsert(prev.companies, saved) }));
+        refreshAudit();
+        return saved;
       },
 
-      deleteCompany(id) {
-        const target = dbRef.current.companies.find((item) => item.id === id);
-        if (!target) return { ok: false, error: 'مجموعه یافت نشد.', detached: 0 };
+      async deleteCompany(id) {
         const detached = dbRef.current.users.filter((user) => user.companyId === id).length;
-        commit((draft) => {
-          draft.companies = draft.companies.filter((item) => item.id !== id);
-          // کاربران این مجموعه حذف نمی‌شوند؛ فقط بدون مجموعه می‌شوند
-          draft.users = draft.users.map((user) =>
-            user.companyId === id ? { ...user, companyId: undefined, updatedAt: nowISO() } : user,
-          );
-          pushAudit(draft, {
-            action: 'حذف مجموعه',
-            entity: 'company',
-            entityId: id,
-            entityLabel: target.name,
-            detail: detached ? `${detached} کاربر از این مجموعه جدا شد` : undefined,
-          });
-        });
+        try {
+          await api.companies.remove(id);
+        } catch (error) {
+          return { ok: false, error: errorMessage(error), detached: 0 };
+        }
+        setDb((prev) => ({
+          ...prev,
+          companies: prev.companies.filter((item) => item.id !== id),
+          users: prev.users.map((user) => (user.companyId === id ? { ...user, companyId: undefined } : user)),
+        }));
+        refreshAudit();
         return { ok: true, detached };
       },
 
-      setCompanyMembers(companyId, userIds) {
-        const company = dbRef.current.companies.find((item) => item.id === companyId);
-        if (!company) return { ok: false, error: 'مجموعه یافت نشد.', added: 0, removed: 0 };
-        const wanted = new Set(userIds);
-        const users = dbRef.current.users;
-        const joining = users.filter((user) => wanted.has(user.id) && user.companyId !== companyId);
-        const leaving = users.filter((user) => !wanted.has(user.id) && user.companyId === companyId);
-        if (!joining.length && !leaving.length) return { ok: true, added: 0, removed: 0 };
-        const joiningIds = new Set(joining.map((user) => user.id));
-        const leavingIds = new Set(leaving.map((user) => user.id));
-        const now = nowISO();
-        commit((draft) => {
-          draft.users = draft.users.map((user) => {
-            if (joiningIds.has(user.id)) return { ...user, companyId, updatedAt: now };
-            if (leavingIds.has(user.id)) return { ...user, companyId: undefined, updatedAt: now };
-            return user;
-          });
-          pushAudit(draft, {
-            action: 'اتصال کاربران به مجموعه',
-            entity: 'company',
-            entityId: companyId,
-            entityLabel: company.name,
-            detail: `${joining.length} اتصال • ${leaving.length} جدایی`,
-          });
-        });
-        return { ok: true, added: joining.length, removed: leaving.length };
+      async setCompanyMembers(companyId, userIds) {
+        try {
+          const result = await api.companies.setMembers(companyId, userIds);
+          const wanted = new Set(userIds);
+          setDb((prev) => ({
+            ...prev,
+            users: prev.users.map((user) =>
+              wanted.has(user.id)
+                ? { ...user, companyId }
+                : user.companyId === companyId
+                  ? { ...user, companyId: undefined }
+                  : user,
+            ),
+          }));
+          refreshAudit();
+          return { ok: true, added: result.added, removed: result.removed };
+        } catch (error) {
+          return { ok: false, error: errorMessage(error), added: 0, removed: 0 };
+        }
       },
 
       /* ------------------------------- یادآورها ------------------------------ */
-      createReminder(input) {
+      async createReminder(input) {
         const title = input.title.trim();
         if (!title) return { ok: false, error: 'متن یادآور را بنویسید.' };
         const date = normalizeJalaliDate(input.date);
         if (!date) return { ok: false, error: 'تاریخ یادآور باید شمسی و به‌شکل YYYY/MM/DD باشد.' };
-        const target = dbRef.current.users.find((item) => item.id === input.userId && item.active);
-        if (!target) return { ok: false, error: 'کاربر مقصد را انتخاب کنید.' };
         const time = input.time?.trim() ? (normalizeReminderTime(input.time) ?? undefined) : undefined;
         if (input.time?.trim() && !time) return { ok: false, error: 'ساعت یادآور باید به‌شکل HH:MM باشد.' };
-        const reminder: Reminder = {
-          id: uid('rem-'),
-          title,
-          note: input.note?.trim() || undefined,
-          date,
-          time,
-          userId: target.id,
-          userName: target.fullName,
-          done: false,
-          createdAt: nowISO(),
-          createdBy: currentActor.id,
-          createdByName: currentActor.name,
-        };
-        commit((draft) => {
-          draft.reminders = [reminder, ...draft.reminders];
-          pushAudit(draft, {
-            action: 'ایجاد یادآور',
-            entity: 'reminder',
-            entityId: reminder.id,
-            entityLabel: target.fullName,
-            detail: title,
-          });
-        });
-        return { ok: true, reminder };
+        try {
+          const reminder = await api.reminders.create({ title, note: input.note, date, time, userId: input.userId });
+          setDb((prev) => ({ ...prev, reminders: upsert(prev.reminders, reminder) }));
+          refreshAudit();
+          return { ok: true, reminder };
+        } catch (error) {
+          return { ok: false, error: errorMessage(error) };
+        }
       },
 
-      markReminderDone(id) {
-        const target = dbRef.current.reminders.find((item) => item.id === id);
-        if (!target || target.done) return;
-        commit((draft) => {
-          const index = draft.reminders.findIndex((item) => item.id === id);
-          if (index < 0) return;
-          draft.reminders[index] = { ...draft.reminders[index], done: true, doneAt: nowISO() };
-          pushAudit(draft, {
-            action: 'انجام یادآور',
-            entity: 'reminder',
-            entityId: id,
-            entityLabel: target.userName,
-            detail: target.title,
-          });
-        });
+      async markReminderDone(id) {
+        const updated = await api.reminders.markDone(id).catch(() => null);
+        if (updated) {
+          setDb((prev) => ({ ...prev, reminders: upsert(prev.reminders, updated) }));
+          refreshAudit();
+        }
       },
 
-      deleteReminder(id) {
-        const target = dbRef.current.reminders.find((item) => item.id === id);
-        commit((draft) => {
-          draft.reminders = draft.reminders.filter((item) => item.id !== id);
-          pushAudit(draft, {
-            action: 'حذف یادآور',
-            entity: 'reminder',
-            entityId: id,
-            entityLabel: target?.userName,
-            detail: target?.title,
-          });
-        });
+      async deleteReminder(id) {
+        await api.reminders.remove(id);
+        setDb((prev) => ({ ...prev, reminders: prev.reminders.filter((item) => item.id !== id) }));
+        refreshAudit();
       },
 
       /* ------------------------------ تنظیمات ----------------------------- */
-      updateSettings(patch) {
-        commit((draft) => {
-          draft.settings = { ...draft.settings, ...patch };
-        });
+      async updateSettings(patchInput) {
+        const updated = await api.settings.update(patchInput);
+        setDb((prev) => ({ ...prev, settings: updated }));
+        refreshAudit();
       },
 
-      touchLogin(userId) {
-        commit((draft) => {
-          const index = draft.users.findIndex((item) => item.id === userId);
-          if (index > -1) draft.users[index] = { ...draft.users[index], lastLoginAt: nowISO() };
-        });
-      },
-
-      clearAudit() {
-        commit((draft) => {
-          draft.audit = [];
-        });
-      },
-
-      resetDemoData() {
-        const seeded = resetDb();
-        setDb(seeded);
-      },
-
-      clearAllData() {
-        const blank = emptyAndSave();
-        setDb(blank);
-      },
-
-      exportBackup() {
-        const { users, companies, clients, documents, templates, roles, scans, workflowEvidence, reminders, audit, settings } = dbRef.current;
-        return JSON.stringify(
-          { version: 1, exportedAt: nowISO(), users, companies, clients, documents, templates, roles, scans, workflowEvidence, reminders, audit, settings },
-          null,
-          2,
-        );
-      },
-
-      importBackup(json) {
+      /* -------------------------------- سربرگ ------------------------------- */
+      async saveLetterheadAddress(address) {
         try {
-          const parsed = JSON.parse(json) as Partial<DbShape>;
-          if (!parsed || typeof parsed !== 'object' || !Array.isArray(parsed.users)) {
-            return { ok: false, error: 'فایل پشتیبان معتبر نیست.' };
-          }
-          const next: DbShape = {
-            users: parsed.users ?? [],
-            companies: parsed.companies ?? [],
-            clients: parsed.clients ?? [],
-            documents: parsed.documents ?? [],
-            templates: parsed.templates ?? [],
-            roles: parsed.roles ?? [],
-            scans: parsed.scans ?? [],
-            workflowEvidence: parsed.workflowEvidence ?? [],
-            reminders: parsed.reminders ?? [],
-            audit: parsed.audit ?? [],
-            settings: { ...dbRef.current.settings, ...(parsed.settings ?? {}) },
-          };
-          const importedClients: Client[] = [];
-          for (const client of next.clients) {
-            if (!client.birthDate?.trim()) {
-              importedClients.push(client);
-              continue;
-            }
-            const birthDate = normalizeLegacyJalaliDate(client.birthDate);
-            if (!birthDate) {
-              return { ok: false, error: `تاریخ تولد پرونده «${client.fullName}» معتبر نیست؛ فایل پشتیبان بازیابی نشد.` };
-            }
-            importedClients.push({ ...client, birthDate });
-          }
+          const config = await api.letterhead.update({ address });
+          refreshAudit();
+          return { ok: true, config };
+        } catch (error) {
+          return { ok: false, error: errorMessage(error) };
+        }
+      },
 
-          const templateDateFields = new Map(
-            next.templates.map((template) => [
-              template.id,
-              template.fields.filter((field) => field.type === 'date').map((field) => field.key),
-            ]),
-          );
-          const importedDocuments: DocRecord[] = [];
-          for (const document of next.documents) {
-            const values = { ...document.values };
-            for (const key of templateDateFields.get(document.templateId) ?? []) {
-              if (!values[key]?.trim()) continue;
-              const date = normalizeLegacyJalaliDate(values[key]);
-              if (!date) {
-                return {
-                  ok: false,
-                  error: `تاریخ فیلد «${key}» در سند «${document.title}» معتبر نیست؛ فایل پشتیبان بازیابی نشد.`,
-                };
-              }
-              values[key] = date;
-            }
-            importedDocuments.push({ ...document, values });
-          }
-
-          setDb({ ...next, clients: importedClients, documents: importedDocuments });
+      async recordLetterheadPrint(input) {
+        try {
+          await api.letterhead.recordPrint(input);
+          refreshAudit();
           return { ok: true };
-        } catch {
-          return { ok: false, error: 'خواندن فایل پشتیبان ناموفق بود.' };
+        } catch (error) {
+          return { ok: false, error: errorMessage(error) };
+        }
+      },
+
+      async clearAudit() {
+        await api.audit.clear();
+        setDb((prev) => ({ ...prev, audit: [] }));
+      },
+
+      async exportBackup() {
+        const dump = await api.backup.export();
+        return JSON.stringify(dump, null, 2);
+      },
+
+      async importBackup(json) {
+        try {
+          const parsed = JSON.parse(json) as unknown;
+          await api.backup.import(parsed);
+          await reload();
+          return { ok: true };
+        } catch (error) {
+          return { ok: false, error: errorMessage(error) };
         }
       },
     };
-  }, [commit]);
+  }, [patch, reload, reset, refreshAudit, refreshClient, refreshDocument]);
 
   return (
     <ActionsContext.Provider value={actions}>

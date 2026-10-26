@@ -13,7 +13,7 @@ JWT access tokens + rotating refresh cookie, Pino, Vitest + Supertest.**
 
 ```
 HTTP request
-  → middleware (request id, logging, helmet, cors, rate limit, auth, validation)
+  → middleware (request id, logging, helmet, cors, auth, validation)
   → route            (method + path + middleware + controller only)
   → controller       (extract validated input, call a service, send the envelope)
   → service          (business rules, permissions-adjacent checks, audit events)
@@ -102,8 +102,6 @@ cp .env.example .env        # then edit values
 | `CORS_ORIGINS` | no | `http://localhost:5173,…` | Allowed browser origins |
 | `LOG_LEVEL` | no | `info` | Pino level (`silent` in tests) |
 | `TRUST_PROXY` | no | `0` | Express `trust proxy` hops |
-| `RATE_LIMIT_WINDOW_MS` / `RATE_LIMIT_MAX` | no | 15 min / 300 | Global limit |
-| `LOGIN_RATE_LIMIT_MAX` | no | `10` | Login attempts per window |
 | `UPLOAD_DIR` | no | `./var/uploads` | Where scans/evidence are written |
 | `MAX_UPLOAD_MB` | no | `10` | Upload size limit |
 | `SEED_ADMIN_*` | seed only | – | First superadmin created by `db:seed` |
@@ -123,14 +121,16 @@ docker run -d --name jomeforms-postgres \
 cd backend
 export DATABASE_URL=postgres://jomeforms:jomeforms_dev@127.0.0.1:55433/jomeforms
 npm run db:migrate     # applies db/migrations/*.sql in order
-npm run db:seed        # permission catalog + roles + admin + two identity-only demo cases
+npm run db:seed        # permission catalog + admin + two identity-only demo cases
 npm run db:verify      # prints tables and row counts
 ```
 
 `npm run db:reset` **drops the schema** and is development-only.
 
-The seed creates four preset roles (superadmin, manager, agent, viewer) from
-`src/config/permissions.ts`, which mirrors the frontend permission catalog.
+The seed loads the permission catalog from `src/config/permissions.ts`, which
+mirrors the frontend permission catalog. Permissions are assigned per user —
+there are no reusable role bundles; the superadmin edits each manager's
+permissions directly via `PUT /users/{id}/permissions`.
 The first superadmin password comes from `SEED_ADMIN_PASSWORD`; change it after
 the first login.
 
@@ -174,8 +174,7 @@ truncates every table before each suite. Migration runs automatically.
 Suites cover: login/refresh rotation/logout/deactivation, permission
 enforcement, validation, case creation and numbering, search + pagination,
 workflow evidence gates and manager overrides, document numbering, required
-template values, status lifecycle, scan upload/serving/type spoofing and report
-aggregates.
+template values, status lifecycle and scan upload/serving/type spoofing.
 
 ## 7. API summary
 
@@ -189,8 +188,6 @@ All routes are under `/api/v1`. `…/{id}` expects a UUID.
 | GET/PATCH/DELETE | `/users/{id}` | `users.view` / `users.edit` / `users.delete` |
 | PUT | `/users/{id}/permissions` | `users.edit` |
 | PATCH | `/users/{id}/status` | `users.edit` |
-| GET/POST | `/roles` | `roles.view` / `roles.create` |
-| GET/PATCH/DELETE | `/roles/{id}` | `roles.view` / `roles.edit` / `roles.delete` |
 | GET | `/permissions` | authenticated catalog |
 | GET/POST | `/companies` | `companies.view` / `companies.create` |
 | GET/PATCH/DELETE | `/companies/{id}` | `companies.view` / `companies.edit` / `companies.delete` |
@@ -211,8 +208,6 @@ All routes are under `/api/v1`. `…/{id}` expects a UUID.
 | GET/POST | `/documents/{id}/scans` | `documents.view` / `documents.upload` |
 | GET | `/documents/{id}/scans/{scanId}/file` | `documents.view` |
 | DELETE | `/documents/{id}/scans/{scanId}` | `documents.upload` |
-| GET | `/reports/dashboard` | `dashboard.view` |
-| GET | `/reports/overview`, `/reports/agents` | `reports.view` |
 | GET/DELETE | `/audit-logs` | `audit.view` / `audit.clear` |
 | GET/PATCH | `/settings` | `settings.view` / `settings.edit` |
 
@@ -239,7 +234,7 @@ the UI can render the same groups.
 
 ## 9. Database model
 
-`users`, `roles`, `permissions`, `role_permissions`, `user_permissions`,
+`users`, `permissions`, `user_permissions`,
 `companies`, `clients` (workflow + evidence as JSONB), `workflow_evidence`,
 `form_templates`, `form_template_versions`, `documents`, `document_scans`,
 `document_status_history`, `sessions`, `audit_logs`, `app_settings`,

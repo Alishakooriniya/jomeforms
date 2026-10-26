@@ -1,10 +1,10 @@
 /* گالری اسکن‌های امضاشده: بارگذاری، پیش‌نمایش، دانلود و حذف.
-   فایل‌ها در IndexedDB نگه‌داری می‌شوند تا حجم صفحه سبک بماند. */
+   فایل‌ها روی سرور نگه‌داری می‌شوند و با درخواست احرازشده واکشی می‌شوند. */
 
 import { useEffect, useRef, useState } from 'react';
 import type { DocRecord, ScanFile } from '../../types';
 import { formatBytes, formatDate } from '../../lib/format';
-import { getBlob } from '../../lib/idb';
+import { api } from '../../lib/apiClient';
 import { cn } from '../../lib/utils';
 import { useDb, useDbActions } from '../../store/DataProvider';
 import { useToast } from '../../store/ToastProvider';
@@ -13,8 +13,8 @@ import { ConfirmDialog, Modal } from '../ui/Modal';
 import { EmptyState } from '../ui/EmptyState';
 import { Icon } from '../ui/Icon';
 
-/** ساخت آدرس موقت تصاویر از IndexedDB */
-function useScanUrls(scans: ScanFile[]) {
+/** ساخت آدرس موقت تصاویر از سرور */
+function useScanUrls(documentId: string, scans: ScanFile[]) {
   const [urls, setUrls] = useState<Record<string, string>>({});
 
   useEffect(() => {
@@ -23,11 +23,13 @@ function useScanUrls(scans: ScanFile[]) {
     (async () => {
       const next: Record<string, string> = {};
       for (const scan of scans) {
-        const blob = await getBlob(scan.blobKey);
-        if (blob) {
+        try {
+          const blob = await api.documents.scanBlob(documentId, scan.id);
           const url = URL.createObjectURL(blob);
           created.push(url);
           next[scan.id] = url;
+        } catch {
+          /* پیش‌نمایش در دسترس نیست */
         }
       }
       if (cancelled) created.forEach((url) => URL.revokeObjectURL(url));
@@ -37,7 +39,7 @@ function useScanUrls(scans: ScanFile[]) {
       cancelled = true;
       created.forEach((url) => URL.revokeObjectURL(url));
     };
-  }, [scans]);
+  }, [documentId, scans]);
 
   return urls;
 }
@@ -50,7 +52,7 @@ export interface ScanGalleryProps {
 
 export function ScanGallery({ document, canUpload, canDelete }: ScanGalleryProps) {
   const { scans } = useDb();
-  const { addScan, deleteScan } = useDbActions();
+  const { addScan, deleteScan, loadDocumentScans } = useDbActions();
   const toast = useToast();
   const inputRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
@@ -58,8 +60,12 @@ export function ScanGallery({ document, canUpload, canDelete }: ScanGalleryProps
   const [preview, setPreview] = useState<ScanFile | null>(null);
   const [pendingDelete, setPendingDelete] = useState<ScanFile | null>(null);
 
+  useEffect(() => {
+    void loadDocumentScans(document.id);
+  }, [document.id, loadDocumentScans]);
+
   const documentScans = scans.filter((scan) => scan.documentId === document.id);
-  const urls = useScanUrls(documentScans);
+  const urls = useScanUrls(document.id, documentScans);
 
   const upload = async (files: FileList | File[]) => {
     const list = Array.from(files).filter((file) => file.type.startsWith('image/') || file.type === 'application/pdf');
@@ -70,8 +76,12 @@ export function ScanGallery({ document, canUpload, canDelete }: ScanGalleryProps
     setUploading(true);
     let done = 0;
     for (const file of list) {
-      const created = await addScan(document.id, file);
-      if (created) done += 1;
+      try {
+        const created = await addScan(document.id, file);
+        if (created) done += 1;
+      } catch {
+        /* خطا در پایان گزارش می‌شود */
+      }
     }
     setUploading(false);
     if (done) toast.success(`${done} فایل بارگذاری شد`, 'وضعیت سند به «اسکن‌شده» تغییر کرد.');
@@ -230,7 +240,7 @@ export function ScanGallery({ document, canUpload, canDelete }: ScanGalleryProps
               />
             )
           ) : (
-            <EmptyState icon="alert" title="فایل در دسترس نیست" description="فایل این اسکن در حافظه مرورگر پیدا نشد." />
+            <EmptyState icon="alert" title="فایل در دسترس نیست" description="فایل این اسکن از سرور دریافت نشد." />
           )
         ) : null}
       </Modal>
@@ -240,8 +250,11 @@ export function ScanGallery({ document, canUpload, canDelete }: ScanGalleryProps
         onClose={() => setPendingDelete(null)}
         onConfirm={() => {
           if (pendingDelete) {
-            void deleteScan(pendingDelete.id);
-            toast.success('اسکن حذف شد');
+            void deleteScan(pendingDelete.id)
+              .then(() => toast.success('اسکن حذف شد'))
+              .catch((error: unknown) =>
+                toast.error(error instanceof Error ? error.message : 'حذف اسکن انجام نشد.'),
+              );
           }
           setPendingDelete(null);
         }}

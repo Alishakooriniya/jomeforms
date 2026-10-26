@@ -74,17 +74,22 @@ export default function CollectionsList() {
     },
   });
 
-  const submit = (draft: CompanyDraft) => {
+  const submit = async (draft: CompanyDraft) => {
     if (!draft.name.trim()) {
       toast.error('نام مجموعه را وارد کنید.');
       return;
     }
     setSaving(true);
-    const saved = saveCompany(draft, editing?.id);
-    setSaving(false);
-    setCreating(false);
-    setEditing(null);
-    toast.success(editing ? 'مجموعه ویرایش شد' : 'مجموعه افزوده شد', saved.name);
+    try {
+      const saved = await saveCompany(draft, editing?.id);
+      setCreating(false);
+      setEditing(null);
+      toast.success(editing ? 'مجموعه ویرایش شد' : 'مجموعه افزوده شد', saved.name);
+    } catch (error) {
+      toast.error('ذخیره نشد', error instanceof Error ? error.message : undefined);
+    } finally {
+      setSaving(false);
+    }
   };
 
   const columns: Array<Column<Company>> = [
@@ -393,17 +398,18 @@ export default function CollectionsList() {
         onSave={(userIds) => {
           if (!membersFor) return;
           setSaving(true);
-          const result = setCompanyMembers(membersFor.id, userIds);
-          setSaving(false);
-          if (!result.ok) {
-            toast.error('ذخیره نشد', result.error);
-            return;
-          }
-          toast.success(
-            'ارتباط کاربران ذخیره شد',
-            `${displayDigits(result.added)} اتصال • ${displayDigits(result.removed)} جدایی`,
-          );
-          setMembersFor(null);
+          void setCompanyMembers(membersFor.id, userIds).then((result) => {
+            setSaving(false);
+            if (!result.ok) {
+              toast.error('ذخیره نشد', result.error);
+              return;
+            }
+            toast.success(
+              'ارتباط کاربران ذخیره شد',
+              `${displayDigits(result.added)} اتصال • ${displayDigits(result.removed)} جدایی`,
+            );
+            setMembersFor(null);
+          });
         }}
       />
 
@@ -412,17 +418,18 @@ export default function CollectionsList() {
         onClose={() => setPendingDelete(null)}
         onConfirm={() => {
           if (pendingDelete) {
-            const result = deleteCompany(pendingDelete.id);
-            if (result.ok) {
-              toast.success(
-                'مجموعه حذف شد',
-                result.detached
-                  ? `${displayDigits(result.detached)} کاربر بدون مجموعه شدند`
-                  : pendingDelete.name,
-              );
-            } else {
-              toast.error('حذف انجام نشد', result.error);
-            }
+            void deleteCompany(pendingDelete.id).then((result) => {
+              if (result.ok) {
+                toast.success(
+                  'مجموعه حذف شد',
+                  result.detached
+                    ? `${displayDigits(result.detached)} کاربر بدون مجموعه شدند`
+                    : pendingDelete.name,
+                );
+              } else {
+                toast.error('حذف انجام نشد', result.error);
+              }
+            });
           }
           setPendingDelete(null);
         }}

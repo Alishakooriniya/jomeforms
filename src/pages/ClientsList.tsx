@@ -104,12 +104,17 @@ export default function ClientsList() {
     toast.success('خروجی CSV آماده شد');
   };
 
-  const submit = (draft: ClientDraft) => {
+  const submit = async (draft: ClientDraft) => {
     setSubmitting(true);
-    const saved = saveClient(draft, editing?.id);
-    setSubmitting(false);
-    setEditing(null);
-    toast.success(editing ? 'پرونده ویرایش شد' : 'پرونده ثبت شد', `${saved.fullName} — ${formatCode(saved.code)}`);
+    try {
+      const saved = await saveClient(draft, editing?.id);
+      setEditing(null);
+      toast.success(editing ? 'پرونده ویرایش شد' : 'پرونده ثبت شد', `${saved.fullName} — ${formatCode(saved.code)}`);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'ثبت پرونده انجام نشد.');
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const currentStep = (client: Client) => (client.workflow ?? []).find((step) => step.status === 'pending');
@@ -404,8 +409,11 @@ export default function ClientsList() {
         onClose={() => setPendingDelete(null)}
         onConfirm={() => {
           if (pendingDelete) {
-            deleteClient(pendingDelete.id);
-            toast.success('پرونده حذف شد', pendingDelete.fullName);
+            void deleteClient(pendingDelete.id)
+              .then(() => toast.success('پرونده حذف شد', pendingDelete.fullName))
+              .catch((error: unknown) =>
+                toast.error(error instanceof Error ? error.message : 'حذف پرونده انجام نشد.'),
+              );
           }
           setPendingDelete(null);
         }}

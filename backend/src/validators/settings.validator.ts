@@ -2,8 +2,6 @@ import { z } from 'zod';
 
 export const updateSettingsSchema = z
   .object({
-    orgName: z.string().trim().min(1).max(160).optional(),
-    orgLegalName: z.string().trim().max(200).optional(),
     orgPhone: z.string().trim().max(40).optional(),
     orgAddress: z.string().trim().max(500).optional(),
     defaultProvince: z.string().trim().max(80).optional(),

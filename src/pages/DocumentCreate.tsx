@@ -112,7 +112,7 @@ export default function DocumentCreate() {
     setStep(2);
   };
 
-  const save = (printAfter: boolean) => {
+  const save = async (printAfter: boolean) => {
     if (!template) return;
     const missing: Record<string, string> = {};
     const normalizedValues = { ...values };
@@ -132,12 +132,18 @@ export default function DocumentCreate() {
       return;
     }
 
-    const document = createDocument({
-      templateId: template.id,
-      clientId: client?.id,
-      values: normalizedValues,
-      status: initialStatus,
-    });
+    let document;
+    try {
+      document = await createDocument({
+        templateId: template.id,
+        clientId: client?.id,
+        values: normalizedValues,
+        status: initialStatus,
+      });
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'ساخت سند انجام نشد.');
+      return;
+    }
 
     if (printAfter) {
       const opened = printDocument(document, template, settings);

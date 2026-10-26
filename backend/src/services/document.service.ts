@@ -152,7 +152,12 @@ export class DocumentService {
     const existing = await this.documents.findById(id);
     if (!existing) throw new NotFoundError('Document');
 
-    const updated = await this.documents.update(id, { printedAt: new Date() });
+    // A printed draft goes out for signature — same behaviour the old
+    // local store applied on print.
+    let updated = await this.documents.update(id, { printedAt: new Date() });
+    if (updated && existing.status === 'draft') {
+      updated = await this.documents.changeStatus(id, 'awaiting_signature', context.actor.id);
+    }
     if (!updated) throw new NotFoundError('Document');
 
     await this.audit.record(context, {

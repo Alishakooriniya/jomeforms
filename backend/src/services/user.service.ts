@@ -96,6 +96,9 @@ export class UserService {
     if (input.companyId) await this.assertCompany(input.companyId);
 
     const isSuperadmin = input.role === 'superadmin';
+    if (isSuperadmin && (await this.users.countSuperadmins()) >= 1) {
+      throw new ConflictError('Only one superadmin account is allowed.');
+    }
     const created = await this.users.create({
       username: input.username,
       fullName: input.fullName,
@@ -137,6 +140,10 @@ export class UserService {
 
     const nextRole = input.role ?? existing.role;
     const nextActive = input.active ?? existing.active;
+
+    if (nextRole === 'superadmin' && existing.role !== 'superadmin' && (await this.users.countSuperadmins()) >= 1) {
+      throw new ConflictError('Only one superadmin account is allowed.');
+    }
 
     if (existing.role === 'superadmin' && (nextRole !== 'superadmin' || !nextActive)) {
       const activeSuperadmins = await this.users.countActiveSuperadmins();

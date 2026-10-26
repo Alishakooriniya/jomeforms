@@ -5,7 +5,7 @@ import { API, app, auth, clientPayload, login, PNG_BUFFER } from '../helpers/api
 
 const describeDb = hasTestDatabase ? describe : describe.skip;
 
-describeDb('documents, scans and reports', () => {
+describeDb('documents and scans', () => {
   let token: string;
   let templateId: string;
   let clientId: string;
@@ -147,27 +147,6 @@ describeDb('documents, scans and reports', () => {
       })
       .expect(415);
     expect(response.body.error.code).toBe('UNSUPPORTED_MEDIA_TYPE');
-  });
-
-  it('exposes dashboard, overview and agent reports', async () => {
-    const dashboard = await request(app)
-      .get(`${API}/reports/dashboard`)
-      .set(auth(token))
-      .expect(200);
-    expect(dashboard.body.data.counts.documentsTotal).toBeGreaterThan(0);
-
-    const overview = await request(app)
-      .get(`${API}/reports/overview`)
-      .set(auth(token))
-      .expect(200);
-    expect(overview.body.data.monthly).toHaveLength(6);
-    expect(overview.body.data.totals.documentsTotal).toBeGreaterThan(0);
-
-    const agents = await request(app)
-      .get(`${API}/reports/agents?page=1&limit=10`)
-      .set(auth(token))
-      .expect(200);
-    expect(Array.isArray(agents.body.data)).toBe(true);
   });
 
   it('records meaningful actions in the audit trail', async () => {

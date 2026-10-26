@@ -14,12 +14,17 @@ export default function ClientCreate() {
   const navigate = useNavigate();
   const [submitting, setSubmitting] = useState(false);
 
-  const submit = (draft: ClientDraft) => {
+  const submit = async (draft: ClientDraft) => {
     setSubmitting(true);
-    const client = saveClient(draft);
-    setSubmitting(false);
-    toast.success('پرونده ثبت شد', `${client.fullName} — ${formatCode(client.code)}`);
-    navigate(`/clients/${client.id}`, { replace: true });
+    try {
+      const client = await saveClient(draft);
+      toast.success('پرونده ثبت شد', `${client.fullName} — ${formatCode(client.code)}`);
+      navigate(`/clients/${client.id}`, { replace: true });
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'ثبت پرونده انجام نشد.');
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (

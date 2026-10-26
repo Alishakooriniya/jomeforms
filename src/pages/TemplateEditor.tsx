@@ -1,6 +1,6 @@
 /* سازنده فرم — مدیر فرم‌های واقعی را همین‌جا می‌سازد و ویرایش می‌کند */
 
-import { useMemo, useRef, useState } from 'react';
+import { useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import type { FieldType, FormTemplate, TemplateCategory, TemplateField } from '../types';
 import { useAuth } from '../store/AuthProvider';
@@ -12,7 +12,7 @@ import {
   TEMPLATE_CATEGORY_OPTIONS,
 } from '../data/labels';
 import { displayDigits } from '../lib/format';
-import { analyzeTokens, CLIENT_SOURCES, createTemplateFieldKey, previewValues, SYSTEM_TOKENS } from '../lib/template';
+import { analyzeTokens, CLIENT_SOURCES, createTemplateFieldKey, previewValues } from '../lib/template';
 import { uid } from '../lib/utils';
 import { Badge } from '../components/ui/Badge';
 import { Button } from '../components/ui/Button';
@@ -24,6 +24,7 @@ import { Icon } from '../components/ui/Icon';
 import { ConfirmDialog } from '../components/ui/Modal';
 import { PageHeader } from '../components/ui/Avatar';
 import { Tabs } from '../components/ui/Tabs';
+import { FormCanvasEditor } from '../components/templates/FormCanvasEditor';
 import { DocumentPreview } from '../components/documents/DocumentPreview';
 
 function emptyField(): TemplateField {
@@ -63,12 +64,7 @@ export default function TemplateEditor() {
   const [draft, setDraft] = useState(() => (existing ? { ...existing } : emptyTemplate()));
   const [tab, setTab] = useState('fields');
   const [discarding, setDiscarding] = useState(false);
-  const bodyRef = useRef<HTMLTextAreaElement>(null);
-
   const readOnly = Boolean(existing && !can('templates.edit'));
-  const tokens = useMemo(() => analyzeTokens({ body: draft.body, fields: draft.fields }), [draft.body, draft.fields]);
-  const unusedFields = tokens.filter((token) => token.inFields && !token.used && token.key);
-  const unknownTokens = tokens.filter((token) => !token.inFields && !(token.key in SYSTEM_TOKENS));
 
   const set = <K extends keyof typeof draft>(key: K, value: (typeof draft)[K]) =>
     setDraft((prev) => ({ ...prev, [key]: value }));
@@ -93,23 +89,6 @@ export default function TemplateEditor() {
     set('fields', next);
   };
 
-  const insertToken = (token: string) => {
-    const textarea = bodyRef.current;
-    if (!textarea) {
-      set('body', `${draft.body}{{${token}}}`);
-      return;
-    }
-    const start = textarea.selectionStart ?? draft.body.length;
-    const end = textarea.selectionEnd ?? start;
-    const nextBody = `${draft.body.slice(0, start)}{{${token}}}${draft.body.slice(end)}`;
-    set('body', nextBody);
-    requestAnimationFrame(() => {
-      textarea.focus();
-      const position = start + token.length + 4;
-      textarea.setSelectionRange(position, position);
-    });
-  };
-
   const validate = (): string | null => {
     if (draft.title.trim().length < 2) return 'عنوان فرم باید دست‌کم دو حرف داشته باشد.';
     if (!draft.body.trim()) return 'متن فرم را وارد کنید.';
@@ -126,23 +105,27 @@ export default function TemplateEditor() {
     return null;
   };
 
-  const submit = () => {
+  const submit = async () => {
     const error = validate();
     if (error) {
       toast.error('ذخیره نشد', error);
       setTab('fields');
       return;
     }
-    const saved = saveTemplate(
-      {
-        ...draft,
-        fields: draft.fields
-          .map((field) => ({ ...field, key: field.key.trim(), label: field.label.trim() })),
-      },
-      existing?.id,
-    );
-    toast.success(existing ? 'فرم ویرایش شد' : 'فرم ساخته شد', saved.title);
-    navigate('/templates');
+    try {
+      const saved = await saveTemplate(
+        {
+          ...draft,
+          fields: draft.fields
+            .map((field) => ({ ...field, key: field.key.trim(), label: field.label.trim() })),
+        },
+        existing?.id,
+      );
+      toast.success(existing ? 'فرم ویرایش شد' : 'فرم ساخته شد', saved.title);
+      navigate('/templates');
+    } catch (err) {
+      toast.error('ذخیره نشد', err instanceof Error ? err.message : undefined);
+    }
   };
 
   if (id && !existing) {
@@ -161,7 +144,14 @@ export default function TemplateEditor() {
     );
   }
 
-  const previewSample = previewValues(draft.fields);
+  const previewSample = {
+    ...previewValues(draft.fields),
+    ...Object.fromEntries(
+      draft.fields
+        .filter((field) => field.type === 'select' && field.options?.length)
+        .map((field) => [field.key, field.options![0]]),
+    ),
+  };
 
   return (
     <div className="flex flex-col gap-4">
@@ -180,7 +170,7 @@ export default function TemplateEditor() {
               بازگشت
             </Button>
             {!readOnly ? (
-              <Button variant="primary" icon="save" onClick={submit}>
+              <Button variant="primary" icon="save" onClick={() => void submit()}>
                 {existing ? 'ذخیره تغییرات' : 'ساخت فرم'}
               </Button>
             ) : null}
@@ -200,7 +190,7 @@ export default function TemplateEditor() {
         onChange={setTab}
         items={[
           { id: 'fields', label: '۱. مشخصات و فیلدها', icon: 'list', count: draft.fields.length },
-          { id: 'body', label: '۲. متن فرم', icon: 'file-text' },
+          { id: 'body', label: '۲. کانواس فرم (نگارش روی برگه)', icon: 'file-text' },
           { id: 'preview', label: '۳. پیش‌نمایش', icon: 'eye' },
         ]}
       />
@@ -448,96 +438,11 @@ export default function TemplateEditor() {
       ) : null}
 
       {tab === 'body' ? (
-        <div className="grid gap-4 xl:grid-cols-[1.6fr_1fr]">
-          <Card>
-            <CardHeader title="متن فرم" subtitle="متن قرارداد یا فرم را بنویسید؛ برای درج پاسخ‌ها از دکمه‌های کناری استفاده کنید." icon="file-text" />
-            <CardBody>
-              <Textarea
-                ref={bodyRef}
-                label="متن چاپ‌شونده"
-                required
-                className="min-h-[420px] text-[12.5px] leading-7"
-                value={draft.body}
-                disabled={readOnly}
-                onChange={(event) => set('body', event.target.value)}
-                placeholder={'ماده ۱ — طرفین قرارداد\nفروشنده: ...\n\nماده ۲ — موضوع قرارداد\n...'}
-              />
-              <p className="mt-2 text-[11px] text-fg-subtle">
-                نشانگر را در محل دلخواه بگذارید و روی عنوان هر فیلد بزنید تا پاسخ آن‌جا درج شود.
-              </p>
-            </CardBody>
-          </Card>
-
-          <div className="flex flex-col gap-4">
-            <Card>
-              <CardHeader title="درج پاسخ در متن" subtitle="برای اضافه‌کردن، روی عنوان پرسش بزنید." icon="link" />
-              <CardBody className="flex flex-wrap gap-1.5">
-                {draft.fields.filter((field) => field.key).length ? (
-                  draft.fields
-                    .filter((field) => field.key)
-                    .map((field) => (
-                      <button
-                        key={field.id}
-                        type="button"
-                        disabled={readOnly}
-                        onClick={() => insertToken(field.key)}
-                        className="chip transition-colors hover:border-brand-400 hover:text-brand-700 disabled:opacity-50 dark:hover:text-brand-300"
-                        title={`درج پاسخ «${field.label || field.key}» در متن`}
-                      >
-                        <Icon name="plus" size={11} />
-                        {field.label || field.key}
-                      </button>
-                    ))
-                ) : (
-                  <p className="text-[11.5px] text-fg-subtle">ابتدا در مرحلهٔ مشخصات، پرسش اضافه کنید.</p>
-                )}
-              </CardBody>
-            </Card>
-
-            <Card>
-              <CardHeader title="اطلاعات خودکار (اختیاری)" subtitle="تاریخ و شماره سند" icon="sparkles" />
-              <CardBody>
-                <details>
-                  <summary className="cursor-pointer text-[12px] font-medium text-fg-muted">انتخاب اطلاعات خودکار</summary>
-                  <div className="mt-3 flex flex-wrap gap-1.5">
-                    {Object.entries(SYSTEM_TOKENS).map(([key, label]) => (
-                      <button
-                        key={key}
-                        type="button"
-                        disabled={readOnly}
-                        onClick={() => insertToken(key)}
-                        className="chip transition-colors hover:border-brand-400 hover:text-brand-700 disabled:opacity-50 dark:hover:text-brand-300"
-                      >
-                        {label}
-                      </button>
-                    ))}
-                  </div>
-                </details>
-              </CardBody>
-            </Card>
-
-            {unknownTokens.length || unusedFields.length ? (
-              <Card>
-                <CardHeader title="موارد نیازمند توجه" icon="alert" />
-                <CardBody className="flex flex-col gap-2 text-[11.5px]">
-                  {unknownTokens.map((token) => (
-                    <p key={token.key} className="flex items-start gap-1.5 text-warn-fg">
-                      <Icon name="alert" size={13} />
-                      یک بخش از متن به فیلد پاسخ متصل نیست و در چاپ خالی می‌ماند:{' '}
-                      <span dir="ltr">{`{{${token.key}}}`}</span>
-                    </p>
-                  ))}
-                  {unusedFields.map((token) => (
-                    <p key={token.key} className="flex items-start gap-1.5 text-fg-muted">
-                      <Icon name="info" size={13} />
-                      فیلد «{token.label}» در متن استفاده نشده است.
-                    </p>
-                  ))}
-                </CardBody>
-              </Card>
-            ) : null}
-          </div>
-        </div>
+        <FormCanvasEditor
+          template={{ ...draft, id: existing?.id ?? 'editor' } as FormTemplate}
+          readOnly={readOnly}
+          onChangeBody={(next) => set('body', next)}
+        />
       ) : null}
 
       {tab === 'preview' ? (

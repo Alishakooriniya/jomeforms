@@ -27,8 +27,8 @@ export function RequirePermission({ permission, children }: { permission: string
 }
 
 export function RequireSuperadmin({ children }: { children: ReactNode }) {
-  const { isSuperadmin, serverMode } = useAuth();
-  if (!isSuperadmin || !serverMode) return <NoAccess />;
+  const { isSuperadmin } = useAuth();
+  if (!isSuperadmin) return <NoAccess />;
   return <>{children}</>;
 }
 

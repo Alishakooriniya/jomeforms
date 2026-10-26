@@ -2,7 +2,7 @@
    در صفحه فقط نوار خلاصه و کارت ادغام‌شده‌ی «مراحل رسیدگی و اسناد» دیده می‌شود؛
    مشخصات متقاضی و تاریخچه فعالیت پشت دکمه‌های آیکونی سربرگ قرار دارند. */
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import type { ClientWorkflowStep, DocRecord, WorkflowEvidence } from '../types';
 import { useAuth } from '../store/AuthProvider';
@@ -30,12 +30,13 @@ import type { Column } from '../components/ui/Table';
 import { ClientForm, clientToDraft } from '../components/clients/ClientForm';
 import { TextInput } from '../components/ui/Field';
 import { createClientWorkflow } from '../lib/caseWorkflow';
-import { getBlob } from '../lib/idb';
+import { api } from '../lib/apiClient';
 
 export default function ClientDetail() {
   const { id = '' } = useParams();
   const { clients, companies, documents, audit, users, workflowEvidence } = useDb();
-  const { saveClient, addWorkflowEvidence, completeWorkflowStep, overrideWorkflowStep } = useDbActions();
+  const { saveClient, addWorkflowEvidence, completeWorkflowStep, overrideWorkflowStep, loadClientDetail } =
+    useDbActions();
   const { can } = useAuth();
   const toast = useToast();
   const navigate = useNavigate();
@@ -46,6 +47,11 @@ export default function ClientDetail() {
   const [showDetails, setShowDetails] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
   const [selectedStepId, setSelectedStepId] = useState('');
+
+  // مدارک مراحل پرونده تنبل از سرور خوانده می‌شوند
+  useEffect(() => {
+    if (id) void loadClientDetail(id);
+  }, [id, loadClientDetail]);
 
   const client = clients.find((item) => item.id === id);
   const clientDocuments = useMemo(
@@ -104,23 +110,27 @@ export default function ClientDetail() {
 
   const uploadEvidence = async (stepId: string, file?: File) => {
     if (!file) return;
-    const uploaded = await addWorkflowEvidence(client.id, stepId, file);
-    if (uploaded) toast.success('مدرک مرحله بارگذاری شد', uploaded.name);
-    else toast.error('بارگذاری مدرک انجام نشد');
+    try {
+      const uploaded = await addWorkflowEvidence(client.id, stepId, file);
+      if (uploaded) toast.success('مدرک مرحله بارگذاری شد', uploaded.name);
+      else toast.error('بارگذاری مدرک انجام نشد');
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'بارگذاری مدرک انجام نشد');
+    }
   };
 
   const downloadEvidence = async (item: WorkflowEvidence) => {
-    const blob = await getBlob(item.blobKey);
-    if (!blob) {
-      toast.error('فایل مدرک در حافظه محلی پیدا نشد');
-      return;
+    try {
+      const blob = await api.clients.evidenceBlob(item.id);
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = item.name;
+      link.click();
+      URL.revokeObjectURL(url);
+    } catch {
+      toast.error('دریافت فایل مدرک ناموفق بود');
     }
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = item.name;
-    link.click();
-    URL.revokeObjectURL(url);
   };
 
   const documentColumns: Array<Column<DocRecord>> = [
@@ -166,12 +176,17 @@ export default function ClientDetail() {
     },
   ];
 
-  const submit = (draft: ClientDraft) => {
+  const submit = async (draft: ClientDraft) => {
     setSubmitting(true);
-    saveClient(draft, client.id);
-    setSubmitting(false);
-    setEditing(false);
-    toast.success('پرونده به‌روزرسانی شد');
+    try {
+      await saveClient(draft, client.id);
+      setEditing(false);
+      toast.success('پرونده به‌روزرسانی شد');
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'ویرایش پرونده انجام نشد.');
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -411,11 +426,12 @@ export default function ClientDetail() {
                   icon="check"
                   disabled={selectedMissingEvidence}
                   onClick={() => {
-                    const result = completeWorkflowStep(client.id, selectedStep.id);
-                    if (result.ok) {
-                      toast.success('مرحله پرونده تکمیل شد', selectedStep.title);
-                      setSelectedStepId('');
-                    } else toast.error(result.error ?? 'تکمیل مرحله انجام نشد');
+                    void completeWorkflowStep(client.id, selectedStep.id).then((result) => {
+                      if (result.ok) {
+                        toast.success('مرحله پرونده تکمیل شد', selectedStep.title);
+                        setSelectedStepId('');
+                      } else toast.error(result.error ?? 'تکمیل مرحله انجام نشد');
+                    });
                   }}
                 >
                   تکمیل مرحله
@@ -446,13 +462,14 @@ export default function ClientDetail() {
                     icon="shield"
                     disabled={!overrideReason.trim() || overrideStepId !== selectedStep.id}
                     onClick={() => {
-                      const result = overrideWorkflowStep(client.id, selectedStep.id, overrideReason);
-                      if (result.ok) {
-                        toast.success('عبور مدیریتی ثبت شد');
-                        setOverrideStepId('');
-                        setOverrideReason('');
-                        setSelectedStepId('');
-                      } else toast.error(result.error ?? 'عبور مدیریتی انجام نشد');
+                      void overrideWorkflowStep(client.id, selectedStep.id, overrideReason).then((result) => {
+                        if (result.ok) {
+                          toast.success('عبور مدیریتی ثبت شد');
+                          setOverrideStepId('');
+                          setOverrideReason('');
+                          setSelectedStepId('');
+                        } else toast.error(result.error ?? 'عبور مدیریتی انجام نشد');
+                      });
                     }}
                   >
                     ثبت عبور

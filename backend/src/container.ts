@@ -2,8 +2,8 @@ import { AuditRepository } from './repositories/audit.repository.js';
 import { ClientRepository } from './repositories/client.repository.js';
 import { CompanyRepository } from './repositories/company.repository.js';
 import { DocumentRepository } from './repositories/document.repository.js';
-import { ReportRepository } from './repositories/report.repository.js';
-import { RoleRepository } from './repositories/role.repository.js';
+import { LetterheadRepository } from './repositories/letterhead.repository.js';
+import { ReminderRepository } from './repositories/reminder.repository.js';
 import { ScanRepository } from './repositories/scan.repository.js';
 import { SequenceRepository } from './repositories/sequence.repository.js';
 import { SessionRepository } from './repositories/session.repository.js';
@@ -12,13 +12,14 @@ import { TemplateRepository } from './repositories/template.repository.js';
 import { UserRepository } from './repositories/user.repository.js';
 import { AuditService } from './services/audit.service.js';
 import { AuthService } from './services/auth.service.js';
+import { BackupService } from './services/backup.service.js';
 import { ClientService } from './services/client.service.js';
 import { CompanyService } from './services/company.service.js';
 import { DocumentService } from './services/document.service.js';
+import { LetterheadService } from './services/letterhead.service.js';
 import { LocalDiskStorage } from './services/storage.service.js';
 import type { FileStorage } from './services/storage.service.js';
-import { ReportService } from './services/report.service.js';
-import { RoleService } from './services/role.service.js';
+import { ReminderService } from './services/reminder.service.js';
 import { ScanService } from './services/scan.service.js';
 import { SettingsService } from './services/settings.service.js';
 import { TemplateService } from './services/template.service.js';
@@ -27,7 +28,6 @@ import { WorkflowService } from './services/workflow.service.js';
 
 export interface Repositories {
   users: UserRepository;
-  roles: RoleRepository;
   companies: CompanyRepository;
   clients: ClientRepository;
   templates: TemplateRepository;
@@ -37,14 +37,14 @@ export interface Repositories {
   audit: AuditRepository;
   settings: SettingsRepository;
   sequences: SequenceRepository;
-  reports: ReportRepository;
+  reminders: ReminderRepository;
+  letterhead: LetterheadRepository;
 }
 
 export interface Services {
   audit: AuditService;
   auth: AuthService;
   users: UserService;
-  roles: RoleService;
   companies: CompanyService;
   clients: ClientService;
   workflow: WorkflowService;
@@ -52,7 +52,9 @@ export interface Services {
   documents: DocumentService;
   scans: ScanService;
   settings: SettingsService;
-  reports: ReportService;
+  reminders: ReminderService;
+  letterhead: LetterheadService;
+  backup: BackupService;
 }
 
 export interface Container {
@@ -64,7 +66,6 @@ export interface Container {
 export function createRepositories(): Repositories {
   return {
     users: new UserRepository(),
-    roles: new RoleRepository(),
     companies: new CompanyRepository(),
     clients: new ClientRepository(),
     templates: new TemplateRepository(),
@@ -74,7 +75,8 @@ export function createRepositories(): Repositories {
     audit: new AuditRepository(),
     settings: new SettingsRepository(),
     sequences: new SequenceRepository(),
-    reports: new ReportRepository(),
+    reminders: new ReminderRepository(),
+    letterhead: new LetterheadRepository(),
   };
 }
 
@@ -85,7 +87,6 @@ export function createContainer(options: { storage?: FileStorage } = {}): Contai
   const audit = new AuditService(repositories.audit);
   const auth = new AuthService(repositories.users, repositories.sessions, repositories.audit);
   const users = new UserService(repositories.users, repositories.companies, audit, auth);
-  const roles = new RoleService(repositories.roles, audit);
   const companies = new CompanyService(repositories.companies, repositories.users, audit);
   const clients = new ClientService(
     repositories.clients,
@@ -108,7 +109,9 @@ export function createContainer(options: { storage?: FileStorage } = {}): Contai
   );
   const scans = new ScanService(repositories.documents, repositories.scans, storage, audit);
   const settings = new SettingsService(repositories.settings, audit);
-  const reports = new ReportService(repositories.reports, audit);
+  const reminders = new ReminderService(repositories.reminders, repositories.users, audit);
+  const letterhead = new LetterheadService(repositories.letterhead, audit);
+  const backup = new BackupService(audit);
 
   return {
     repositories,
@@ -117,7 +120,6 @@ export function createContainer(options: { storage?: FileStorage } = {}): Contai
       audit,
       auth,
       users,
-      roles,
       companies,
       clients,
       workflow,
@@ -125,7 +127,9 @@ export function createContainer(options: { storage?: FileStorage } = {}): Contai
       documents,
       scans,
       settings,
-      reports,
+      reminders,
+      letterhead,
+      backup,
     },
   };
 }

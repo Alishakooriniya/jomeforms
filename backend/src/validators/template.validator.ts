@@ -3,7 +3,23 @@ import { booleanQuery, listQuerySchema } from './common.validator.js';
 import { normalizeJalaliDate } from '../utils/jalali.js';
 
 const categorySchema = z.enum(['sale', 'rent', 'mortgage', 'presale', 'commission', 'visit', 'other']);
-const printLayoutSchema = z.enum(['document-request-a4']);
+const printLayoutSchema = z.enum(['document-request-a4', 'canvas-a4']);
+
+const canvasPlacementSchema = z.object({
+  field: z.string().trim().min(1).max(80),
+  option: z.string().trim().min(1).max(160).optional(),
+  x: z.number().min(0).max(100),
+  y: z.number().min(0).max(100),
+  width: z.number().min(0).max(100).optional(),
+  align: z.enum(['right', 'center', 'left']).optional(),
+  fontScale: z.number().min(0.4).max(4).optional(),
+});
+
+const canvasSchema = z.object({
+  frame: z.string().trim().min(1).max(500).optional(),
+  fontSize: z.number().min(0.5).max(8).optional(),
+  placements: z.array(canvasPlacementSchema).max(400).default([]),
+});
 
 const fieldTypeSchema = z.enum([
   'text',
@@ -87,6 +103,7 @@ export const createTemplateSchema = z.object({
   title: z.string().trim().min(2, 'Template title is required.').max(200),
   category: categorySchema.default('other'),
   printLayout: printLayoutSchema.nullish(),
+  canvas: canvasSchema.nullish(),
   description: z.string().trim().max(1000).nullish(),
   fields: fieldsSchema,
   body: z.string().max(50_000).default(''),
@@ -102,6 +119,7 @@ export const updateTemplateSchema = z
     title: z.string().trim().min(2).max(200).optional(),
     category: categorySchema.optional(),
     printLayout: printLayoutSchema.nullish().optional(),
+    canvas: canvasSchema.nullish().optional(),
     description: z.string().trim().max(1000).nullish(),
     fields: fieldsSchema.optional(),
     body: z.string().max(50_000).optional(),

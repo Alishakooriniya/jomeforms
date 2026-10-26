@@ -25,9 +25,6 @@ const envSchema = z.object({
 
   LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent']).default('info'),
   TRUST_PROXY: z.coerce.number().int().min(0).default(0),
-  RATE_LIMIT_WINDOW_MS: z.coerce.number().int().positive().default(15 * 60 * 1000),
-  RATE_LIMIT_MAX: z.coerce.number().int().positive().default(300),
-  LOGIN_RATE_LIMIT_MAX: z.coerce.number().int().positive().default(10),
 
   UPLOAD_DIR: z.string().default('./var/uploads'),
   MAX_UPLOAD_MB: z.coerce.number().int().positive().default(10),

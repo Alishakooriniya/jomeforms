@@ -1,14 +1,14 @@
 /* جزئیات سند: پیش‌نمایش در مرکز، گردش کار و اسکن‌ها در کنار.
    مقادیر ثبت‌شده در همان صفحه و به‌صورت تاشو دیده می‌شوند (بدون تب). */
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import type { DocStatus } from '../types';
 import { useAuth } from '../store/AuthProvider';
 import { useDb, useDbActions } from '../store/DataProvider';
 import { useToast } from '../store/ToastProvider';
 import { DOC_STATUS_LABELS, DOC_STATUS_TONE, TEMPLATE_CATEGORY_LABELS } from '../data/labels';
-import { displayDigits, formatCode, formatDate, formatRelative, nowISO } from '../lib/format';
+import { displayDigits, formatCode, formatDate, formatRelative } from '../lib/format';
 import { normalizeJalaliDate } from '../lib/jalali';
 import {
   copyDocumentText,
@@ -32,7 +32,7 @@ import { ScanGallery } from '../components/documents/ScanGallery';
 export default function DocumentDetail() {
   const { id = '' } = useParams();
   const { documents, templates, settings, scans } = useDb();
-  const { updateDocument, setDocumentStatus, deleteDocument } = useDbActions();
+  const { updateDocument, setDocumentStatus, deleteDocument, markPrinted, loadDocumentScans } = useDbActions();
   const { can } = useAuth();
   const toast = useToast();
   const navigate = useNavigate();
@@ -43,6 +43,11 @@ export default function DocumentDetail() {
   const [draftErrors, setDraftErrors] = useState<Record<string, string>>({});
   const [pendingDelete, setPendingDelete] = useState(false);
   const [noteDraft, setNoteDraft] = useState('');
+
+  // اسکن‌های این سند تنبل از سرور خوانده می‌شوند
+  useEffect(() => {
+    if (id) void loadDocumentScans(id);
+  }, [id, loadDocumentScans]);
 
   const document = documents.find((item) => item.id === id);
   const template = templates.find((item) => item.id === document?.templateId);
@@ -75,14 +80,7 @@ export default function DocumentDetail() {
       toast.warn('پنجره چاپ باز نشد', 'اجازه بازشدن پنجره جدید را در مرورگر فعال کنید.');
       return;
     }
-    updateDocument(
-      document.id,
-      {
-        printedAt: nowISO(),
-        status: document.status === 'draft' ? 'awaiting_signature' : document.status,
-      },
-      'چاپ سند',
-    );
+    void markPrinted(document.id).catch(() => undefined);
   };
 
   const workflow = [
@@ -234,8 +232,11 @@ export default function DocumentDetail() {
                         label: `تغییر وضعیت به ${DOC_STATUS_LABELS[status]}`,
                         icon: 'refresh' as const,
                         onSelect: () => {
-                          setDocumentStatus(document.id, status);
-                          toast.success('وضعیت سند تغییر کرد', DOC_STATUS_LABELS[status]);
+                          void setDocumentStatus(document.id, status)
+                            .then(() => toast.success('وضعیت سند تغییر کرد', DOC_STATUS_LABELS[status]))
+                            .catch((error: unknown) =>
+                              toast.error(error instanceof Error ? error.message : 'تغییر وضعیت انجام نشد.'),
+                            );
                         },
                       }))
                   : []),
@@ -363,9 +364,14 @@ export default function DocumentDetail() {
                     disabled={!noteDraft.trim()}
                     onClick={() => {
                       const suffix = [document.notes, noteDraft.trim()].filter(Boolean).join('\n');
-                      updateDocument(document.id, { notes: suffix }, 'افزودن یادداشت');
-                      setNoteDraft('');
-                      toast.success('یادداشت ثبت شد');
+                      void updateDocument(document.id, { notes: suffix }, 'افزودن یادداشت')
+                        .then(() => {
+                          setNoteDraft('');
+                          toast.success('یادداشت ثبت شد');
+                        })
+                        .catch((error: unknown) =>
+                          toast.error(error instanceof Error ? error.message : 'ثبت یادداشت انجام نشد.'),
+                        );
                     }}
                   >
                     افزودن
@@ -424,9 +430,14 @@ export default function DocumentDetail() {
                   toast.error('تاریخ نامعتبر است', 'تاریخ‌های مشخص‌شده باید شمسی باشند.');
                   return;
                 }
-                updateDocument(document.id, { values: normalizedValues }, 'ویرایش سند');
-                setEditing(false);
-                toast.success('سند به‌روزرسانی شد');
+                void updateDocument(document.id, { values: normalizedValues }, 'ویرایش سند')
+                  .then(() => {
+                    setEditing(false);
+                    toast.success('سند به‌روزرسانی شد');
+                  })
+                  .catch((error: unknown) =>
+                    toast.error(error instanceof Error ? error.message : 'ویرایش سند انجام نشد.'),
+                  );
               }}
             >
               ذخیره تغییرات
@@ -451,10 +462,15 @@ export default function DocumentDetail() {
         open={pendingDelete}
         onClose={() => setPendingDelete(false)}
         onConfirm={() => {
-          deleteDocument(document.id);
           setPendingDelete(false);
-          toast.success('سند حذف شد');
-          navigate('/documents');
+          void deleteDocument(document.id)
+            .then(() => {
+              toast.success('سند حذف شد');
+              navigate('/documents');
+            })
+            .catch((error: unknown) =>
+              toast.error(error instanceof Error ? error.message : 'حذف سند انجام نشد.'),
+            );
         }}
         title="حذف سند"
         description={`سند ${formatCode(document.number)} و ${displayDigits(documentScans.length)} اسکن پیوست آن حذف می‌شوند. این عمل قابل بازگشت نیست.`}

@@ -3,8 +3,8 @@
 import { useEffect } from 'react';
 import { Outlet, useLocation } from 'react-router-dom';
 import { useDisclosure } from '../../lib/hooks';
-import { useDb } from '../../store/DataProvider';
 import { titleForPath } from '../../config/navigation';
+import { ORG_NAME } from '../../config/org';
 import { Drawer } from '../ui/Drawer';
 import { Sidebar } from './Sidebar';
 import { Topbar } from './Topbar';
@@ -12,11 +12,10 @@ import { Topbar } from './Topbar';
 export function AppLayout() {
   const drawer = useDisclosure();
   const location = useLocation();
-  const { settings } = useDb();
 
   useEffect(() => {
-    document.title = `${titleForPath(location.pathname)} | Jome Forms`;
-  }, [location.pathname, settings.orgName]);
+    document.title = `${titleForPath(location.pathname)} | ${ORG_NAME}`;
+  }, [location.pathname]);
 
   return (
     <div className="flex min-h-screen bg-bg">
@@ -26,7 +25,7 @@ export function AppLayout() {
       </aside>
 
       {/* منوی موبایل */}
-      <Drawer open={drawer.isOpen} onClose={drawer.close} title={settings.orgName}>
+      <Drawer open={drawer.isOpen} onClose={drawer.close} title={ORG_NAME}>
         <Sidebar onNavigate={drawer.close} showBrand={false} />
       </Drawer>
 
@@ -36,7 +35,7 @@ export function AppLayout() {
           <Outlet />
         </main>
         <footer className="px-4 pb-4 pt-1 text-center text-[10.5px] text-fg-subtle">
-          Jome Forms — داده‌ها به‌صورت محلی و ایمن در همین مرورگر ذخیره می‌شوند
+          {ORG_NAME} — داده‌ها به‌صورت محلی و ایمن در همین مرورگر ذخیره می‌شوند
         </footer>
       </div>
     </div>

@@ -312,6 +312,18 @@ const ICONS = {
     </>
   ),
   list: <path d="M4 6.5h16M4 12h16M4 17.5h10" />,
+  bold: (
+    <>
+      <path d="M6.5 4.5h7a3.2 3.2 0 0 1 0 6.4h-7z" />
+      <path d="M6.5 10.9h8a3.4 3.4 0 0 1 0 6.8h-8z" />
+      <path d="M6.5 4.5v13.2" />
+    </>
+  ),
+  italic: <path d="M10.5 4.5h8M5.5 19.5h8M14.5 4.5l-4 15" />,
+  underline: <path d="M6 4.5v6.5a6 6 0 0 0 12 0V4.5M5 20h14" />,
+  'align-right': <path d="M4.5 6h15M12.5 10h7M4.5 14h15M12.5 18h7" />,
+  'align-center': <path d="M4.5 6h15M8.5 10h7M4.5 14h15M8.5 18h7" />,
+  'align-left': <path d="M4.5 6h15M4.5 10h7M4.5 14h15M4.5 18h7" />,
 } satisfies Record<string, ReactNode>;
 
 export type IconName = keyof typeof ICONS;

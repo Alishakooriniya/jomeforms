@@ -16,7 +16,6 @@ import type { Container } from './container.js';
 import { AuthorizationError } from './errors/index.js';
 import {
   errorHandler,
-  globalRateLimiter,
   notFoundHandler,
   requestContext,
   requestLogger,
@@ -77,10 +76,10 @@ export function createApp(container: Container = createContainer()): Express {
       exposedHeaders: ['X-Request-Id'],
     }),
   );
-  app.use(express.json({ limit: '1mb' }));
+  // Generous JSON limit so superadmin database-restore uploads are not capped.
+  app.use(express.json({ limit: '25mb' }));
   app.use(express.urlencoded({ extended: false, limit: '1mb' }));
   app.use(cookieParser());
-  app.use(globalRateLimiter);
 
   app.get('/health', async (_req, res) => {
     try {

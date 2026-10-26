@@ -208,8 +208,13 @@ export default function TemplatesList() {
                             label: 'کپی فرم',
                             icon: 'copy' as const,
                             onSelect: () => {
-                              const created = duplicateTemplate(template.id);
-                              if (created) toast.success('نسخه کپی ساخته شد', created.title);
+                              void duplicateTemplate(template.id)
+                                .then((created) => {
+                                  if (created) toast.success('نسخه کپی ساخته شد', created.title);
+                                })
+                                .catch((error: unknown) =>
+                                  toast.error(error instanceof Error ? error.message : 'کپی فرم انجام نشد.'),
+                                );
                             },
                           },
                         ]
@@ -258,8 +263,11 @@ export default function TemplatesList() {
         onClose={() => setPendingDelete(null)}
         onConfirm={() => {
           if (pendingDelete) {
-            deleteTemplate(pendingDelete.id);
-            toast.success('فرم حذف شد', pendingDelete.title);
+            void deleteTemplate(pendingDelete.id)
+              .then(() => toast.success('فرم حذف شد', pendingDelete.title))
+              .catch((error: unknown) =>
+                toast.error(error instanceof Error ? error.message : 'حذف فرم انجام نشد.'),
+              );
           }
           setPendingDelete(null);
         }}

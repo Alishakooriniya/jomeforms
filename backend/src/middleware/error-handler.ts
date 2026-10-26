@@ -48,6 +48,7 @@ function persianMessage(error: AppError): string {
     case ErrorCode.CONFLICT:
       if (/username.*taken/i.test(error.message)) return 'این نام کاربری قبلاً ثبت شده است.';
       if (/own account/i.test(error.message)) return 'نمی‌توانید حساب خودتان را حذف کنید.';
+      if (/only one superadmin/i.test(error.message)) return 'فقط یک حساب مدیر ارشد می‌تواند وجود داشته باشد.';
       if (/last superadmin/i.test(error.message)) return 'تنها مدیر ارشد فعال را نمی‌توان غیرفعال یا تنزل رتبه داد.';
       if (/superadmin accounts cannot be deleted/i.test(error.message)) return 'حساب مدیر ارشد را نمی‌توان حذف کرد.';
       if (/only manager accounts/i.test(error.message)) return 'فقط حساب مدیر را می‌توان از این بخش مدیریت کرد.';
@@ -57,8 +58,6 @@ function persianMessage(error: AppError): string {
       return 'حجم فایل از حد مجاز بیشتر است.';
     case ErrorCode.UNSUPPORTED_MEDIA_TYPE:
       return 'نوع فایل پشتیبانی نمی‌شود.';
-    case ErrorCode.RATE_LIMITED:
-      return 'تعداد درخواست‌ها بیش از حد مجاز است؛ کمی بعد دوباره تلاش کنید.';
     default:
       return error.statusCode >= 500 ? 'خطای داخلی سرور رخ داد.' : 'درخواست با خطا روبه‌رو شد.';
   }

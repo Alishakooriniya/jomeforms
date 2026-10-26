@@ -7,7 +7,7 @@ export interface User {
   id: string;
   username: string;
   fullName: string;
-  /** هش ساده — فقط برای دموی سمت کلاینت. در بک‌اند واقعی bcrypt/argon2 جایگزین شود. */
+  /** هرگز از سرور نمی‌آید؛ برای سازگاری مدل باقی است و همیشه '' است */
   passwordHash: string;
   role: RoleId;
   /** کلید دسترسی‌ها مثل `clients.create` — سوپرادمین مقدار `['*']` دارد */
@@ -142,11 +142,34 @@ export interface TemplateField {
   defaultValue?: string;
 }
 
+/* چیدمان کانواسی — مقدار فیلدها روی قاب تصویری فرم کاغذی در جای دقیق خودش
+   می‌نشیند؛ همه مختصات درصدِ صفحه است و y مرکز خطِ مقدار. */
+export interface CanvasPlacement {
+  /** نامک فیلد یا نشانه سیستمی مثل __date */
+  field: string;
+  /** برای فیلد select: تیکِ مربع همان گزینه روی قاب */
+  option?: string;
+  x: number;
+  y: number;
+  width?: number;
+  align?: 'right' | 'center' | 'left';
+  fontScale?: number;
+}
+
+export interface TemplateCanvas {
+  /** مسیر عمومی تصویر قاب فرم */
+  frame?: string;
+  /** اندازه پایه فونت مقادیر به cqw */
+  fontSize?: number;
+  placements: CanvasPlacement[];
+}
+
 export interface FormTemplate {
   id: string;
   title: string;
   category: TemplateCategory;
-  printLayout?: 'document-request-a4';
+  printLayout?: 'document-request-a4' | 'canvas-a4';
+  canvas?: TemplateCanvas;
   description?: string;
   fields: TemplateField[];
   /** متن قالب با نشانه‌های {{key}} */
@@ -195,24 +218,12 @@ export interface ScanFile {
   name: string;
   mime: string;
   size: number;
-  /** کلید فایل در IndexedDB (نه در localStorage) */
+  /** کلید ذخیره‌سازی فایل روی سرور */
   blobKey: string;
   pages?: number;
   note?: string;
   uploadedAt: string;
   uploadedBy: string;
-}
-
-/* ------------------------------ نقش‌ها -------------------------------- */
-
-export interface PermissionRole {
-  id: string;
-  name: string;
-  description?: string;
-  permissions: string[];
-  system?: boolean;
-  createdAt: string;
-  createdBy: string;
 }
 
 /* ------------------------------- یادآورها ------------------------------ */
@@ -249,7 +260,8 @@ export type AuditEntity =
   | 'settings'
   | 'scan'
   | 'workflow'
-  | 'reminder';
+  | 'reminder'
+  | 'letterhead';
 
 export interface AuditEntry {
   id: string;
@@ -263,11 +275,31 @@ export interface AuditEntry {
   detail?: string;
 }
 
+/* -------------------------------- سربرگ -------------------------------- */
+
+/** تنظیمات سربرگ — کادر پایین (نشانی دفاتر) تنها بخش قابل‌ویرایش آن است */
+export interface LetterheadConfig {
+  address: string;
+}
+
+export type LetterheadPaper = 'A4' | 'A5';
+export type LetterheadPrintKind = 'blank' | 'filled';
+
+/** رخداد چاپ سربرگ — برای پیگیری امنیتی نسخه‌های بیرون‌داده‌شده نگه داشته می‌شود */
+export interface LetterheadPrint {
+  id: string;
+  paper: LetterheadPaper;
+  kind: LetterheadPrintKind;
+  /** تصویر لحظه‌ای فیلدهای چاپ‌شده (برای «خالی» خالی است) */
+  values: Record<string, string>;
+  userId: string;
+  userName: string;
+  createdAt: string;
+}
+
 /* ------------------------------ تنظیمات ------------------------------- */
 
 export interface AppSettings {
-  orgName: string;
-  orgLegalName: string;
   orgPhone: string;
   orgAddress: string;
   defaultProvince: string;
@@ -279,14 +311,13 @@ export interface AppSettings {
   contractNote: string;
 }
 
-/** کل پایگاه‌داده سمت کلاینت (تا زمان اتصال به بک‌اند) */
+/** کش سمت کلاینت از داده‌های سرور — منبع حقیقت PostgreSQL است */
 export interface DbShape {
   users: User[];
   companies: Company[];
   clients: Client[];
   documents: DocRecord[];
   templates: FormTemplate[];
-  roles: PermissionRole[];
   scans: ScanFile[];
   workflowEvidence: WorkflowEvidence[];
   reminders: Reminder[];

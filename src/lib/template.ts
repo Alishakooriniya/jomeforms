@@ -3,10 +3,11 @@
    مقدار هر نشانه از اطلاعات پرونده پر می‌شود (به‌جای نوشتن دستی). */
 
 import type { Client, FormTemplate, TemplateField } from '../types';
+import { ORG_NAME } from '../config/org';
 import { displayDigits, formatDate, formatMoney, formatNumber, formatPercent } from './format';
 import { normalizeText, toLatinDigits } from './utils';
 
-export const TOKEN_PATTERN = /\{\{\s*([a-zA-Z0-9_.]+)\s*\}\}/g;
+export const TOKEN_PATTERN = /\{\{\s*([^}]+?)\s*\}\}/g;
 
 /** نشانه‌های سیستمی که همیشه پر می‌شوند */
 export const SYSTEM_TOKENS: Record<string, string> = {
@@ -44,7 +45,11 @@ export function createTemplateFieldKey(label: string, fields: TemplateField[]): 
 
 export function extractTokens(body: string): string[] {
   const found = new Set<string>();
-  for (const match of body.matchAll(TOKEN_PATTERN)) found.add(match[1]);
+  for (const match of body.matchAll(TOKEN_PATTERN)) {
+    const raw = match[1].trim();
+    const baseKey = raw.includes(':') ? raw.slice(0, raw.indexOf(':')).trim() : raw;
+    found.add(baseKey);
+  }
   return Array.from(found);
 }
 
@@ -121,7 +126,6 @@ export interface RenderContext {
   docNumber?: string;
   clientName?: string;
   clientCode?: string;
-  orgName?: string;
   date?: string;
   /** جایگزین مقدارهای خالی (در چاپ بهتر است نقطه‌چین باشد) */
   emptyPlaceholder?: string;
@@ -142,17 +146,26 @@ export function renderTemplate(
     __doc_number: context.docNumber ?? '',
     __client_name: context.clientName ?? '',
     __client_code: context.clientCode ?? '',
-    __org_name: context.orgName ?? '',
+    __org_name: ORG_NAME,
   };
-  return body.replace(TOKEN_PATTERN, (_match, key: string) => {
+  return body.replace(TOKEN_PATTERN, (_match, rawKey: string) => {
+    const raw = rawKey.trim();
+    if (raw.includes(':')) {
+      const colonIdx = raw.indexOf(':');
+      const key = raw.slice(0, colonIdx).trim();
+      const option = raw.slice(colonIdx + 1).trim();
+      const isSelected = (values[key]?.trim() ?? '') === option;
+      return isSelected ? '☑' : '☐';
+    }
+    const key = raw;
     if (key in systemValues) {
       const value = systemValues[key];
       return value || empty;
     }
     const field = fieldMap.get(key);
-    const raw = values[key] ?? '';
-    if (!raw) return empty;
-    return formatFieldValue(field, raw);
+    const rawVal = values[key] ?? '';
+    if (!rawVal) return empty;
+    return formatFieldValue(field, rawVal);
   });
 }
 
